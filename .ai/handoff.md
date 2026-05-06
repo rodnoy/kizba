@@ -2,87 +2,86 @@
 
 ## Last completed action
 
-Step **1.2 — DONE** (Domain protocols).
+Step **1.3 — DONE** (Domain unit test round-out).
 
-Created the five MVP-1 read-only / collaborator protocols under
-`Kizba/Domain/Protocols/`. Per `.ai/decisions.md`, `PassManaging`
-exposes only `listEntries()` / `show(_:)` / `storeLocation()` — no
-write or git surface is declared yet.
+Added 21 deterministic, fast unit tests in
+`KizbaTests/DomainModelsRefinementTests.swift` covering edge cases and
+concurrency safety on top of the 28 tests from steps 1.1 and 1.2. **No
+production-code changes** were made: existing domain types already
+expose the surface needed for the refinements, and the security
+invariants for `PassSecret` (NOT Codable, NOT CustomStringConvertible)
+were intentionally not relaxed.
 
-- `PassManaging.swift` — read-only domain surface (`async` list/show,
-  sync `storeLocation()`). Threading contract documented; cancellation
-  via cooperative `Task` cancellation; errors via `PassError`.
-- `ShellCommandRunning.swift` — abstraction over `Foundation.Process`
-  with explicit `executable: URL`, `arguments`, `environment`,
-  `timeout: Duration`. Returns a new `ShellResult` value type
-  (`exitCode`, `standardOutput: Data`, `standardError: Data`).
-- `ClipboardServicing.swift` — verbatim `copy(_:clearAfter:)` async
-  surface. Documents the verbatim / token-checked auto-clear
-  invariants.
-- `BinaryLocating.swift` — `locate(_:)` / `reDetect()` over a new
-  `BinaryName` enum (`.pass`, `.gpg`, `.pinentryMac`). Documents the
-  override → Homebrew(arm64) → Homebrew(x86) → /usr/bin → sanitised
-  PATH order.
-- `SettingsStoring.swift` — type-safe `SettingsKey<Value>` over an
-  allow-listed `SettingsValue` marker (`String`, `URL`, `Int`,
-  `Double`, `Bool`).
+### Coverage added
+
+- **PassEntryRefinementTests** — empty path, trailing slash, Unicode
+  + spaces, `Hashable` in `Set`, `id == path` for `Identifiable`,
+  on-wire JSON shape pinned to a single `path` key.
+- **PassMetadataRefinementTests** — case-sensitive `firstValue`,
+  duplicate-key + order preservation across Codable round-trip, empty
+  notes vs `nil` distinction (both at the value-equality and Codable
+  layers), `Field` hashability identity.
+- **PassSecretRefinementTests** — verbatim whitespace/newline
+  preservation, value-equality semantics (metadata identity vs
+  contents), 4096-codepoint ω stress round-trip via `Equatable`,
+  `Sendable` metatype check. The NOT-Codable /
+  NOT-CustomStringConvertible invariants from 1.1 are deliberately not
+  duplicated here.
+- **PassErrorRefinementTests** — `Hashable` deduplication in `Set`,
+  stderr-excerpt is part of identity for both `decryptionFailed` and
+  `shellFailure`, parameter-less cases (`pinentryNotConfigured`,
+  `timedOut`, `cancelled`) all distinct, `storeNotFound` payload
+  unwrap.
+- **DomainConcurrencyTests** — actor-backed in-memory
+  `InMemoryPassManager : PassManaging` double exercised under
+  fan-out load: 64 concurrent `add`s observed exactly once, 32
+  concurrent `show`s return the exact secret keyed by entry path, 16
+  concurrent `show`s of an unknown entry all surface
+  `PassError.decryptionFailed`. Deterministic — fixed iteration
+  counts, no timing assertions.
 
 ### Applied changes
 
-- `Kizba/Domain/Protocols/PassManaging.swift` (new).
-- `Kizba/Domain/Protocols/ShellCommandRunning.swift` (new).
-- `Kizba/Domain/Protocols/ClipboardServicing.swift` (new).
-- `Kizba/Domain/Protocols/BinaryLocating.swift` (new).
-- `Kizba/Domain/Protocols/SettingsStoring.swift` (new).
-- `Kizba/Domain/Protocols/.keep` deleted.
-- `Kizba.xcodeproj/project.pbxproj`: dropped the `Domain/Protocols/.keep`
-  entry from the `Kizba` target's
-  `PBXFileSystemSynchronizedBuildFileExceptionSet`. No other pbxproj
-  edits needed — file-system-synchronized root group picks up the new
-  sources automatically.
-- `KizbaTests/DomainProtocolsTests.swift` (new) — 14 tests across 5
-  suites (`PassManagingTests`, `ShellCommandRunningTests`,
-  `ClipboardServicingTests`, `BinaryLocatingTests`,
-  `SettingsStoringTests`) using minimal in-test doubles
-  (`StubPassManager` actor, `RecordingShellRunner`, `FakeClipboard`,
-  `StubBinaryLocator` actor, `InMemorySettingsStore`).
+- `KizbaTests/DomainModelsRefinementTests.swift` (new, 335 lines).
+- `.ai/build-log.md` — appended step 1.3 verification block.
+- No edits to `Kizba.xcodeproj/project.pbxproj` — file-system
+  synchronized root group picks up the new test source automatically.
+- No edits to any production source under `Kizba/Domain/`.
 
 ### Verification (executed on this host)
 
 ```
-xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' build
-# => ** BUILD SUCCEEDED **
-
 xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' test
 # => ** TEST SUCCEEDED **
-#    28 tests passed (14 from step 1.1 + 14 new for step 1.2).
+#    Executed 49 tests, with 0 failures (0 unexpected) in 0.576 (0.624) seconds
+#    (28 tests from 1.1 + 1.2 still green; 21 new tests from 1.3.)
 ```
 
 Build log: `.ai/build-log.md`.
 
 ### Commits
 
-- `51f5e71` — `feat(domain): add domain protocols (PassManaging, ShellCommandRunning, ClipboardServicing, BinaryLocating, SettingsStoring)`
-- `d08cda9` — `test(domain): add unit tests for domain protocols`
+- `398e151` — `test(domain): add refined edge-case and concurrency tests`
 
 ### Repo state at completion
 
-- HEAD: `d08cda9` (will advance after this handoff/log commit).
+- HEAD: `398e151` (will advance after this handoff/log commit).
 - `xcodeproj_created = true`,
   `xcode_instructions_path = .ai/xcode_instructions.md` (no new UI
-  steps required this round — file-system-synchronized group handled
-  the additions automatically).
+  steps required this round).
 
 ## Next action
 
-Proceed to **step 1.3** (Phase 1 — Domain unit tests round-out):
+Proceed to **Phase 2 — step 2.1**:
 
-- Add any missing fixture coverage targeted by the plan
-  (`PassEntryTests`, `PassMetadataTests`, `PassSecretSecurityTests`).
-- Selection-cancellation fixtures land later in Phase 2 (P2).
-- Verify: `xcodebuild test -only-testing:KizbaTests/Domain ...`.
-
-After 1.3: Phase 2 — Mock `PassManaging` + vertical UI slice.
+- Implement `MockPassManager` (in `Kizba/Infrastructure/Pass/`,
+  gated behind `#if DEBUG` per Phase 9.1) with ~20 fixture entries
+  across 3 folders — one entry with metadata + notes, one
+  password-only.
+- This unblocks the vertical UI slice (steps 2.2 – 2.6:
+  `AppEnvironment`, `AppState`, `RootSplitView`, `EntryListView`,
+  `EntryDetailView`, and the `EntryDetailModelTests`
+  selection-cancellation suite).
 
 ## Constraints (must hold from day one)
 
@@ -91,7 +90,8 @@ After 1.3: Phase 2 — Mock `PassManaging` + vertical UI slice.
 - No secrets in logs (no stdout logging in `Shell/`/`Pass/`).
 - `PassSecret` not Codable, not CustomStringConvertible.
 - `PassManaging` MVP-1 surface stays read-only — no write/git methods.
-- All chat with user in Russian; all code/comments/docs/commits in English.
+- All chat with user in Russian; all code/comments/docs/commits in
+  English.
 
 ## Machine-readable summary
 

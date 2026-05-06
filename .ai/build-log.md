@@ -46,3 +46,40 @@ New test suites (14 new tests, all passing):
 
 No production-code concrete implementations introduced — protocol
 definitions only, per `.ai/decisions.md`.
+
+## 2026-05-06 — Step 1.3 (Domain test refinement)
+
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' test
+=> ** TEST SUCCEEDED **
+   Executed 49 tests, with 0 failures (0 unexpected) in 0.576 (0.624) seconds
+```
+
+New refinement test file (`KizbaTests/DomainModelsRefinementTests.swift`)
+adds 21 deterministic edge-case tests on top of the 28 from steps 1.1
+and 1.2:
+
+- PassEntryRefinementTests: 6 passed (empty path, trailing slash,
+  Unicode, hashable in `Set`, `id == path`, JSON shape pinned to
+  single `path` key).
+- PassMetadataRefinementTests: 4 passed (case-sensitive
+  `firstValue`, duplicate-key + order Codable round-trip, empty notes
+  vs nil distinction round-trip, `Field` hashability).
+- PassSecretRefinementTests: 4 passed (verbatim whitespace/newline
+  preservation, value-equality semantics, 4096-codepoint ω stress
+  round-trip via Equatable, `Sendable` metatype check). NOT-Codable
+  / NOT-CustomStringConvertible already pinned in 1.1 — not
+  duplicated here.
+- PassErrorRefinementTests: 4 passed (Hashable into `Set`, stderr
+  excerpt is part of identity for both `decryptionFailed` and
+  `shellFailure`, parameter-less cases distinct, `storeNotFound`
+  carries path).
+- DomainConcurrencyTests: 3 passed against an actor-backed
+  in-memory `PassManaging` double — concurrent `add`s not lost
+  (64 fan-out), concurrent `show` returns exact secret per entry
+  (32 fan-out), concurrent `show` for unknown entries surfaces
+  `decryptionFailed` (16 fan-out). Deterministic: fixed iteration
+  counts, no timing assertions.
+
+No production-code changes were required for step 1.3.
+
