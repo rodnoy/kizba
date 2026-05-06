@@ -182,3 +182,20 @@ New test suite:
   initial empty state).
 
 Total: 72 (67 prior + 5 new).
+
+## 2026-05-06 — Step 2.4 (EntryListView + EntryListModel)
+
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' test
+=> ** TEST SUCCEEDED **
+   Executed 76 tests, with 0 failures (0 unexpected) in 3.241 (3.323) seconds
+```
+
+New test suite:
+
+- EntryListModelTests: 4 passed (initial unfiltered count = 20;
+  folder filter for personal/work/archive; case-insensitive search
+  filter combined with folder filter; `select(entryID:)` updates
+  `AppState.selectedEntryID`).
+
+Total: 76 (72 prior + 4 new).
