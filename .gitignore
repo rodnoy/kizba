@@ -7,8 +7,12 @@ DerivedData/
 *.xcuserstate
 *.xcuserdatad/
 xcuserdata/
+**/xcuserdata/
+**/xcuserdatad/
 *.xcscmblueprint
 *.xccheckout
+*.xcworkspace
+*.xcdebugger
 
 # Swift Package Manager
 .build/
@@ -18,13 +22,21 @@ Package.resolved
 
 # CocoaPods / Carthage (not used, but ignored just in case)
 Pods/
+Carthage/
 Carthage/Build/
 
 # fastlane
+fastlane/
 fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+# Ruby / tooling
+.bundle
+
+# Environment
+.env
 
 # IDE
 .idea/
