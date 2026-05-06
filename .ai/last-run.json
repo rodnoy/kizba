@@ -1,21 +1,33 @@
 {
-  "status": "blocked_user_action_required",
-  "step_completed": "0.1 (partial — manual Xcode UI step pending)",
-  "changed_files": [
-    ".ai/build-errors.md",
-    ".ai/handoff.md",
-    ".ai/xcode_instructions.md",
-    ".gitignore",
-    "Kizba/App/KizbaApp.swift",
-    "Kizba/Resources/Assets.xcassets/Contents.json",
-    "Kizba/Resources/Assets.xcassets/AccentColor.colorset/Contents.json",
-    "Kizba/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json",
-    "KizbaTests/KizbaTests.swift"
-  ],
-  "commits": ["eaefd6b"],
-  "xcodeproj_created": false,
+  "status": "success",
+  "step_completed": "0.1",
+  "next_step": "0.2",
+  "xcodeproj_created": true,
   "xcode_instructions_path": ".ai/xcode_instructions.md",
-  "build_log_path": null,
-  "build_errors_path": ".ai/build-errors.md",
-  "blocker": "Xcode UI is required to create Kizba.xcodeproj per user policy; the agent cannot drive the Xcode GUI from this environment. User must perform the steps in .ai/xcode_instructions.md, then resume."
+  "build_log_path": ".ai/build-log.md",
+  "build_errors_path": null,
+  "scheme": "Kizba",
+  "scheme_shared": false,
+  "destination": "platform=macOS",
+  "xcode_version": "26.4.1 (17E202)",
+  "build_result": "BUILD SUCCEEDED",
+  "test_result": "TEST SUCCEEDED",
+  "tests_passed": 2,
+  "tests_failed": 0,
+  "head_commit_before": "2f4b5499006ecfd4416bc76bd681c150cbb1e092",
+  "changed_files": [
+    ".ai/step.md",
+    ".ai/handoff.md",
+    ".ai/build-log.md",
+    ".ai/build-errors.md",
+    ".ai/last-run.json"
+  ],
+  "commits": ["5f1af55"],
+  "deferred_items": [
+    "MACOSX_DEPLOYMENT_TARGET should be 14.0 (currently 26.4)",
+    "SWIFT_STRICT_CONCURRENCY=complete not set on Kizba target",
+    "SWIFT_TREAT_WARNINGS_AS_ERRORS=YES not set on Kizba target",
+    "Kizba scheme not shared (xcshareddata/xcschemes/Kizba.xcscheme missing)",
+    "Folder scaffolding (App/Domain/Infrastructure/Presentation/Resources) — step 0.3"
+  ]
 }
