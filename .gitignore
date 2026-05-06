@@ -29,3 +29,8 @@ fastlane/test_output
 # IDE
 .idea/
 .vscode/
+
+#AI if needed
+.ai/
+CLAUDE.md
+Agent.md
