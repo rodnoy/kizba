@@ -25,7 +25,7 @@ public struct ShellResult: Sendable, Equatable {
     /// Captured standard error bytes (possibly empty).
     public let standardError: Data
 
-    public init(exitCode: Int32, standardOutput: Data, standardError: Data) {
+    public nonisolated init(exitCode: Int32, standardOutput: Data, standardError: Data) {
         self.exitCode = exitCode
         self.standardOutput = standardOutput
         self.standardError = standardError
