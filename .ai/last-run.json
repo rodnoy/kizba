@@ -1,7 +1,7 @@
 {
   "status": "success",
-  "step_completed": "0.3",
-  "next_step": "1.1",
+  "step_completed": "1.1",
+  "next_step": "1.2",
   "xcodeproj_created": true,
   "xcode_instructions_path": ".ai/xcode_instructions.md",
   "build_log_path": ".ai/build-log.md",
@@ -12,34 +12,24 @@
   "xcode_version": "26.4.1 (17E202)",
   "build_result": "BUILD SUCCEEDED",
   "test_result": "TEST SUCCEEDED",
-  "tests_passed": 2,
+  "tests_passed": 14,
   "tests_failed": 0,
-  "head_commit_before": "427a9da",
+  "head_commit_before": "7dd64f2",
   "changed_files": [
     "Kizba.xcodeproj/project.pbxproj",
-    "Kizba/App/KizbaApp.swift",
     "Kizba/Domain/Models/.keep",
-    "Kizba/Domain/Protocols/.keep",
-    "Kizba/Infrastructure/Clipboard/.keep",
-    "Kizba/Infrastructure/Discovery/.keep",
-    "Kizba/Infrastructure/Logging/.keep",
-    "Kizba/Infrastructure/Pass/.keep",
-    "Kizba/Infrastructure/Settings/.keep",
-    "Kizba/Infrastructure/Shell/.keep",
-    "Kizba/Infrastructure/Store/.keep",
-    "Kizba/Presentation/DesignSystem/.keep",
-    "Kizba/Presentation/Features/.keep",
-    "Kizba/Presentation/Root/.keep",
-    "Kizba/Resources/Assets.xcassets/Contents.json",
-    "Kizba/Resources/Assets.xcassets/AccentColor.colorset/Contents.json",
-    "Kizba/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json",
+    "Kizba/Domain/Models/PassEntry.swift",
+    "Kizba/Domain/Models/PassError.swift",
+    "Kizba/Domain/Models/PassMetadata.swift",
+    "Kizba/Domain/Models/PassSecret.swift",
+    "KizbaTests/DomainModelsTests.swift",
     ".ai/build-log.md",
     ".ai/handoff.md",
     ".ai/last-run.json",
     ".ai/step.md"
   ],
   "commits": [
-    "65d84d62c6077b20da4789871105a7d14976dbc8",
-    "f4a7ac0ae90b2295b6931f1591f57d2e8d12ef28"
+    "1b35932d8cafbab51419ac9de3d37b44cd06a094",
+    "0aa4a5d0c8a5b072b93b75794426fd811ad215db"
   ]
 }
