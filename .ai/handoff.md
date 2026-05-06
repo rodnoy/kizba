@@ -2,69 +2,90 @@
 
 ## Last completed action
 
-Step **2.6 — DONE** (EntryDetailModel refinement tests).
+Step **3.1 — DONE** (ProcessShellRunner + minimal Log.swift wrapper).
 
-Hardened and extended `EntryDetailModel` test coverage with a new
-file `KizbaTests/EntryDetailModelRefinementTests.swift` (5 tests).
-No production code was modified — the model's existing API was
-already sufficient. All test doubles (`ScriptedPassManager`,
-`FakeClipboard`, `SilentClipboard`, `EphemeralSettingsStore`) are
-file-private to keep production wiring untouched per
-`.ai/decisions.md`.
+Implemented the production `ShellCommandRunning` conformance under
+`Kizba/Infrastructure/Shell/ProcessShellRunner.swift` and the minimal
+`os.Logger` wrapper under `Kizba/Infrastructure/Logging/Log.swift`.
+Both files are fully `nonisolated` to interoperate with
+`Foundation.Process`'s private dispatch queues under the project-wide
+`default-isolation=MainActor` setting.
 
-### Coverage added (step 2.6)
+### Behaviour
 
-- `testReveal_doesNotPersistSecret` — toggling
-  `model.isPasswordRevealed` never moves the `PassSecret` out of the
-  transient `model.state.loaded(_:)` slot, never lands on
-  `AppState` (Mirror-based runtime probe over every stored
-  property), and `PassSecret` stays
-  non-`CustomStringConvertible` / non-`CustomDebugStringConvertible`.
-  Clearing the selection releases the secret immediately.
-- `testCopy_invokesClipboardWithDuration` — a `FakeClipboard`
-  records every `(value, Duration)` pair; both
-  `copyPassword(clearAfterSeconds:)` and
-  `copyMetadata(forKey:clearAfterSeconds:)` arrive verbatim with the
-  requested `Duration` clear-after delay; metadata path explicitly
-  asserts no `"key: value"` composition.
-- `testSelectionCancellation_races` — three rapid selection changes
-  (`a → b → c`) against a 200 ms-delayed `ScriptedPassManager`
-  converge on the last selection's secret; a 300 ms settle window
-  asserts that earlier in-flight tasks do not overwrite the loaded
-  state.
-- `testErrorMapping_setsFailedState` /
-  `testErrorMapping_pinentryNotConfigured` — `PassError` thrown
-  inside `PassManaging.show(_:)` lands the model in
-  `.failed(expected)` for both `.decryptionFailed(stderrExcerpt:)`
-  and `.pinentryNotConfigured`.
+- Concurrent stdout/stderr drain via `readabilityHandler` (one EOF
+  signal per stream tears down its handler). Tail bytes are flushed
+  via `FileHandle.readToEnd()` inside `terminationHandler` so no data
+  is lost on rapid exit.
+- Timeout: a `Task.detached { try await Task.sleep(for: timeout) }`
+  fires `box.timeout()` which calls `process.terminate()`; the
+  termination handler then resolves the continuation with
+  `PassError.timedOut`. The timeout task is cancelled on normal exit.
+- Cancellation: `withTaskCancellationHandler` calls `box.cancel()`
+  which marks the box and terminates the child; outcome is mapped to
+  `PassError.cancelled`. If cancellation arrives before `process.run()`,
+  the runner terminates the freshly-started process synchronously.
+- Spawn-time failures (binary missing / not executable) become
+  `PassError.shellFailure(exitCode: -1, stderrExcerpt: "spawn failed")`.
+- Logging discipline: only sanitised metadata (executable path with
+  `.private`, argument count, exit code, stderr byte length) reaches
+  `Log.shell`. Captured `stdout` is **never** logged.
+- A `ProcessBox` actor-substitute (NSLock-protected, `@unchecked
+  Sendable`) guarantees single-shot resolution across the
+  exit/timeout/cancel race.
+
+Minor domain change: `ShellResult.init` is now `nonisolated` so it
+can be constructed from the runner's background context.
+
+### Coverage added (step 3.1)
+
+`KizbaTests/ProcessShellRunnerTests.swift` — 5 deterministic tests:
+
+- `testEchoSuccess` — `/bin/echo hello` → exit 0, stdout `"hello\n"`,
+  empty stderr.
+- `testNonZeroExit` — `/usr/bin/false` → non-zero exit, empty stdout.
+- `testTimeoutTerminatesProcess` — `/bin/sleep 5` with 200 ms timeout
+  → `PassError.timedOut` resolved in < 2 s.
+- `testCancellationPropagates` — `/bin/sleep 5`, task cancelled
+  after 100 ms → `PassError.cancelled` (or `CancellationError`)
+  resolved in < 2 s; the child is terminated.
+- `testLargeStdoutDrain` — `sh -c 'yes x | head -c 200000'` →
+  exactly 200_000 bytes drained with no deadlock.
 
 ### Applied changes
 
-- `KizbaTests/EntryDetailModelRefinementTests.swift` (new).
-- `.ai/build-log.md` — appended step 2.6 verification block.
-- `.ai/step.md` — bumped to `2.7`.
+- `Kizba/Infrastructure/Shell/ProcessShellRunner.swift` (new).
+- `Kizba/Infrastructure/Logging/Log.swift` (new).
+- `Kizba/Domain/Protocols/ShellCommandRunning.swift` — `ShellResult.init`
+  marked `nonisolated`.
+- `KizbaTests/ProcessShellRunnerTests.swift` (new).
+- `.ai/build-log.md` — appended step 3.1 verification block.
+- `.ai/step.md` — bumped to `3.2`.
 - `.ai/last-run.json` — refreshed machine-readable summary.
 - `Kizba.xcodeproj/project.pbxproj` — **not modified** (file-system
-  synchronized root group picks up the new test file automatically).
-- No production source files modified.
+  synchronized root group picks up new sources/tests automatically).
 
 ### Verification (executed on this host)
 
 ```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' build
+# => ** BUILD SUCCEEDED **
+
 xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' test
 # => ** TEST SUCCEEDED **
-#    Executed 85 tests, with 0 failures (0 unexpected) in 1.755 (1.910) seconds
+#    Executed 90 tests, with 0 failures (0 unexpected) in 7.019 (7.145) seconds
 ```
 
 Build log: `.ai/build-log.md`.
 
 ### Commits
 
-- `317ebbc` — `test(ui): refine EntryDetailModel tests (reveal, copy, cancellation, error)`
+- `85ae489` — `feat(shell): add ProcessShellRunner (cancellable, timeout, concurrent drain)`
+- `747a55f` — `test(shell): add ProcessShellRunner unit tests`
 
 ### Repo state at completion
 
-- HEAD: `317ebbc`.
+- HEAD: `747a55f` (before this handoff commit).
 - `xcodeproj_created = true`,
   `xcode_instructions_path = .ai/xcode_instructions.md` (no new UI
   steps required this round — synchronized groups).
@@ -72,18 +93,18 @@ Build log: `.ai/build-log.md`.
 
 ## Next action
 
-Proceed to **Phase 2 DoD wrap-up / Phase 3 — step 3.1** per
-`.ai/plan.md`. Phase 2 DoD ("App launches, three columns, mock data
-navigable; ⌘F filters; cancellation test green") is satisfied. The
-next plan step is **3.1**: implement `ProcessShellRunner` (concurrent
-stdout/stderr drain via `Pipe` handlers; timeout via `Task.sleep`
-race + `terminate()`; cancellation via
-`withTaskCancellationHandler`; logs only executable + arg shape +
-exit code + stderr length; never stdout).
+Proceed to **Phase 3 — step 3.2** per `.ai/plan.md`: flesh out
+`Log.swift` if additional helpers are needed (e.g. category-specific
+sanitisation helpers, signposts) and ensure every category routes
+through `os.Logger` with the right privacy markers. Note that the
+minimal `Log.swift` introduced in 3.1 already satisfies the subsystem
+/ category surface required by the plan; 3.2 should consolidate
+documentation and add any missing convenience helpers without
+regressing the no-stdout-logging discipline. After 3.2, step 3.3
+already has its production-side coverage from this round; 3.4
+(`SourceGrepTests`) remains.
 
-`.ai/step.md` is set to `2.7`. If the plan numbering treats `2.7` as
-a Phase 2 buffer step (none currently defined), smart-stepper should
-roll directly to `3.1` on the next handoff.
+`.ai/step.md` is set to `3.2`.
 
 ## Constraints (must hold from day one)
 

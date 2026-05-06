@@ -1,25 +1,29 @@
 {
   "status": "ok",
-  "step_completed": "2.6",
-  "next_step": "2.7",
+  "step_completed": "3.1",
+  "next_step": "3.2",
   "changed_files": [
-    "KizbaTests/EntryDetailModelRefinementTests.swift",
+    "Kizba/Infrastructure/Shell/ProcessShellRunner.swift",
+    "Kizba/Infrastructure/Logging/Log.swift",
+    "Kizba/Domain/Protocols/ShellCommandRunning.swift",
+    "KizbaTests/ProcessShellRunnerTests.swift",
     ".ai/build-log.md",
     ".ai/step.md",
     ".ai/handoff.md",
     ".ai/last-run.json"
   ],
   "commits": [
-    "317ebbc — test(ui): refine EntryDetailModel tests (reveal, copy, cancellation, error)"
+    "85ae489 — feat(shell): add ProcessShellRunner (cancellable, timeout, concurrent drain)",
+    "747a55f — test(shell): add ProcessShellRunner unit tests"
   ],
-  "production_code_changed": false,
+  "production_code_changed": true,
   "xcodeproj_created": true,
   "xcodeproj_modified": false,
   "xcode_instructions_path": ".ai/xcode_instructions.md",
   "build_log_path": ".ai/build-log.md",
   "tests": {
-    "total": 85,
-    "passed": 85,
+    "total": 90,
+    "passed": 90,
     "failed": 0,
     "added_in_step": 5
   }

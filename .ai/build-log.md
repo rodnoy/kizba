@@ -255,3 +255,49 @@ Test doubles (`ScriptedPassManager`, `FakeClipboard`,
 production code was modified.
 
 Total: 85 (80 prior + 5 new).
+
+## 2026-05-06 — Step 3.1 (ProcessShellRunner + Log.swift)
+
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' build
+=> ** BUILD SUCCEEDED **
+
+xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' test
+=> ** TEST SUCCEEDED **
+   Executed 90 tests, with 0 failures (0 unexpected) in 7.019 (7.145) seconds
+```
+
+New production sources:
+
+- `Kizba/Infrastructure/Logging/Log.swift` — minimal `os.Logger`
+  wrapper with categories `shell`, `pass`, `clipboard`, `discovery`,
+  `ui`. Subsystem `app.kizba`. All declarations `nonisolated` to be
+  reachable from background drain handlers.
+- `Kizba/Infrastructure/Shell/ProcessShellRunner.swift` —
+  `ShellCommandRunning` implementation using `Foundation.Process`.
+  Concurrent stdout/stderr drain via `readabilityHandler`; tail flush
+  via `readToEnd()` in `terminationHandler`. Timeout via
+  `Task.detached { Task.sleep(timeout) }` race + `terminate()`.
+  Cancellation via `withTaskCancellationHandler` + `terminate()`.
+  Spawn-time failure mapped to `PassError.shellFailure(-1, ...)`.
+  Logs only sanitised metadata (executable path `.private`, argument
+  count, exit code, stderr byte length); never logs stdout.
+
+Minor domain change:
+
+- `ShellResult.init` marked `nonisolated` so it can be constructed
+  from the runner's background context under
+  `default-isolation=MainActor`.
+
+New tests in `KizbaTests/ProcessShellRunnerTests.swift` (5):
+
+- `testEchoSuccess` — `/bin/echo hello` → exit 0, stdout "hello\n".
+- `testNonZeroExit` — `/usr/bin/false` → non-zero exit, empty stdout.
+- `testTimeoutTerminatesProcess` — `/bin/sleep 5` with 200 ms timeout
+  → `PassError.timedOut` in < 2 s.
+- `testCancellationPropagates` — `/bin/sleep 5`, task cancelled after
+  100 ms → `PassError.cancelled` (or `CancellationError`) in < 2 s.
+- `testLargeStdoutDrain` — `sh -c 'yes x | head -c 200000'` →
+  exactly 200_000 bytes drained without deadlock.
+
+Total: 90 (85 prior + 5 new).
