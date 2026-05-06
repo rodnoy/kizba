@@ -21,9 +21,33 @@
 		E9411DBC2FAB8D6900ED03E6 /* KizbaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KizbaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		E9411DE02FAB8D6900ED03E6 /* Exceptions for "Kizba" folder in "Kizba" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"Domain/Models/.keep",
+				"Domain/Protocols/.keep",
+				"Infrastructure/Clipboard/.keep",
+				"Infrastructure/Discovery/.keep",
+				"Infrastructure/Logging/.keep",
+				"Infrastructure/Pass/.keep",
+				"Infrastructure/Settings/.keep",
+				"Infrastructure/Shell/.keep",
+				"Infrastructure/Store/.keep",
+				"Presentation/DesignSystem/.keep",
+				"Presentation/Features/.keep",
+				"Presentation/Root/.keep",
+			);
+			target = E9411DAE2FAB8D6400ED03E6 /* Kizba */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		E9411DB12FAB8D6400ED03E6 /* Kizba */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				E9411DE02FAB8D6900ED03E6 /* Exceptions for "Kizba" folder in "Kizba" target */,
+			);
 			path = Kizba;
 			sourceTree = "<group>";
 		};
