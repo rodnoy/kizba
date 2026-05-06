@@ -166,3 +166,19 @@ Production additions:
   `isSidebarCollapsed`, `currentEntries`. No secret material.
 - No changes to `Kizba.xcodeproj/project.pbxproj` — synchronized root
   group picks up new sources automatically.
+
+## 2026-05-06 — Step 2.3 (RootSplitView + Sidebar)
+
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' test
+=> ** TEST SUCCEEDED **
+   Executed 72 tests, with 0 failures (0 unexpected) in 9.965 (10.025) seconds
+```
+
+New test suite:
+
+- SidebarModelTests: 5 passed (preview-environment folder derivation;
+  pure helper determinism; top-level-without-slash skip; dedupe;
+  initial empty state).
+
+Total: 72 (67 prior + 5 new).

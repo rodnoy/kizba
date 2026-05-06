@@ -1,28 +1,22 @@
 {
   "status": "ok",
-  "step_completed": "2.2",
+  "step_completed": "2.3",
   "changed_files": [
-    "Kizba/App/AppEnvironment.swift",
+    "Kizba/Presentation/Root/RootSplitView.swift",
+    "Kizba/Presentation/Features/Sidebar/SidebarModel.swift",
+    "Kizba/Presentation/Features/Sidebar/SidebarView.swift",
     "Kizba/App/AppState.swift",
-    "KizbaTests/AppEnvironmentTests.swift",
-    "KizbaTests/AppStateTests.swift",
+    "Kizba/App/KizbaApp.swift",
+    "KizbaTests/SidebarModelTests.swift",
     ".ai/build-log.md",
     ".ai/handoff.md",
-    ".ai/last-run.json",
     ".ai/step.md"
   ],
   "commits": [
-    "2520e83 feat(app): add AppEnvironment with live() and preview()",
-    "cbd115a feat(state): add AppState (@Observable, @MainActor)",
-    "646eb34 test(app): add AppEnvironment + AppState tests"
+    "42c5f83",
+    "41999d5"
   ],
   "xcodeproj_created": true,
   "xcode_instructions_path": ".ai/xcode_instructions.md",
-  "build_log_path": ".ai/build-log.md",
-  "tests": {
-    "total": 67,
-    "added": 8,
-    "failures": 0
-  },
-  "next_step": "2.3"
+  "build_log_path": ".ai/build-log.md"
 }
