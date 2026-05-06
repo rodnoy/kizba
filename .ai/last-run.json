@@ -1,20 +1,19 @@
 {
   "status": "ok",
-  "step_completed": "2.3",
+  "step_completed": "2.5",
   "changed_files": [
+    "Kizba/Presentation/Features/EntryDetail/EntryDetailModel.swift",
+    "Kizba/Presentation/Features/EntryDetail/EntryDetailView.swift",
     "Kizba/Presentation/Root/RootSplitView.swift",
-    "Kizba/Presentation/Features/Sidebar/SidebarModel.swift",
-    "Kizba/Presentation/Features/Sidebar/SidebarView.swift",
-    "Kizba/App/AppState.swift",
-    "Kizba/App/KizbaApp.swift",
-    "KizbaTests/SidebarModelTests.swift",
+    "KizbaTests/EntryDetailModelTests.swift",
     ".ai/build-log.md",
     ".ai/handoff.md",
-    ".ai/step.md"
+    ".ai/step.md",
+    ".ai/last-run.json"
   ],
   "commits": [
-    "42c5f83",
-    "41999d5"
+    "7d81c1a",
+    "5edadc8"
   ],
   "xcodeproj_created": true,
   "xcode_instructions_path": ".ai/xcode_instructions.md",

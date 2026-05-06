@@ -199,3 +199,21 @@ New test suite:
   `AppState.selectedEntryID`).
 
 Total: 76 (72 prior + 4 new).
+
+## 2026-05-06 — Step 2.5 (EntryDetailView + EntryDetailModel)
+
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' test
+=> ** TEST SUCCEEDED **
+   Executed 80 tests, with 0 failures (0 unexpected) in 1.249 (1.377) seconds
+```
+
+New test suite:
+
+- EntryDetailModelTests: 4 passed (successful load → `.loaded`;
+  rapid-selection cancellation drops the stale result and keeps only
+  the last selection's secret; clearing selection mid-flight returns
+  to `.idle`; `copy*` forwards verbatim values to clipboard with the
+  requested `Duration` clear-after delay).
+
+Total: 80 (76 prior + 4 new).
