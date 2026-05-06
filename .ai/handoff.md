@@ -2,21 +2,35 @@
 
 ## Last completed action
 
-Step **0.2 — DONE** (README stub + .gitignore audit).
+Step **0.3 — DONE** (folder scaffolding + KizbaApp move).
 
-Added a minimal `README.md` at the repo root and extended `.gitignore` with
-the remaining standard Xcode/tooling entries called out in the task brief.
-No existing ignore entries were removed.
+Created the target architecture skeleton under `Kizba/` (App, Domain,
+Infrastructure, Presentation, Resources subtrees) with `.keep` placeholder
+files in every otherwise-empty group. Moved the app entry point into
+`Kizba/App/KizbaApp.swift` and relocated `Assets.xcassets` into
+`Kizba/Resources/`.
+
+The Xcode project uses `PBXFileSystemSynchronizedRootGroup` (Xcode 16+),
+so file additions/moves under `Kizba/` are picked up automatically. The
+only `project.pbxproj` change was a single
+`PBXFileSystemSynchronizedBuildFileExceptionSet` excluding the twelve
+`.keep` placeholders from the `Kizba` target's bundle resources (without
+exceptions, all `.keep` files would be copied to the same
+`Resources/.keep` output path and the build would fail with "Multiple
+commands produce ...").
 
 ### Applied changes
 
-- `README.md` (new): project name and short description, requirements
-  (macOS 14+, Xcode 15.4+), quickstart `xcodebuild build`/`test` commands
-  using `Kizba.xcodeproj` + `Kizba` scheme + `-destination 'platform=macOS'`,
-  note that the Xcode project was created via the Xcode UI with a pointer to
-  `.ai/xcode_instructions.md`, and pointer to `.ai/build-log.md`.
-- `.gitignore`: added `**/xcuserdata/`, `**/xcuserdatad/`, `*.xcworkspace`,
-  `*.xcdebugger`, `Carthage/`, `fastlane/`, `.bundle`, `.env`.
+- `Kizba/{App, Domain/Models, Domain/Protocols, Infrastructure/{Shell,
+  Pass, Store, Clipboard, Discovery, Settings, Logging},
+  Presentation/{Root, Features, DesignSystem}, Resources}/` created.
+- 12 × `.keep` placeholders in the empty groups.
+- `Kizba/KizbaApp.swift` → `Kizba/App/KizbaApp.swift` (content unchanged).
+- `Kizba/Assets.xcassets/` → `Kizba/Resources/Assets.xcassets/`.
+- `Kizba.xcodeproj/project.pbxproj`: added one
+  `PBXFileSystemSynchronizedBuildFileExceptionSet`
+  (`E9411DE02FAB8D6900ED03E6`) wired into the `Kizba`
+  `PBXFileSystemSynchronizedRootGroup` `exceptions` list.
 
 ### Verification (executed on this host)
 
@@ -34,28 +48,29 @@ Build log: `.ai/build-log.md`.
 
 ### Commits
 
-- `2972a5e` — `docs: add README stub`
-- `8d1103c` — `chore(gitignore): update Xcode ignores`
+- `65d84d6` — `feat(scaffold): add project folder skeleton with .keep files`
+- `f4a7ac0` — `refactor(app): move KizbaApp.swift into App group`
 
 ### Repo state at completion
 
-- HEAD: `8d1103c` (will advance after this handoff/log commit).
+- HEAD: `f4a7ac0` (will advance after this handoff/log commit).
 - Xcode project: `Kizba.xcodeproj/` committed, `Kizba` scheme shared.
-- App sources: `Kizba/KizbaApp.swift`, `Kizba/Assets.xcassets/`.
+- App sources: `Kizba/App/KizbaApp.swift`,
+  `Kizba/Resources/Assets.xcassets/`.
 - Tests: `KizbaTests/KizbaTests.swift` (2 tests).
 - `xcodeproj_created = true`, `xcode_instructions_path = .ai/xcode_instructions.md`.
 
 ## Next action
 
-Proceed to **step 0.3**: folder scaffolding under `Kizba/` matching the
-target architecture — `App/`, `Domain/{Models,Protocols}/`,
-`Infrastructure/{Shell,Pass,Store,Clipboard,Discovery,Settings,Logging}/`,
-`Presentation/{Root,Features,DesignSystem}/`, `Resources/` — with `.keep`
-files in empty groups, and update Xcode group references so `xcodebuild`
-still builds. Also reconcile that `Kizba/KizbaApp.swift` currently lives at
-`Kizba/` top level rather than `Kizba/App/` (move + update group refs).
+Proceed to **step 1.1** (Phase 1 — Domain types):
+- Create value types in `Kizba/Domain/Models/`: `PassEntry.swift`,
+  `PassMetadata.swift`, `PassSecret.swift`, `PassError.swift`.
+- `PassSecret` must be `Sendable`, NOT `Codable`, NOT
+  `CustomStringConvertible`, NOT `CustomDebugStringConvertible`.
+- Replace the corresponding `.keep` in `Domain/Models/` (delete it once
+  the directory has real files).
 
-After 0.3: Phase 1 — domain types & protocols (1.1–1.3).
+After 1.1: 1.2 (protocols in `Domain/Protocols/`) → 1.3 (domain unit tests).
 
 ## Constraints (must hold from day one)
 
