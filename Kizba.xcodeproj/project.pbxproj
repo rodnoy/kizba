@@ -25,7 +25,6 @@
 		E9411DE02FAB8D6900ED03E6 /* Exceptions for "Kizba" folder in "Kizba" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				"Domain/Models/.keep",
 				"Domain/Protocols/.keep",
 				"Infrastructure/Clipboard/.keep",
 				"Infrastructure/Discovery/.keep",
