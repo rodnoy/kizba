@@ -41,17 +41,24 @@ final class AppState {
     /// Refreshed by the listing pipeline (Phase 4); empty until then.
     var currentEntries: [PassEntry]
 
+    /// Currently selected top-level folder name (e.g. `"work"`), or
+    /// `nil` when no folder is selected. Drives the middle (entry
+    /// list) column.
+    var selectedFolder: String?
+
     /// Designated initialiser. All parameters default to empty / unset
     /// state so a fresh `AppState()` is meaningful at app launch.
     init(
         selectedEntryID: PassEntry.ID? = nil,
         searchQuery: String = "",
         isSidebarCollapsed: Bool = false,
-        currentEntries: [PassEntry] = []
+        currentEntries: [PassEntry] = [],
+        selectedFolder: String? = nil
     ) {
         self.selectedEntryID = selectedEntryID
         self.searchQuery = searchQuery
         self.isSidebarCollapsed = isSidebarCollapsed
         self.currentEntries = currentEntries
+        self.selectedFolder = selectedFolder
     }
 }
