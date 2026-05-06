@@ -352,3 +352,48 @@ No `Kizba.xcodeproj/project.pbxproj` changes — file-system
 synchronized root group picks up new sources/tests automatically.
 
 Total: 97 (90 prior + 7 new).
+
+---
+
+## Step 3.3 — ProcessShellRunnerTests broadened (verified)
+
+Date: 2026-05-06.
+Host: macOS, Xcode 15.4+.
+
+### Commands
+
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' \
+  -only-testing:KizbaTests/ProcessShellRunnerTests test
+# => ** TEST SUCCEEDED **
+#    Executed 11 tests, with 0 failures (0 unexpected) in 0.406 (0.415) seconds
+
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' test
+# => ** TEST SUCCEEDED **
+#    Executed 103 tests, with 0 failures (0 unexpected) in 2.403 (2.596) seconds
+```
+
+### Added tests (KizbaTests/ProcessShellRunnerTests.swift, +6)
+
+- `testEnvironmentVariablesAreForwardedToChild` — explicit env var
+  reaches child verbatim via `printf %s "$VAR"`.
+- `testEmptyEnvironmentIsNotInheritedFromParent` — when the runner is
+  given `[:]`, parent env does NOT leak (verified with a marker
+  `KIZBA_PARENT_LEAK` set via `setenv` before the call).
+- `testArgumentsAreForwardedAsDiscreteArgvEntries` — `/bin/echo`
+  receives discrete argv entries, no shell re-parsing.
+- `testArgumentWithEmbeddedDoubleSpacesIsPreservedAsSingleArgv` —
+  embedded multiple spaces survive the argv round-trip.
+- `testSpawnFailureForMissingExecutable` — missing absolute path
+  surfaces as `PassError.shellFailure(exitCode: -1,
+  stderrExcerpt: "spawn failed")` per the documented contract.
+- `testRelativeExecutableNotResolvedViaPATH` — bare-name URL is not
+  looked up via PATH; same `shellFailure(-1, ...)` outcome.
+
+No `project.pbxproj` changes — file-system synchronized root group
+picks up the new test functions automatically (no new files were
+added; the suite was extended in place).
+
+Total: 103 (97 prior + 6 new).
