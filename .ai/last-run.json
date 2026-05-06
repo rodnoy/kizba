@@ -1,0 +1,21 @@
+{
+  "status": "blocked_user_action_required",
+  "step_completed": "0.1 (partial — manual Xcode UI step pending)",
+  "changed_files": [
+    ".ai/build-errors.md",
+    ".ai/handoff.md",
+    ".ai/xcode_instructions.md",
+    ".gitignore",
+    "Kizba/App/KizbaApp.swift",
+    "Kizba/Resources/Assets.xcassets/Contents.json",
+    "Kizba/Resources/Assets.xcassets/AccentColor.colorset/Contents.json",
+    "Kizba/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json",
+    "KizbaTests/KizbaTests.swift"
+  ],
+  "commits": ["eaefd6b"],
+  "xcodeproj_created": false,
+  "xcode_instructions_path": ".ai/xcode_instructions.md",
+  "build_log_path": null,
+  "build_errors_path": ".ai/build-errors.md",
+  "blocker": "Xcode UI is required to create Kizba.xcodeproj per user policy; the agent cannot drive the Xcode GUI from this environment. User must perform the steps in .ai/xcode_instructions.md, then resume."
+}
