@@ -83,3 +83,48 @@ and 1.2:
 
 No production-code changes were required for step 1.3.
 
+
+## 2026-05-06 — Step 2.1 (MockPassManager)
+
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' test
+=> ** TEST SUCCEEDED **
+   Executed 59 tests, with 0 failures (0 unexpected) in 0.670 (0.808) seconds
+```
+
+Test suites added:
+
+- MockPassManagerTests: 10 passed.
+  - testMock_has20Fixtures — corpus pinned at 20 entries; first/last
+    paths verified (`personal/email/gmail` / `archive/services/ftp`).
+  - testFixtures_areDeterministicAcrossInstances — two independent
+    `preview()` instances yield identical entry lists.
+  - testFixtures_coverThreeFolders — top-level folders are exactly
+    `{personal, work, archive}`.
+  - testFixtures_includeEdgeCases — special-character entry name
+    (`personal/email/jane+filter@example.com`) and empty trailing
+    component (`personal/empty-name/`, `name == ""`) both present.
+  - testShow_returnsExpectedEntry — `work/aws/root` round-trips
+    password, metadata fields (user/url/mfa/created), and notes.
+  - testShow_passwordOnlyEntry_hasEmptyMetadata — `personal/wifi/home`
+    has no fields and `nil` notes.
+  - testShow_unknownEntry_throwsDecryptionFailed — unknown path
+    surfaces `PassError.decryptionFailed` (mirrors real "missing key"
+    shape).
+  - testStoreLocation_returnsFileURL — default URL is the stable
+    `/tmp/kizba-mock-store` file URL.
+  - testStoreLocation_honoursCustomURL — custom storeLocation echoed
+    back unchanged.
+  - testConcurrency_readers_consistentResults — 64 concurrent
+    list+show calls all observe the baseline result. Deterministic;
+    no timing assertions.
+
+Production additions:
+
+- `Kizba/Infrastructure/Pass/MockPassManager.swift` (new, gated by
+  `#if DEBUG`). Actor-isolated `PassManaging` conformance with a
+  20-entry deterministic fixture corpus across `personal/`, `work/`,
+  `archive/`. `static let fixtures` and `static func preview()` for
+  test/preview wiring (Phase 2.2 — `AppEnvironment.preview()`).
+- No changes to `Kizba.xcodeproj/project.pbxproj` — file-system
+  synchronized root group picks up new sources automatically.

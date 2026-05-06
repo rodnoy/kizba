@@ -1,28 +1,25 @@
 {
-  "status": "success",
-  "step_completed": "1.3",
-  "next_step": "2.1",
-  "xcodeproj_created": true,
-  "xcode_instructions_path": ".ai/xcode_instructions.md",
-  "build_log_path": ".ai/build-log.md",
-  "build_errors_path": null,
-  "scheme": "Kizba",
-  "scheme_shared": true,
-  "destination": "platform=macOS",
-  "xcode_version": "26.4.1 (17E202)",
-  "build_result": "BUILD SUCCEEDED",
-  "test_result": "TEST SUCCEEDED",
-  "tests_passed": 49,
-  "tests_failed": 0,
-  "head_commit_before": "a5f8c6c",
+  "status": "ok",
+  "step_completed": "2.1",
   "changed_files": [
-    "KizbaTests/DomainModelsRefinementTests.swift",
+    "Kizba/Infrastructure/Pass/MockPassManager.swift",
+    "KizbaTests/MockPassManagerTests.swift",
     ".ai/build-log.md",
     ".ai/handoff.md",
     ".ai/last-run.json",
     ".ai/step.md"
   ],
   "commits": [
-    "398e151f0e05e70d726527932c8777bb65fd50ce"
-  ]
+    "9cab113 feat(debug): add MockPassManager with deterministic fixtures",
+    "f1ce352 test(debug): add unit tests for MockPassManager"
+  ],
+  "xcodeproj_created": true,
+  "xcode_instructions_path": ".ai/xcode_instructions.md",
+  "build_log_path": ".ai/build-log.md",
+  "tests": {
+    "total": 59,
+    "added": 10,
+    "failures": 0
+  },
+  "next_step": "2.2"
 }

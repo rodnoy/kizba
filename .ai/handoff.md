@@ -2,86 +2,68 @@
 
 ## Last completed action
 
-Step **1.3 — DONE** (Domain unit test round-out).
+Step **2.1 — DONE** (MockPassManager with deterministic fixtures).
 
-Added 21 deterministic, fast unit tests in
-`KizbaTests/DomainModelsRefinementTests.swift` covering edge cases and
-concurrency safety on top of the 28 tests from steps 1.1 and 1.2. **No
-production-code changes** were made: existing domain types already
-expose the surface needed for the refinements, and the security
-invariants for `PassSecret` (NOT Codable, NOT CustomStringConvertible)
-were intentionally not relaxed.
+Implemented a debug-only in-memory `PassManaging` double seeded with a
+20-entry fixture corpus, plus a 10-test unit suite covering corpus
+shape, `show(_:)` happy path + missing-fixture failure,
+`storeLocation()`, and concurrent reader consistency. Total test
+count: **59 passing** (49 from Phase 1 + 10 new).
 
 ### Coverage added
 
-- **PassEntryRefinementTests** — empty path, trailing slash, Unicode
-  + spaces, `Hashable` in `Set`, `id == path` for `Identifiable`,
-  on-wire JSON shape pinned to a single `path` key.
-- **PassMetadataRefinementTests** — case-sensitive `firstValue`,
-  duplicate-key + order preservation across Codable round-trip, empty
-  notes vs `nil` distinction (both at the value-equality and Codable
-  layers), `Field` hashability identity.
-- **PassSecretRefinementTests** — verbatim whitespace/newline
-  preservation, value-equality semantics (metadata identity vs
-  contents), 4096-codepoint ω stress round-trip via `Equatable`,
-  `Sendable` metatype check. The NOT-Codable /
-  NOT-CustomStringConvertible invariants from 1.1 are deliberately not
-  duplicated here.
-- **PassErrorRefinementTests** — `Hashable` deduplication in `Set`,
-  stderr-excerpt is part of identity for both `decryptionFailed` and
-  `shellFailure`, parameter-less cases (`pinentryNotConfigured`,
-  `timedOut`, `cancelled`) all distinct, `storeNotFound` payload
-  unwrap.
-- **DomainConcurrencyTests** — actor-backed in-memory
-  `InMemoryPassManager : PassManaging` double exercised under
-  fan-out load: 64 concurrent `add`s observed exactly once, 32
-  concurrent `show`s return the exact secret keyed by entry path, 16
-  concurrent `show`s of an unknown entry all surface
-  `PassError.decryptionFailed`. Deterministic — fixed iteration
-  counts, no timing assertions.
+- **`Kizba/Infrastructure/Pass/MockPassManager.swift`** — `actor`
+  conforming to `PassManaging`, gated by `#if DEBUG` per Phase 9.1.
+  20 fixtures spread across `personal/` (7), `work/` (8),
+  `archive/` (5). Mix of password-only and metadata-rich entries.
+  Edge-case entries: special characters
+  (`personal/email/jane+filter@example.com`) and empty trailing
+  path component (`personal/empty-name/`, `name == ""`). `created`
+  metadata field on metadata-bearing entries seeded from a fixed
+  base date (2026-01-01T00:00:00Z) spaced 60 s per entry. Static
+  `fixtures` tuple + `preview()` factory ready for Phase 2.2 wiring.
+- **`KizbaTests/MockPassManagerTests.swift`** — 10 deterministic
+  tests (no timing assertions). Concurrency test fans out 64
+  list+show calls and asserts baseline equality.
 
 ### Applied changes
 
-- `KizbaTests/DomainModelsRefinementTests.swift` (new, 335 lines).
-- `.ai/build-log.md` — appended step 1.3 verification block.
-- No edits to `Kizba.xcodeproj/project.pbxproj` — file-system
-  synchronized root group picks up the new test source automatically.
-- No edits to any production source under `Kizba/Domain/`.
+- `Kizba/Infrastructure/Pass/MockPassManager.swift` (new, 235 lines).
+- `KizbaTests/MockPassManagerTests.swift` (new, 138 lines).
+- `.ai/build-log.md` — appended step 2.1 verification block.
+- `Kizba.xcodeproj/project.pbxproj` — **not modified** (file-system
+  synchronized root group).
 
 ### Verification (executed on this host)
 
 ```
 xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' test
 # => ** TEST SUCCEEDED **
-#    Executed 49 tests, with 0 failures (0 unexpected) in 0.576 (0.624) seconds
-#    (28 tests from 1.1 + 1.2 still green; 21 new tests from 1.3.)
+#    Executed 59 tests, with 0 failures (0 unexpected) in 0.670 (0.808) seconds
 ```
 
 Build log: `.ai/build-log.md`.
 
 ### Commits
 
-- `398e151` — `test(domain): add refined edge-case and concurrency tests`
+- `9cab113` — `feat(debug): add MockPassManager with deterministic fixtures`
+- `f1ce352` — `test(debug): add unit tests for MockPassManager`
 
 ### Repo state at completion
 
-- HEAD: `398e151` (will advance after this handoff/log commit).
+- HEAD: `f1ce352` (will advance after this handoff/log commit).
 - `xcodeproj_created = true`,
   `xcode_instructions_path = .ai/xcode_instructions.md` (no new UI
-  steps required this round).
+  steps required this round — synchronized groups).
 
 ## Next action
 
-Proceed to **Phase 2 — step 2.1**:
+Proceed to **Phase 2 — step 2.2**:
 
-- Implement `MockPassManager` (in `Kizba/Infrastructure/Pass/`,
-  gated behind `#if DEBUG` per Phase 9.1) with ~20 fixture entries
-  across 3 folders — one entry with metadata + notes, one
-  password-only.
-- This unblocks the vertical UI slice (steps 2.2 – 2.6:
-  `AppEnvironment`, `AppState`, `RootSplitView`, `EntryListView`,
-  `EntryDetailView`, and the `EntryDetailModelTests`
-  selection-cancellation suite).
+- `AppEnvironment` with `live()` and `preview()` factories.
+  `preview()` wires `MockPassManager.preview()` for the SwiftUI
+  vertical slice.
+- `AppState` (`@Observable`, `@MainActor`).
 
 ## Constraints (must hold from day one)
 
@@ -90,6 +72,8 @@ Proceed to **Phase 2 — step 2.1**:
 - No secrets in logs (no stdout logging in `Shell/`/`Pass/`).
 - `PassSecret` not Codable, not CustomStringConvertible.
 - `PassManaging` MVP-1 surface stays read-only — no write/git methods.
+- `MockPassManager` and its fixtures stay behind `#if DEBUG` so the
+  release binary ships without them (re-checked in Phase 9.1).
 - All chat with user in Russian; all code/comments/docs/commits in
   English.
 
