@@ -1,16 +1,16 @@
 {
   "status": "ok",
-  "step_completed": "3.3",
-  "next_step": "3.4",
+  "step_completed": "3.4",
+  "next_step": "3.5",
   "changed_files": [
-    "KizbaTests/ProcessShellRunnerTests.swift",
+    "KizbaTests/SourceGrepTests.swift",
     ".ai/build-log.md",
     ".ai/step.md",
     ".ai/handoff.md",
     ".ai/last-run.json"
   ],
   "commits": [
-    "6dbcd99 — test(shell): broaden ProcessShellRunnerTests with env/argv/spawn-failure coverage"
+    "b24de56 — test(ci): enforce logging discipline with SourceGrepTests"
   ],
   "production_code_changed": false,
   "xcodeproj_created": true,
@@ -18,9 +18,9 @@
   "xcode_instructions_path": ".ai/xcode_instructions.md",
   "build_log_path": ".ai/build-log.md",
   "tests": {
-    "total": 103,
-    "passed": 103,
+    "total": 105,
+    "passed": 105,
     "failed": 0,
-    "added_in_step": 6
+    "added_in_step": 2
   }
 }

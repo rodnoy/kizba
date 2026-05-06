@@ -397,3 +397,40 @@ picks up the new test functions automatically (no new files were
 added; the suite was extended in place).
 
 Total: 103 (97 prior + 6 new).
+
+## 2026-05-06 — Step 3.4 (SourceGrepTests finalisation)
+
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' \
+  -only-testing:KizbaTests/SourceGrepTests test
+=> ** TEST SUCCEEDED **
+   Executed 4 tests, with 0 failures (0 unexpected) in 0.047 s
+
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' test
+=> ** TEST SUCCEEDED **
+   Executed 105 tests, with 0 failures (0 unexpected) in 2.630 s
+```
+
+`SourceGrepTests` was broadened from `Shell/`+`Pass/` to the entire
+`Kizba/Infrastructure/` tree and now enforces four properties:
+
+1. `testNoRawPrintInInfrastructure` — no raw `print(` calls (excluding
+   the `Log` wrapper, whose docs legitimately mention the token).
+2. `testNoStdoutReferencesInInfrastructure` — no
+   `FileHandle.standardOutput`, `Darwin.stdout`, `fputs(`, `fputc(`,
+   `puts(`, `printf(`, `fprintf(`, `fwrite(` (wrapper excluded).
+3. `testNoDirectLoggerInstantiationOutsideWrapper` — no
+   `Logger(subsystem:` / `OSLog(` outside
+   `Kizba/Infrastructure/Logging/Log.swift`.
+4. `testPassSecretIsNotCodable` — scans the whole `Kizba/` tree for
+   any `struct PassSecret` / `extension PassSecret` declaration whose
+   conformance list contains `Codable`/`Encodable`/`Decodable`.
+
+Tests anchor the repo root via `#filePath` and skip `KizbaTests/` by
+construction. No `project.pbxproj` changes — the test file was already
+tracked (replaced in place).
+
+Total: 105 (103 prior + 2 new SourceGrepTests cases; the 2 original
+cases were renamed/rewritten into the broader engine).
