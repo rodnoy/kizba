@@ -1,33 +1,42 @@
 {
   "status": "success",
-  "step_completed": "0.1",
+  "step_completed": "1",
   "next_step": "0.2",
   "xcodeproj_created": true,
   "xcode_instructions_path": ".ai/xcode_instructions.md",
   "build_log_path": ".ai/build-log.md",
   "build_errors_path": null,
   "scheme": "Kizba",
-  "scheme_shared": false,
+  "scheme_shared": true,
   "destination": "platform=macOS",
   "xcode_version": "26.4.1 (17E202)",
   "build_result": "BUILD SUCCEEDED",
   "test_result": "TEST SUCCEEDED",
   "tests_passed": 2,
   "tests_failed": 0,
-  "head_commit_before": "2f4b5499006ecfd4416bc76bd681c150cbb1e092",
+  "head_commit_before": "a101d27",
   "changed_files": [
-    ".ai/step.md",
-    ".ai/handoff.md",
+    "Kizba.xcodeproj/project.pbxproj",
+    "Kizba.xcodeproj/xcshareddata/xcschemes/Kizba.xcscheme",
     ".ai/build-log.md",
-    ".ai/build-errors.md",
-    ".ai/last-run.json"
+    ".ai/handoff.md",
+    ".ai/last-run.json",
+    ".ai/step.md"
   ],
-  "commits": ["5f1af55"],
+  "commits": [
+    "fe9c7316ad7e6f77589e2756b451f4b41dae67b8",
+    "632e388de85ac486ea49d9621353f0a5969cdde8"
+  ],
+  "applied_settings": {
+    "MACOSX_DEPLOYMENT_TARGET": "14.0",
+    "SWIFT_VERSION": "5.10",
+    "SWIFT_STRICT_CONCURRENCY": "complete",
+    "SWIFT_TREAT_WARNINGS_AS_ERRORS": "YES",
+    "GCC_TREAT_WARNINGS_AS_ERRORS": "YES",
+    "ENABLE_APP_SANDBOX": "NO"
+  },
   "deferred_items": [
-    "MACOSX_DEPLOYMENT_TARGET should be 14.0 (currently 26.4)",
-    "SWIFT_STRICT_CONCURRENCY=complete not set on Kizba target",
-    "SWIFT_TREAT_WARNINGS_AS_ERRORS=YES not set on Kizba target",
-    "Kizba scheme not shared (xcshareddata/xcschemes/Kizba.xcscheme missing)",
-    "Folder scaffolding (App/Domain/Infrastructure/Presentation/Resources) — step 0.3"
+    "Folder scaffolding (App/Domain/Infrastructure/Presentation/Resources) — step 0.3",
+    "README.md stub — step 0.2"
   ]
 }
