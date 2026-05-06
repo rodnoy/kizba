@@ -2,35 +2,47 @@
 
 ## Last completed action
 
-Step **2.1 — DONE** (MockPassManager with deterministic fixtures).
+Step **2.2 — DONE** (AppEnvironment + AppState).
 
-Implemented a debug-only in-memory `PassManaging` double seeded with a
-20-entry fixture corpus, plus a 10-test unit suite covering corpus
-shape, `show(_:)` happy path + missing-fixture failure,
-`storeLocation()`, and concurrent reader consistency. Total test
-count: **59 passing** (49 from Phase 1 + 10 new).
+Implemented the manual DI composition root and the observable root
+state for Kizba's SwiftUI vertical slice. `AppEnvironment.preview()`
+wires `MockPassManager.preview()` (DEBUG) and tiny in-process
+clipboard / settings fakes; `AppEnvironment.live()` falls back to
+`preview()` in DEBUG and to deterministic-failure placeholders in
+RELEASE so the surface compiles in both configurations. `AppState`
+is `@Observable @MainActor` with the minimum properties required for
+the upcoming UI work and carries no secret material. Total test
+count: **67 passing** (59 from prior phases + 3 AppEnvironment + 5
+AppState).
 
 ### Coverage added
 
-- **`Kizba/Infrastructure/Pass/MockPassManager.swift`** — `actor`
-  conforming to `PassManaging`, gated by `#if DEBUG` per Phase 9.1.
-  20 fixtures spread across `personal/` (7), `work/` (8),
-  `archive/` (5). Mix of password-only and metadata-rich entries.
-  Edge-case entries: special characters
-  (`personal/email/jane+filter@example.com`) and empty trailing
-  path component (`personal/empty-name/`, `name == ""`). `created`
-  metadata field on metadata-bearing entries seeded from a fixed
-  base date (2026-01-01T00:00:00Z) spaced 60 s per entry. Static
-  `fixtures` tuple + `preview()` factory ready for Phase 2.2 wiring.
-- **`KizbaTests/MockPassManagerTests.swift`** — 10 deterministic
-  tests (no timing assertions). Concurrency test fans out 64
-  list+show calls and asserts baseline equality.
+- **`Kizba/App/AppEnvironment.swift`** — `Sendable` struct holding
+  `passManager: any PassManaging`, `clipboard: any ClipboardServicing`,
+  `settings: any SettingsStoring`. Factories: `live()`, `preview()`.
+  Private placeholders (`UnavailablePassManager`,
+  `UnavailableClipboard`, `UnavailableSettingsStore`) keep RELEASE
+  builds linking; private DEBUG-only `NoopClipboard` and
+  `InMemorySettingsStore` populate `preview()` without pulling in
+  unfinished `Infrastructure/` modules.
+- **`Kizba/App/AppState.swift`** — `@Observable @MainActor final
+  class` with `selectedEntryID: PassEntry.ID?`, `searchQuery`,
+  `isSidebarCollapsed`, `currentEntries: [PassEntry]`. Defaulted
+  initializer.
+- **`KizbaTests/AppEnvironmentTests.swift`** — 3 tests:
+  fixture-corpus exposure, `show(_:)` known fixture, stable mock
+  store URL.
+- **`KizbaTests/AppStateTests.swift`** — 5 tests: defaults, explicit
+  init, mutability of `selectedEntryID` / `searchQuery` /
+  `currentEntries`.
 
 ### Applied changes
 
-- `Kizba/Infrastructure/Pass/MockPassManager.swift` (new, 235 lines).
-- `KizbaTests/MockPassManagerTests.swift` (new, 138 lines).
-- `.ai/build-log.md` — appended step 2.1 verification block.
+- `Kizba/App/AppEnvironment.swift` (new).
+- `Kizba/App/AppState.swift` (new).
+- `KizbaTests/AppEnvironmentTests.swift` (new).
+- `KizbaTests/AppStateTests.swift` (new).
+- `.ai/build-log.md` — appended step 2.2 verification block.
 - `Kizba.xcodeproj/project.pbxproj` — **not modified** (file-system
   synchronized root group).
 
@@ -39,31 +51,27 @@ count: **59 passing** (49 from Phase 1 + 10 new).
 ```
 xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' test
 # => ** TEST SUCCEEDED **
-#    Executed 59 tests, with 0 failures (0 unexpected) in 0.670 (0.808) seconds
+#    Executed 67 tests, with 0 failures (0 unexpected) in 0.838 (0.980) seconds
 ```
 
 Build log: `.ai/build-log.md`.
 
 ### Commits
 
-- `9cab113` — `feat(debug): add MockPassManager with deterministic fixtures`
-- `f1ce352` — `test(debug): add unit tests for MockPassManager`
+- `2520e83` — `feat(app): add AppEnvironment with live() and preview()`
+- `cbd115a` — `feat(state): add AppState (@Observable, @MainActor)`
+- `646eb34` — `test(app): add AppEnvironment + AppState tests`
 
 ### Repo state at completion
 
-- HEAD: `f1ce352` (will advance after this handoff/log commit).
+- HEAD: `646eb34` (will advance after this handoff/log commit).
 - `xcodeproj_created = true`,
   `xcode_instructions_path = .ai/xcode_instructions.md` (no new UI
   steps required this round — synchronized groups).
 
 ## Next action
 
-Proceed to **Phase 2 — step 2.2**:
-
-- `AppEnvironment` with `live()` and `preview()` factories.
-  `preview()` wires `MockPassManager.preview()` for the SwiftUI
-  vertical slice.
-- `AppState` (`@Observable`, `@MainActor`).
+Proceed to **Phase 2 — step 2.3** per `.ai/plan.md`.
 
 ## Constraints (must hold from day one)
 
@@ -71,9 +79,13 @@ Proceed to **Phase 2 — step 2.2**:
 - No QtPass / GPL pass-client source consulted during implementation.
 - No secrets in logs (no stdout logging in `Shell/`/`Pass/`).
 - `PassSecret` not Codable, not CustomStringConvertible.
+- `PassSecret` lives only in the active `EntryDetailModel`, never in
+  `AppState`.
 - `PassManaging` MVP-1 surface stays read-only — no write/git methods.
 - `MockPassManager` and its fixtures stay behind `#if DEBUG` so the
   release binary ships without them (re-checked in Phase 9.1).
+- `AppEnvironment.live()` placeholders fail deterministically — any
+  production wiring gap surfaces immediately at first call.
 - All chat with user in Russian; all code/comments/docs/commits in
   English.
 

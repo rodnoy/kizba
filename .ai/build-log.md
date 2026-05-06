@@ -128,3 +128,41 @@ Production additions:
   test/preview wiring (Phase 2.2 — `AppEnvironment.preview()`).
 - No changes to `Kizba.xcodeproj/project.pbxproj` — file-system
   synchronized root group picks up new sources automatically.
+
+## 2026-05-06 — Step 2.2 (AppEnvironment + AppState)
+
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' test
+=> ** TEST SUCCEEDED **
+   Executed 67 tests, with 0 failures (0 unexpected) in 0.838 (0.980) seconds
+```
+
+New test suites:
+
+- AppEnvironmentTests: 3 passed.
+  - testPreview_passManagerExposesFixtureCorpus — 20-entry corpus,
+    pinned first/last paths.
+  - testPreview_passManagerShowReturnsKnownFixture — `work/aws/root`
+    secret + `user` metadata field assertions.
+  - testPreview_passManagerStoreLocationIsStable — fake
+    `/tmp/kizba-mock-store` URL.
+- AppStateTests: 5 passed.
+  - testInit_defaultsAreEmpty
+  - testInit_acceptsExplicitValues
+  - testSelectedEntryID_isMutable
+  - testSearchQuery_isMutable
+  - testCurrentEntries_isMutable
+
+Production additions:
+
+- `Kizba/App/AppEnvironment.swift` — manual DI container. `live()` and
+  `preview()` factories, `Sendable`. `preview()` wires
+  `MockPassManager.preview()` plus tiny in-process fakes
+  (`NoopClipboard`, `InMemorySettingsStore`) under `#if DEBUG`.
+  Release builds compile via deterministic-failure placeholders
+  (`UnavailablePassManager`, etc.).
+- `Kizba/App/AppState.swift` — `@Observable @MainActor` root state
+  with `selectedEntryID: PassEntry.ID?`, `searchQuery`,
+  `isSidebarCollapsed`, `currentEntries`. No secret material.
+- No changes to `Kizba.xcodeproj/project.pbxproj` — synchronized root
+  group picks up new sources automatically.
