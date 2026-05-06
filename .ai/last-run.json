@@ -1,20 +1,19 @@
 {
   "status": "ok",
-  "step_completed": "3.1",
-  "next_step": "3.2",
+  "step_completed": "3.2",
+  "next_step": "3.3",
   "changed_files": [
-    "Kizba/Infrastructure/Shell/ProcessShellRunner.swift",
     "Kizba/Infrastructure/Logging/Log.swift",
-    "Kizba/Domain/Protocols/ShellCommandRunning.swift",
-    "KizbaTests/ProcessShellRunnerTests.swift",
+    "KizbaTests/LogWrapperTests.swift",
+    "KizbaTests/SourceGrepTests.swift",
     ".ai/build-log.md",
     ".ai/step.md",
     ".ai/handoff.md",
     ".ai/last-run.json"
   ],
   "commits": [
-    "85ae489 — feat(shell): add ProcessShellRunner (cancellable, timeout, concurrent drain)",
-    "747a55f — test(shell): add ProcessShellRunner unit tests"
+    "ceaf896 — feat(logging): consolidate Log.swift wrapper with privacy policy and redact() helper",
+    "73de4ea — test(ci): add SourceGrepTests to enforce no print/stdout-leak in Shell and Pass infra"
   ],
   "production_code_changed": true,
   "xcodeproj_created": true,
@@ -22,9 +21,9 @@
   "xcode_instructions_path": ".ai/xcode_instructions.md",
   "build_log_path": ".ai/build-log.md",
   "tests": {
-    "total": 90,
-    "passed": 90,
+    "total": 97,
+    "passed": 97,
     "failed": 0,
-    "added_in_step": 5
+    "added_in_step": 7
   }
 }

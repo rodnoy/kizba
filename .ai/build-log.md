@@ -301,3 +301,54 @@ New tests in `KizbaTests/ProcessShellRunnerTests.swift` (5):
   exactly 200_000 bytes drained without deadlock.
 
 Total: 90 (85 prior + 5 new).
+
+## 2026-05-06 — Step 3.2 (Log.swift consolidation + SourceGrepTests)
+
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' build
+=> ** BUILD SUCCEEDED **
+
+xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' test
+=> ** TEST SUCCEEDED **
+   Executed 97 tests, with 0 failures (0 unexpected) in 2.500 (2.714) seconds
+```
+
+Production change:
+
+- `Kizba/Infrastructure/Logging/Log.swift` — promoted from the
+  minimal Phase-3.1 wrapper to the canonical, fully-documented
+  surface. Added an explicit privacy/redaction policy header,
+  introduced `Log.maxStderrExcerpt` (512 byte cap) and
+  `Log.redact(_:max:)` for the rare case a free-form string must be
+  stored outside the live `os_log` stream (Phase 8 Diagnostics ring
+  buffer). No call-site changes required — the existing five
+  category loggers (`shell`, `pass`, `clipboard`, `discovery`, `ui`)
+  retain the same names and types.
+
+New tests (7):
+
+- `KizbaTests/SourceGrepTests.swift` — 2 deterministic static
+  analysis tests over `Kizba/Infrastructure/Shell/` and
+  `Kizba/Infrastructure/Pass/`:
+  - `testNoRawPrintInInfraShellAndPass` — fails on any
+    `print(` token (regex guards against false positives like
+    `someThing.print(` and `imprint(`).
+  - `testNoStdoutReferencesInInfraShellAndPass` — fails on
+    `FileHandle.standardOutput`, the Darwin C `stdout` global
+    (`Darwin.stdout`), and the C streaming functions
+    `fputs/fputc/puts/fwrite`. Internal symbol names (tuple
+    labels, `case` associated values, local `let` bindings called
+    `stdout`) are intentionally not banned — they document the
+    data they carry and never leave these directories.
+  Anchors the repo root via `#filePath` and walks `.swift` files
+  with `FileManager.enumerator`.
+- `KizbaTests/LogWrapperTests.swift` — 5 tests covering
+  subsystem identity, that every category accepts the documented
+  privacy interpolation (`exec=\(path, privacy: .private)
+  argc=\(argc, privacy: .public)`), and `Log.redact` length-cap
+  semantics (passthrough, truncation with ellipsis, default cap).
+
+No `Kizba.xcodeproj/project.pbxproj` changes — file-system
+synchronized root group picks up new sources/tests automatically.
+
+Total: 97 (90 prior + 7 new).

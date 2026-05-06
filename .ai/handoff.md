@@ -2,66 +2,79 @@
 
 ## Last completed action
 
-Step **3.1 — DONE** (ProcessShellRunner + minimal Log.swift wrapper).
+Step **3.2 — DONE** (Log.swift consolidation + SourceGrepTests).
 
-Implemented the production `ShellCommandRunning` conformance under
-`Kizba/Infrastructure/Shell/ProcessShellRunner.swift` and the minimal
-`os.Logger` wrapper under `Kizba/Infrastructure/Logging/Log.swift`.
-Both files are fully `nonisolated` to interoperate with
-`Foundation.Process`'s private dispatch queues under the project-wide
-`default-isolation=MainActor` setting.
+Promoted the minimal Phase-3.1 `Log.swift` to the canonical, fully
+documented logging surface for the module and added the static
+analysis tests demanded by Phase 3 (`.ai/plan.md` step 3.4 — pulled
+forward into 3.2 as instructed).
 
 ### Behaviour
 
-- Concurrent stdout/stderr drain via `readabilityHandler` (one EOF
-  signal per stream tears down its handler). Tail bytes are flushed
-  via `FileHandle.readToEnd()` inside `terminationHandler` so no data
-  is lost on rapid exit.
-- Timeout: a `Task.detached { try await Task.sleep(for: timeout) }`
-  fires `box.timeout()` which calls `process.terminate()`; the
-  termination handler then resolves the continuation with
-  `PassError.timedOut`. The timeout task is cancelled on normal exit.
-- Cancellation: `withTaskCancellationHandler` calls `box.cancel()`
-  which marks the box and terminates the child; outcome is mapped to
-  `PassError.cancelled`. If cancellation arrives before `process.run()`,
-  the runner terminates the freshly-started process synchronously.
-- Spawn-time failures (binary missing / not executable) become
-  `PassError.shellFailure(exitCode: -1, stderrExcerpt: "spawn failed")`.
-- Logging discipline: only sanitised metadata (executable path with
-  `.private`, argument count, exit code, stderr byte length) reaches
-  `Log.shell`. Captured `stdout` is **never** logged.
-- A `ProcessBox` actor-substitute (NSLock-protected, `@unchecked
-  Sendable`) guarantees single-shot resolution across the
-  exit/timeout/cancel race.
+- `Kizba/Infrastructure/Logging/Log.swift`
+  - Subsystem `app.kizba`. Five categorised `os.Logger` instances:
+    `shell`, `pass`, `clipboard`, `discovery`, `ui`. All `nonisolated`
+    so they can be invoked from any actor / detached context (notably
+    the `Process` private dispatch queues used by
+    `ProcessShellRunner`).
+  - File header now codifies the durable privacy/redaction policy
+    from `.ai/decisions.md`: never log captured `stdout`; always
+    interpolate file paths, store locations, entry paths,
+    environment values, and free-form error descriptions with
+    `privacy: .private`; only shape-only metadata (exit codes, byte
+    counts, argument counts, boolean flags) may be `.public`.
+  - Added `Log.maxStderrExcerpt` (512-byte cap) and
+    `Log.redact(_:max:)` — a length-bounded helper for the rare
+    case a free-form string must be stored *outside* the live
+    `os_log` stream (Phase 8 Diagnostics ring buffer). Stronger
+    sanitisation (email / hex-id stripping) remains the job of
+    `PassErrorMapper` (Phase 4.3).
+  - No call-site changes — every category retains the same name and
+    type, so `ProcessShellRunner`'s existing logging keeps working
+    untouched.
 
-Minor domain change: `ShellResult.init` is now `nonisolated` so it
-can be constructed from the runner's background context.
+- `KizbaTests/SourceGrepTests.swift` (new, 2 tests)
+  - Anchors the repo root via `#filePath` and walks
+    `Kizba/Infrastructure/Shell/` + `Kizba/Infrastructure/Pass/`
+    with `FileManager.enumerator`.
+  - `testNoRawPrintInInfraShellAndPass` — fails on any `print(`
+    token. Regex guards `(?<![A-Za-z0-9_.])print\(` against false
+    positives (`someThing.print(`, `imprint(`).
+  - `testNoStdoutReferencesInInfraShellAndPass` — fails on
+    `FileHandle.standardOutput`, the C `stdout` global
+    (`Darwin.stdout`), and the C streaming functions
+    (`fputs`/`fputc`/`puts`/`fwrite`). Internal symbol names
+    (tuple labels, enum `case` associated values, local `let`
+    bindings called `stdout`) are intentionally **not** banned —
+    they document the data they carry, never leave these
+    directories, and the static analyser would otherwise force
+    semantically-meaningless renames. The decision is documented
+    inline in the test source.
 
-### Coverage added (step 3.1)
-
-`KizbaTests/ProcessShellRunnerTests.swift` — 5 deterministic tests:
-
-- `testEchoSuccess` — `/bin/echo hello` → exit 0, stdout `"hello\n"`,
-  empty stderr.
-- `testNonZeroExit` — `/usr/bin/false` → non-zero exit, empty stdout.
-- `testTimeoutTerminatesProcess` — `/bin/sleep 5` with 200 ms timeout
-  → `PassError.timedOut` resolved in < 2 s.
-- `testCancellationPropagates` — `/bin/sleep 5`, task cancelled
-  after 100 ms → `PassError.cancelled` (or `CancellationError`)
-  resolved in < 2 s; the child is terminated.
-- `testLargeStdoutDrain` — `sh -c 'yes x | head -c 200000'` →
-  exactly 200_000 bytes drained with no deadlock.
+- `KizbaTests/LogWrapperTests.swift` (new, 5 tests)
+  - `testSubsystemIdentifier` — pins `Log.subsystem == "app.kizba"`.
+  - `testCategoryLoggersAreDistinct` — every category accepts the
+    documented privacy interpolation
+    (`exec=\(path, privacy: .private)
+      argc=\(argc, privacy: .public)`). Compile-time verification
+    that no category was accidentally typed as something other than
+    `os.Logger`.
+  - `testRedactPassesShortStringThrough` /
+    `testRedactTruncatesLongString` /
+    `testRedactDefaultCap` — pin `Log.redact` length-cap semantics
+    (passthrough, truncation with ellipsis, default cap of
+    `Log.maxStderrExcerpt + 1` after the appended `…`).
 
 ### Applied changes
 
-- `Kizba/Infrastructure/Shell/ProcessShellRunner.swift` (new).
-- `Kizba/Infrastructure/Logging/Log.swift` (new).
-- `Kizba/Domain/Protocols/ShellCommandRunning.swift` — `ShellResult.init`
-  marked `nonisolated`.
-- `KizbaTests/ProcessShellRunnerTests.swift` (new).
-- `.ai/build-log.md` — appended step 3.1 verification block.
-- `.ai/step.md` — bumped to `3.2`.
-- `.ai/last-run.json` — refreshed machine-readable summary.
+- `Kizba/Infrastructure/Logging/Log.swift` — promoted from the
+  minimal Phase-3.1 wrapper to the canonical surface. Added policy
+  header, `maxStderrExcerpt`, `redact(_:max:)`. Surface preserved.
+- `KizbaTests/SourceGrepTests.swift` (new).
+- `KizbaTests/LogWrapperTests.swift` (new).
+- `.ai/build-log.md` — appended step 3.2 verification block.
+- `.ai/step.md` — bumped to `3.3`.
+- `.ai/last-run.json` — refreshed.
 - `Kizba.xcodeproj/project.pbxproj` — **not modified** (file-system
   synchronized root group picks up new sources/tests automatically).
 
@@ -73,38 +86,38 @@ xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' 
 
 xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' test
 # => ** TEST SUCCEEDED **
-#    Executed 90 tests, with 0 failures (0 unexpected) in 7.019 (7.145) seconds
+#    Executed 97 tests, with 0 failures (0 unexpected) in 2.500 (2.714) seconds
 ```
 
 Build log: `.ai/build-log.md`.
 
 ### Commits
 
-- `85ae489` — `feat(shell): add ProcessShellRunner (cancellable, timeout, concurrent drain)`
-- `747a55f` — `test(shell): add ProcessShellRunner unit tests`
+- `ceaf896` — `feat(logging): consolidate Log.swift wrapper with privacy policy and redact() helper`
+- `73de4ea` — `test(ci): add SourceGrepTests to enforce no print/stdout-leak in Shell and Pass infra`
+- (this handoff bump) — `chore(ai): record step 3.2 completion`
 
 ### Repo state at completion
 
-- HEAD: `747a55f` (before this handoff commit).
+- HEAD: handoff bump commit (recorded in this file once committed).
 - `xcodeproj_created = true`,
   `xcode_instructions_path = .ai/xcode_instructions.md` (no new UI
-  steps required this round — synchronized groups).
+  steps required — synchronized groups).
 - `build_log_path = .ai/build-log.md`.
 
 ## Next action
 
-Proceed to **Phase 3 — step 3.2** per `.ai/plan.md`: flesh out
-`Log.swift` if additional helpers are needed (e.g. category-specific
-sanitisation helpers, signposts) and ensure every category routes
-through `os.Logger` with the right privacy markers. Note that the
-minimal `Log.swift` introduced in 3.1 already satisfies the subsystem
-/ category surface required by the plan; 3.2 should consolidate
-documentation and add any missing convenience helpers without
-regressing the no-stdout-logging discipline. After 3.2, step 3.3
-already has its production-side coverage from this round; 3.4
-(`SourceGrepTests`) remains.
+Proceed to **Phase 3 — step 3.3** per `.ai/plan.md`:
+`ProcessShellRunnerTests`. Note that step 3.1 already shipped the
+five-test deterministic suite covering echo success, non-zero exit,
+timeout, cancellation, and large-stdout drain. Step 3.3 should
+either confirm that suite as the official Phase-3 acceptance set or
+broaden it (e.g. environment composition, executable URL not on
+PATH, working-directory honoured) before moving on. After 3.3,
+Phase 3 wraps up — Phase 4 (`PassCLI` + parser + error mapper)
+follows.
 
-`.ai/step.md` is set to `3.2`.
+`.ai/step.md` is set to `3.3`.
 
 ## Constraints (must hold from day one)
 
