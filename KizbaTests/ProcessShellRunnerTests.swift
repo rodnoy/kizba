@@ -126,4 +126,147 @@ final class ProcessShellRunnerTests: XCTestCase {
         XCTAssertEqual(result.standardOutput.count, 200_000,
                        "Expected exactly 200000 bytes drained without deadlock")
     }
+
+    // MARK: - Environment composition
+
+    /// The supplied environment dictionary must reach the child verbatim.
+    /// `pass` invocation depends on `PASSWORD_STORE_DIR` / `GNUPGHOME`
+    /// reaching `gpg` exactly, so this is a contractual property.
+    func testEnvironmentVariablesAreForwardedToChild() async throws {
+        let runner = ProcessShellRunner()
+        let result = try await runner.run(
+            executable: sh,
+            arguments: ["-c", "printf %s \"$KIZBA_TEST_VAR\""],
+            environment: ["KIZBA_TEST_VAR": "kizba-marker-42"],
+            timeout: .seconds(5)
+        )
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(
+            String(data: result.standardOutput, encoding: .utf8),
+            "kizba-marker-42",
+            "Child must observe the env var verbatim"
+        )
+    }
+
+    /// An empty environment dictionary must not inherit the parent's
+    /// environment. `Process.environment = [:]` yields a child whose
+    /// environment is empty; this pins that contract so callers
+    /// (`PassCLI`) can reason about PATH composition explicitly.
+    func testEmptyEnvironmentIsNotInheritedFromParent() async throws {
+        let runner = ProcessShellRunner()
+        // Set a marker in the parent that, if leaked, would appear in stdout.
+        setenv("KIZBA_PARENT_LEAK", "should-not-appear", 1)
+        defer { unsetenv("KIZBA_PARENT_LEAK") }
+
+        let result = try await runner.run(
+            executable: sh,
+            arguments: ["-c", "printf %s \"${KIZBA_PARENT_LEAK-unset}\""],
+            environment: [:],
+            timeout: .seconds(5)
+        )
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(
+            String(data: result.standardOutput, encoding: .utf8),
+            "unset",
+            "Parent env must not leak into child when environment is empty"
+        )
+    }
+
+    // MARK: - Arguments forwarding
+
+    /// Each argument is delivered as a discrete argv entry — no shell
+    /// re-parsing, no whitespace splitting. Critical for entry paths
+    /// like `Personal/Email Account` that contain spaces.
+    func testArgumentsAreForwardedAsDiscreteArgvEntries() async throws {
+        let runner = ProcessShellRunner()
+        let result = try await runner.run(
+            executable: echo,
+            arguments: ["one two", "three"],
+            environment: [:],
+            timeout: .seconds(5)
+        )
+
+        XCTAssertEqual(result.exitCode, 0)
+        // `/bin/echo` joins argv with a single space and appends `\n`.
+        // If "one two" had been re-split, output would have three tokens
+        // separated by single spaces — same string here, so additionally
+        // assert via a sentinel that contains multiple spaces.
+        XCTAssertEqual(
+            String(data: result.standardOutput, encoding: .utf8),
+            "one two three\n"
+        )
+    }
+
+    func testArgumentWithEmbeddedDoubleSpacesIsPreservedAsSingleArgv() async throws {
+        let runner = ProcessShellRunner()
+        // Use `printf %s` so the runtime echoes the *first* argv entry
+        // verbatim with no separator, proving it was not split.
+        let result = try await runner.run(
+            executable: sh,
+            arguments: ["-c", "printf %s \"$1\"", "sh", "a  b  c"],
+            environment: [:],
+            timeout: .seconds(5)
+        )
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(
+            String(data: result.standardOutput, encoding: .utf8),
+            "a  b  c",
+            "Embedded multiple spaces must survive round-trip through argv"
+        )
+    }
+
+    // MARK: - Spawn failure
+
+    /// A non-existent executable URL must surface as `PassError.shellFailure`
+    /// with `exitCode == -1` — the stable contract documented in
+    /// `ProcessShellRunner.swift`. This is the path `BinaryDiscoveryService`
+    /// callers will hit if a stale override points at a deleted binary.
+    func testSpawnFailureForMissingExecutable() async throws {
+        let runner = ProcessShellRunner()
+        let missing = URL(fileURLWithPath: "/nonexistent/kizba-definitely-not-here-\(UUID().uuidString)")
+
+        do {
+            _ = try await runner.run(
+                executable: missing,
+                arguments: [],
+                environment: [:],
+                timeout: .seconds(5)
+            )
+            XCTFail("Expected PassError.shellFailure for missing executable")
+        } catch PassError.shellFailure(let exitCode, let stderrExcerpt) {
+            XCTAssertEqual(exitCode, -1, "Spawn-time failure must use the documented sentinel exit code")
+            XCTAssertEqual(stderrExcerpt, "spawn failed")
+        } catch {
+            XCTFail("Expected PassError.shellFailure, got \(error)")
+        }
+    }
+
+    /// `pass` callers will pass a bare name like "pass" only if the
+    /// discovery service failed to resolve it. The runner deliberately
+    /// requires absolute URLs and does not consult PATH on its own —
+    /// this test pins that behaviour by using a non-absolute file URL
+    /// component that cannot be resolved as an executable.
+    func testRelativeExecutableNotResolvedViaPATH() async throws {
+        let runner = ProcessShellRunner()
+        // `URL(fileURLWithPath:)` resolves against CWD, so pick a name
+        // that cannot exist in any plausible working directory.
+        let bareName = URL(fileURLWithPath: "kizba-not-a-real-binary-\(UUID().uuidString)")
+
+        do {
+            _ = try await runner.run(
+                executable: bareName,
+                arguments: [],
+                environment: ["PATH": "/usr/bin:/bin"],
+                timeout: .seconds(5)
+            )
+            XCTFail("Expected PassError.shellFailure — runner must not consult PATH")
+        } catch PassError.shellFailure(let exitCode, _) {
+            XCTAssertEqual(exitCode, -1)
+        } catch {
+            XCTFail("Expected PassError.shellFailure, got \(error)")
+        }
+    }
 }
