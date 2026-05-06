@@ -1,7 +1,7 @@
 {
   "status": "success",
-  "step_completed": "1.1",
-  "next_step": "1.2",
+  "step_completed": "1.2",
+  "next_step": "1.3",
   "xcodeproj_created": true,
   "xcode_instructions_path": ".ai/xcode_instructions.md",
   "build_log_path": ".ai/build-log.md",
@@ -12,24 +12,25 @@
   "xcode_version": "26.4.1 (17E202)",
   "build_result": "BUILD SUCCEEDED",
   "test_result": "TEST SUCCEEDED",
-  "tests_passed": 14,
+  "tests_passed": 28,
   "tests_failed": 0,
-  "head_commit_before": "7dd64f2",
+  "head_commit_before": "4c6de4a",
   "changed_files": [
     "Kizba.xcodeproj/project.pbxproj",
-    "Kizba/Domain/Models/.keep",
-    "Kizba/Domain/Models/PassEntry.swift",
-    "Kizba/Domain/Models/PassError.swift",
-    "Kizba/Domain/Models/PassMetadata.swift",
-    "Kizba/Domain/Models/PassSecret.swift",
-    "KizbaTests/DomainModelsTests.swift",
+    "Kizba/Domain/Protocols/.keep",
+    "Kizba/Domain/Protocols/PassManaging.swift",
+    "Kizba/Domain/Protocols/ShellCommandRunning.swift",
+    "Kizba/Domain/Protocols/ClipboardServicing.swift",
+    "Kizba/Domain/Protocols/BinaryLocating.swift",
+    "Kizba/Domain/Protocols/SettingsStoring.swift",
+    "KizbaTests/DomainProtocolsTests.swift",
     ".ai/build-log.md",
     ".ai/handoff.md",
     ".ai/last-run.json",
     ".ai/step.md"
   ],
   "commits": [
-    "1b35932d8cafbab51419ac9de3d37b44cd06a094",
-    "0aa4a5d0c8a5b072b93b75794426fd811ad215db"
+    "51f5e713f22b8d5a578cdc91c46d415ef13fc2e8",
+    "d08cda9f19ff52fb160f6834c5c8900f8a279e90"
   ]
 }
