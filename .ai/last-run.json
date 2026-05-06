@@ -1,21 +1,26 @@
 {
   "status": "ok",
-  "step_completed": "2.5",
+  "step_completed": "2.6",
+  "next_step": "2.7",
   "changed_files": [
-    "Kizba/Presentation/Features/EntryDetail/EntryDetailModel.swift",
-    "Kizba/Presentation/Features/EntryDetail/EntryDetailView.swift",
-    "Kizba/Presentation/Root/RootSplitView.swift",
-    "KizbaTests/EntryDetailModelTests.swift",
+    "KizbaTests/EntryDetailModelRefinementTests.swift",
     ".ai/build-log.md",
-    ".ai/handoff.md",
     ".ai/step.md",
+    ".ai/handoff.md",
     ".ai/last-run.json"
   ],
   "commits": [
-    "7d81c1a",
-    "5edadc8"
+    "317ebbc — test(ui): refine EntryDetailModel tests (reveal, copy, cancellation, error)"
   ],
+  "production_code_changed": false,
   "xcodeproj_created": true,
+  "xcodeproj_modified": false,
   "xcode_instructions_path": ".ai/xcode_instructions.md",
-  "build_log_path": ".ai/build-log.md"
+  "build_log_path": ".ai/build-log.md",
+  "tests": {
+    "total": 85,
+    "passed": 85,
+    "failed": 0,
+    "added_in_step": 5
+  }
 }
