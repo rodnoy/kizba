@@ -89,3 +89,35 @@ xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=ma
 Result: **TEST SUCCEEDED**. 2 tests passed (KizbaTests.testExample,
 KizbaTests.testPerformanceExample).
 
+## 2026-05-06 — Step 0.2 verification (README + .gitignore)
+
+Host: macOS, Xcode 26.4.1 (Build 17E202).
+Project: `Kizba.xcodeproj` (committed, HEAD `8d1103c`).
+Scheme: `Kizba` (shared).
+
+### Applied changes
+
+- Added `README.md` stub at repo root (project description, requirements,
+  quickstart `xcodebuild` commands, pointer to `.ai/xcode_instructions.md`
+  and `.ai/build-log.md`).
+- `.gitignore`: added missing standard Xcode/tooling entries
+  (`**/xcuserdata/`, `**/xcuserdatad/`, `*.xcworkspace`, `*.xcdebugger`,
+  `Carthage/`, `fastlane/`, `.bundle`, `.env`). No existing entries removed.
+
+### Build
+
+Command:
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' build
+```
+Result: **BUILD SUCCEEDED**.
+
+### Test
+
+Command:
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' test
+```
+Result: **TEST SUCCEEDED**. 2 tests passed (KizbaTests.testExample,
+KizbaTests.testPerformanceExample).
+

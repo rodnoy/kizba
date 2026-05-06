@@ -1,7 +1,7 @@
 {
   "status": "success",
-  "step_completed": "1",
-  "next_step": "0.2",
+  "step_completed": "0.2",
+  "next_step": "0.3",
   "xcodeproj_created": true,
   "xcode_instructions_path": ".ai/xcode_instructions.md",
   "build_log_path": ".ai/build-log.md",
@@ -14,29 +14,17 @@
   "test_result": "TEST SUCCEEDED",
   "tests_passed": 2,
   "tests_failed": 0,
-  "head_commit_before": "a101d27",
+  "head_commit_before": "fa27245",
   "changed_files": [
-    "Kizba.xcodeproj/project.pbxproj",
-    "Kizba.xcodeproj/xcshareddata/xcschemes/Kizba.xcscheme",
+    "README.md",
+    ".gitignore",
     ".ai/build-log.md",
     ".ai/handoff.md",
     ".ai/last-run.json",
     ".ai/step.md"
   ],
   "commits": [
-    "fe9c7316ad7e6f77589e2756b451f4b41dae67b8",
-    "632e388de85ac486ea49d9621353f0a5969cdde8"
-  ],
-  "applied_settings": {
-    "MACOSX_DEPLOYMENT_TARGET": "14.0",
-    "SWIFT_VERSION": "5.10",
-    "SWIFT_STRICT_CONCURRENCY": "complete",
-    "SWIFT_TREAT_WARNINGS_AS_ERRORS": "YES",
-    "GCC_TREAT_WARNINGS_AS_ERRORS": "YES",
-    "ENABLE_APP_SANDBOX": "NO"
-  },
-  "deferred_items": [
-    "Folder scaffolding (App/Domain/Infrastructure/Presentation/Resources) — step 0.3",
-    "README.md stub — step 0.2"
+    "2972a5e2a2125b57742fb111d7b8c7bf9763908d",
+    "8d1103c9bcc394f51169d0efe6248f4b6f134e76"
   ]
 }
