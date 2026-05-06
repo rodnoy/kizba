@@ -217,3 +217,41 @@ New test suite:
   requested `Duration` clear-after delay).
 
 Total: 80 (76 prior + 4 new).
+
+## 2026-05-06 — Step 2.6 (EntryDetailModel refinement tests)
+
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' test
+=> ** TEST SUCCEEDED **
+   Executed 85 tests, with 0 failures (0 unexpected) in 1.755 (1.910) seconds
+```
+
+New file: `KizbaTests/EntryDetailModelRefinementTests.swift` — 5
+deterministic tests harden the model invariants required by
+`.ai/plan.md` step 2.6 and `.ai/decisions.md`:
+
+- `testReveal_doesNotPersistSecret` — flipping `isPasswordRevealed`
+  never moves the `PassSecret` out of `model.state.loaded(_:)`,
+  never lands on `AppState` (Mirror-based runtime probe), and
+  `PassSecret` stays non-`CustomStringConvertible` /
+  non-`CustomDebugStringConvertible`. Clearing the selection releases
+  the secret immediately.
+- `testCopy_invokesClipboardWithDuration` — a `FakeClipboard` records
+  every `(value, Duration)` pair; password and metadata copies arrive
+  verbatim with the requested clear-after delay; no `"key: value"`
+  composition.
+- `testSelectionCancellation_races` — three rapid selection changes
+  (a → b → c) against a 200 ms-delayed `ScriptedPassManager`
+  converge on the last selection's secret; a 300 ms settle window
+  asserts no stale task overwrites the loaded state.
+- `testErrorMapping_setsFailedState` /
+  `testErrorMapping_pinentryNotConfigured` — a `ScriptedPassManager`
+  that throws a known `PassError` lands the model in
+  `.failed(expected)` for both `decryptionFailed` and
+  `pinentryNotConfigured`.
+
+Test doubles (`ScriptedPassManager`, `FakeClipboard`,
+`SilentClipboard`, `EphemeralSettingsStore`) are file-private — no
+production code was modified.
+
+Total: 85 (80 prior + 5 new).
