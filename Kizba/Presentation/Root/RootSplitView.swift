@@ -3,11 +3,10 @@
 //  Kizba
 //
 //  Three-column root layout for the Kizba window. The sidebar lists
-//  top-level folders, the middle column is the (placeholder) entry
-//  list, and the detail column renders the entry inspector. Real
-//  entry list and detail surfaces land in steps 2.4 / 2.5; this slice
-//  wires the layout end-to-end so subsequent steps can plug content
-//  without further restructuring.
+//  top-level folders, the middle column is the entry list, and the
+//  detail column renders the entry inspector. The real detail surface
+//  lands in step 2.5; this slice wires the layout end-to-end so the
+//  remaining step can plug content without further restructuring.
 //
 
 import SwiftUI
@@ -36,29 +35,10 @@ struct RootSplitView: View {
                 selection: $state.selectedFolder
             )
         } content: {
-            EntryListPlaceholderView(folder: state.selectedFolder)
+            EntryListView(environment: environment, state: state)
         } detail: {
             EmptyDetailView()
         }
-    }
-}
-
-/// Placeholder for the upcoming `EntryListView` (step 2.4).
-private struct EntryListPlaceholderView: View {
-    let folder: String?
-
-    var body: some View {
-        VStack {
-            if let folder {
-                Text("Entries in \(folder)")
-                    .font(.headline)
-            } else {
-                Text("Select a folder")
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .navigationTitle("Entries")
     }
 }
 
