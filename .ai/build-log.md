@@ -469,3 +469,41 @@ automatically through the existing `PBXFileSystemSynchronizedRootGroup`
 entries; `project.pbxproj` is unchanged.
 
 Total: 115 (105 prior + 10 new `PassShowParserTests`).
+
+## 2026-05-07 — Step 4.3 (PassErrorMapper)
+
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' \
+  -only-testing:KizbaTests/PassErrorMapperTests test
+=> ** TEST SUCCEEDED **
+   Executed 14 tests, with 0 failures (0 unexpected) in ~0.08s
+
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' test
+=> ** TEST SUCCEEDED **
+   Executed 129 tests, with 0 failures (0 unexpected) in 2.896s
+```
+
+New artefacts:
+
+- `Kizba/Infrastructure/Pass/PassErrorMapper.swift` — pure mapper
+  (`PassErrorMapper.map(stderr:exitCode:) -> (PassError, String)`) plus
+  `sanitize(_:maxLength:)`. Recognises decryption-failure / pinentry /
+  missing-binary / timeout signatures; falls back to `.shellFailure`.
+  The sanitiser redacts emails (`\S+@\S+`) and long hex IDs
+  (`\b[0-9a-f]{8,}\b`, case-insensitive), collapses whitespace, trims,
+  and caps length so the result is <= maxLength characters (ellipsis
+  included in the budget — required for idempotency).
+- `KizbaTests/PassErrorMapperTests.swift` — 14 cases covering each
+  mapping branch, both binary-not-found shell shapes, timeout via exit
+  code and via stderr text, sanitiser redaction + length cap +
+  short-string passthrough, idempotency (general and at the exact cap),
+  and the invariant that the excerpt embedded in the returned
+  `PassError` equals the standalone excerpt returned alongside it.
+
+No changes to `PassError.swift` (all required cases were declared in
+Phase 1.1). New files picked up via `PBXFileSystemSynchronizedRootGroup`;
+`project.pbxproj` unchanged.
+
+Total: 129 (115 prior + 14 new `PassErrorMapperTests`).

@@ -1,18 +1,19 @@
 {
   "status": "ok",
-  "step_completed": "4.1",
-  "next_step": "4.2",
+  "step_completed": "4.3",
+  "next_step": "4.4",
   "changed_files": [
-    "Kizba/Infrastructure/Pass/PassShowParser.swift",
-    "KizbaTests/PassShowParserTests.swift",
+    "Kizba/Infrastructure/Pass/PassErrorMapper.swift",
+    "KizbaTests/PassErrorMapperTests.swift",
     ".ai/build-log.md",
     ".ai/step.md",
     ".ai/handoff.md",
     ".ai/last-run.json"
   ],
   "commits": [
-    "9af612b — feat(pass): add PassShowParser (pure)",
-    "1adbb38 — test(pass): add PassShowParser unit tests"
+    "feat(pass): add PassErrorMapper (sanitize + map stderr to PassError)",
+    "test(pass): add PassErrorMapper unit tests",
+    "chore(ai): record step 4.3 completion"
   ],
   "production_code_changed": true,
   "xcodeproj_created": true,
@@ -20,9 +21,9 @@
   "xcode_instructions_path": ".ai/xcode_instructions.md",
   "build_log_path": ".ai/build-log.md",
   "tests": {
-    "total": 115,
-    "passed": 115,
+    "total": 129,
+    "passed": 129,
     "failed": 0,
-    "added_in_step": 10
+    "added_in_step": 14
   }
 }
