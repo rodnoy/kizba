@@ -888,3 +888,33 @@ What was verified:
 `Kizba.xcodeproj/project.pbxproj` not modified
 (`PBXFileSystemSynchronizedRootGroup` picks up the new files
 automatically). No Xcode UI steps required.
+
+## 2026-05-07 — Step 7.4 (Diagnostics: InvocationLog + DiagnosticsModel/View)
+
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' test
+=> ** TEST SUCCEEDED **
+   Executed 188 tests, with 0 failures (0 unexpected) in 4.790s
+```
+
+New files:
+
+- Kizba/Infrastructure/Diagnostics/Invocation.swift
+- Kizba/Infrastructure/Diagnostics/InvocationLog.swift
+- Kizba/Presentation/Features/Diagnostics/DiagnosticsModel.swift
+- Kizba/Presentation/Features/Diagnostics/DiagnosticsView.swift
+- KizbaTests/InvocationLogTests.swift (5 tests)
+- KizbaTests/DiagnosticsModelTests.swift (2 tests)
+- KizbaTests/ProcessShellRunnerInvocationTests.swift (3 tests)
+
+Modified:
+
+- Kizba/Infrastructure/Shell/ProcessShellRunner.swift — added optional
+  `InvocationLogging` sink (new `init(invocationLog:)` overload; the
+  zero-arg `init()` is preserved for existing call sites). Each
+  invocation publishes one sanitised `Invocation` record (success,
+  spawn failure with exitCode -1, cancellation with -2, timeout with
+  -3). Args and stderr excerpt are sanitised via
+  `PassErrorMapper.sanitize`. stdout is never stored.
+
+Test count delta: 178 → 188 (+10).

@@ -1,23 +1,27 @@
 {
   "status": "ok",
-  "step_completed": "7.3",
-  "next_step": "7.4",
-  "notes": "Combined run of steps 7.2 and 7.3. (7.2) AppEnvironment.live() now constructs the production ClipboardService() and injects it for both DEBUG and RELEASE wirings; preview() continues to wire the in-process NoopClipboard double so previews/tests never touch NSPasteboard. Wiring is guarded by #if canImport(AppKit); a non-AppKit fallback to UnavailableClipboard keeps the surface compilable. Added KizbaTests/AppEnvironmentClipboardTests.swift with three assertions: live().clipboard is ClipboardService, preview().clipboard is not ClipboardService, and the two factories produce distinct clipboard implementations. No clipboard methods are invoked in the tests. (7.3) EntryDetailModel already exposed copy(_:clearAfterSeconds:), copyPassword(clearAfterSeconds:), and copyMetadata(forKey:clearAfterSeconds:) from earlier phases; the original spec sigature copy(field:clearAfter:) was preserved as the existing copy(_:clearAfterSeconds:) to avoid touching unrelated call-sites and tests (minimal scope). EntryDetailView's existing Copy buttons (password + per-metadata-row) gained accessibility identifiers 'copy-password-button' and 'copy-meta-<index>-button' for future UI tests. Added KizbaTests/EntryDetailModelCopyTests.swift with two model-level tests: a direct copy() forwarding assertion and a copyPassword() round-trip through StubPassManager into .loaded state. Both confirm the value is forwarded verbatim to ClipboardServicing with the expected Duration. project.pbxproj unchanged (PBXFileSystemSynchronizedRootGroup auto-picks new files). Full suite: 178 tests, 0 failures.",
+  "step_completed": "7.4",
+  "next_step": "7.5",
+  "notes": "Phase 8.4 — Diagnostics in-memory ring buffer + presentation surface. Added Invocation (Sendable value type, stdout intentionally excluded) and InvocationLog actor (bounded, default 200, newest-first reads). Added InvocationLogging protocol so ProcessShellRunner can take an optional sink without a hard dependency on the concrete actor. Added a new ProcessShellRunner.init(invocationLog:) overload — zero-arg init() preserved so existing call sites are untouched. Each run publishes one sanitised Invocation: args + stderr go through PassErrorMapper.sanitize; sentinel exit codes -1/-2/-3 mark spawn-failure/cancellation/timeout; the record is delivered via Task.detached so the actor's mailbox never blocks the runner. Log.shell emits a shape-only debug line per invocation (executable .private, status/excerptLen .public). Added DiagnosticsModel (@MainActor @Observable) and a minimal DiagnosticsView (List rows: timestamp, basename, args, exitCode, stderr excerpt). View is intentionally NOT mounted in KizbaApp yet — Phase 8 wires it. Tests: InvocationLogTests (5), DiagnosticsModelTests (2), ProcessShellRunnerInvocationTests (3). Full suite 188 passed (was 178; +10). project.pbxproj unchanged (PBXFileSystemSynchronizedRootGroup auto-picks new files). SourceGrepTests still green: no raw print, no stdout references, no direct Logger instantiation in Infrastructure outside Log.swift, PassSecret stays non-Codable. Note: project default isolation is MainActor, so Invocation.init is explicitly nonisolated.",
   "changed_files": [
-    "Kizba/App/AppEnvironment.swift",
-    "Kizba/Presentation/Features/EntryDetail/EntryDetailView.swift",
-    "KizbaTests/AppEnvironmentClipboardTests.swift",
-    "KizbaTests/EntryDetailModelCopyTests.swift",
+    "Kizba/Infrastructure/Diagnostics/Invocation.swift",
+    "Kizba/Infrastructure/Diagnostics/InvocationLog.swift",
+    "Kizba/Infrastructure/Shell/ProcessShellRunner.swift",
+    "Kizba/Presentation/Features/Diagnostics/DiagnosticsModel.swift",
+    "Kizba/Presentation/Features/Diagnostics/DiagnosticsView.swift",
+    "KizbaTests/InvocationLogTests.swift",
+    "KizbaTests/DiagnosticsModelTests.swift",
+    "KizbaTests/ProcessShellRunnerInvocationTests.swift",
     ".ai/build-log.md",
     ".ai/step.md",
     ".ai/handoff.md",
     ".ai/last-run.json"
   ],
   "commits": [
-    "feat(app): wire ClipboardService into AppEnvironment.live()",
-    "test(app): add AppEnvironment clipboard wiring tests",
-    "feat(ui): wire Copy buttons in EntryDetailView to EntryDetailModel/ClipboardService",
-    "test(ui): add EntryDetailModel copy tests"
+    "feat(diagnostics): add InvocationLog and DiagnosticsModel/View",
+    "chore(shell): publish invocation records from ProcessShellRunner",
+    "test(diagnostics): add InvocationLog and DiagnosticsModel tests",
+    "chore(ai): record step 7.4 completion"
   ],
   "production_code_changed": true,
   "xcodeproj_created": true,
@@ -25,10 +29,10 @@
   "xcode_instructions_path": ".ai/xcode_instructions.md",
   "build_log_path": ".ai/build-log.md",
   "tests": {
-    "total": 178,
-    "passed": 178,
+    "total": 188,
+    "passed": 188,
     "failed": 0,
-    "added_in_step": 5,
+    "added_in_step": 10,
     "rewritten_in_step": 0
   }
 }

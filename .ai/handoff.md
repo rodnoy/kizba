@@ -2,46 +2,49 @@
 
 ## Last completed action
 
-Steps **7.2 & 7.3 — DONE** (combined run via option 1):
-
-- 7.2: `ClipboardService` actor wired into `AppEnvironment.live()`;
-  `preview()` keeps the in-process `NoopClipboard` double.
-- 7.3: Copy buttons in `EntryDetailView` now carry accessibility
-  identifiers and remain wired to `EntryDetailModel.copyPassword()`
-  / `copy(_:)`, which delegate to `environment.clipboard.copy(_:clearAfter:)`.
+Step **7.4 — DONE** (Diagnostics: in-memory `InvocationLog` ring
+buffer; sanitised invocation publishing from `ProcessShellRunner`;
+minimal `DiagnosticsModel` + `DiagnosticsView`).
 
 ### Applied changes
 
-- `Kizba/App/AppEnvironment.swift` — `live()` now constructs the
-  production `ClipboardService()` (guarded by `#if canImport(AppKit)`,
-  falling back to `UnavailableClipboard` otherwise) and injects it
-  for both DEBUG and RELEASE wirings. `preview()` is unchanged
-  (DEBUG: `NoopClipboard`; RELEASE: `UnavailableClipboard`).
-- `KizbaTests/AppEnvironmentClipboardTests.swift` — **new**, three
-  type-level assertions: `live().clipboard is ClipboardService`,
-  `preview().clipboard` is not `ClipboardService`, and the two
-  factories produce distinct implementations. No clipboard methods
-  are invoked.
-- `Kizba/Presentation/Features/EntryDetail/EntryDetailView.swift` —
-  added `accessibilityIdentifier("copy-password-button")` to the
-  password Copy button and
-  `accessibilityIdentifier("copy-meta-<index>-button")` to each
-  metadata row Copy button (index from `enumerated()`, avoiding any
-  key-string sanitization issues). The buttons themselves were
-  already wired to `model.copyPassword()` / `model.copy(value)` in
-  earlier phases.
-- `KizbaTests/EntryDetailModelCopyTests.swift` — **new**, two
-  model-level tests:
-    - `testModelCopy_invokesClipboardWithVerbatimValueAndDelay`
-      asserts `model.copy(_:clearAfterSeconds:)` forwards the value
-      verbatim to a `RecordingClipboard` with `Duration.seconds(30)`.
-    - `testModelCopyPassword_forwardsLoadedPasswordVerbatim` drives
-      the model into `.loaded(secret)` via `handleSelectionChange`
-      against a `StubPassManager`, then asserts `copyPassword()`
-      forwards the loaded password verbatim. View-level button-action
-      coverage is documented as a UI-test responsibility.
-- `.ai/build-log.md` — appended steps 7.2 / 7.3 verification block.
-- `.ai/step.md` — bumped to `7.4`.
+- `Kizba/Infrastructure/Diagnostics/Invocation.swift` — **new**.
+  Sendable value type recording one shell invocation: id, executable,
+  sanitised args, exitCode, sanitised stderr excerpt, startedAt,
+  duration. **stdout is intentionally excluded** from the struct and
+  from every code path that produces it.
+- `Kizba/Infrastructure/Diagnostics/InvocationLog.swift` — **new**.
+  Concurrency-safe `actor` ring buffer (default 200, clamped to >= 1).
+  `record(_:)` evicts FIFO; `recent()` returns a newest-first
+  snapshot; `clear()` empties storage. An `InvocationLogging` protocol
+  lets `ProcessShellRunner` accept the sink without a hard dependency
+  on the concrete actor.
+- `Kizba/Infrastructure/Shell/ProcessShellRunner.swift` — **modified**.
+  Added a new `init(invocationLog:)` overload; the zero-arg `init()`
+  is preserved so existing call sites are untouched. Every run path
+  (success, spawn failure with sentinel exitCode `-1`, cancellation
+  with `-2`, timeout with `-3`) constructs an `Invocation` with args
+  and stderr passed through `PassErrorMapper.sanitize` and ships it
+  to the sink via `Task.detached` so the runner's hot path is never
+  blocked by the actor's mailbox. `Log.shell` emits a single
+  shape-only debug line per invocation (`executable` `.private`;
+  status / excerpt length `.public`).
+- `Kizba/Presentation/Features/Diagnostics/DiagnosticsModel.swift` —
+  **new**. `@MainActor` `@Observable` view-model exposing
+  `recentInvocations` and async `refresh()` / `clear()` against an
+  injected `InvocationLog`.
+- `Kizba/Presentation/Features/Diagnostics/DiagnosticsView.swift` —
+  **new**. Minimal SwiftUI `List` rendering timestamp, executable
+  basename, joined args, exit code, and the (already-sanitised)
+  stderr excerpt. Toolbar exposes Refresh / Clear. The view is
+  **not** mounted in `KizbaApp` yet — Phase 8 wires it into the
+  Settings/Diagnostics scene.
+- `KizbaTests/InvocationLogTests.swift` — **new** (5 tests).
+- `KizbaTests/DiagnosticsModelTests.swift` — **new** (2 tests).
+- `KizbaTests/ProcessShellRunnerInvocationTests.swift` — **new**
+  (3 tests: success / timeout / cancellation publishing).
+- `.ai/build-log.md` — appended step 7.4 verification block.
+- `.ai/step.md` — bumped to `7.5`.
 - `.ai/handoff.md` — this file.
 - `.ai/last-run.json` — refreshed.
 - `Kizba.xcodeproj/project.pbxproj` — **not modified** (new files
@@ -49,17 +52,20 @@ Steps **7.2 & 7.3 — DONE** (combined run via option 1):
 
 ### Scope notes
 
-- `EntryDetailModel.copy(...)` already had the required surface
-  (`copy(_:clearAfterSeconds:)`, `copyPassword(...)`,
-  `copyMetadata(...)`) added in earlier phases. The instruction
-  hinted at the signature `copy(field:clearAfter:)`; the existing
-  signature was kept verbatim to avoid churn across call-sites and
-  tests, and because behaviour is identical.
-- `ClipboardService` is constructed inside `live()` itself; no
-  surrounding types/protocols changed.
-- All copy logging continues to use `Log.clipboard` shape-only
-  events; no value or length is logged.
-- All new tests are deterministic and never touch `NSPasteboard`.
+- The project's default actor isolation is `MainActor`, so
+  `Invocation.init` is explicitly `nonisolated` (the runner constructs
+  the value from a `nonisolated` static helper).
+- `PassErrorMapper.sanitize` is reused for both stderr **and** every
+  argument; sensitive content in args is redacted before storage.
+- `stdout` never reaches `Invocation`. `SourceGrepTests` still passes:
+  no raw `print`, no stdout references, no direct `Logger`
+  instantiation outside `Log.swift`, `PassSecret` stays non-`Codable`.
+- The new `InvocationLogging` protocol surface is minimal
+  (`record(_:) async`) so future Diagnostics consumers can stub it
+  cheaply.
+- No call site of `ProcessShellRunner()` (production or tests) was
+  modified — the zero-arg initialiser is the canonical opt-out from
+  publishing.
 
 ### Verification (executed on this host)
 
@@ -67,17 +73,17 @@ Steps **7.2 & 7.3 — DONE** (combined run via option 1):
 xcodebuild -scheme Kizba -project Kizba.xcodeproj \
   -destination 'platform=macOS' test
 => ** TEST SUCCEEDED **
-   Executed 178 tests, with 0 failures (0 unexpected) in 4.078s
+   Executed 188 tests, with 0 failures (0 unexpected) in 4.790s
 ```
 
 Build log: `.ai/build-log.md`.
 
 ### Commits
 
-- `feat(app): wire ClipboardService into AppEnvironment.live()`
-- `test(app): add AppEnvironment clipboard wiring tests`
-- `feat(ui): wire Copy buttons in EntryDetailView to EntryDetailModel/ClipboardService`
-- `test(ui): add EntryDetailModel copy tests`
+- `feat(diagnostics): add InvocationLog and DiagnosticsModel/View`
+- `chore(shell): publish invocation records from ProcessShellRunner`
+- `test(diagnostics): add InvocationLog and DiagnosticsModel tests`
+- `chore(ai): record step 7.4 completion`
 
 ### Repo state at completion
 
@@ -89,9 +95,16 @@ Build log: `.ai/build-log.md`.
 
 ## Next action
 
-Proceed to **step 7.4** (per `.ai/plan.md`).
+Proceed to **step 7.5** (per `.ai/plan.md`).
 
-`.ai/step.md` is set to `7.4`.
+`.ai/step.md` is set to `7.5`.
+
+Note: `.ai/plan.md` numbers Diagnostics under Phase 8 (8.4) but
+`.ai/step.md` follows the working step counter (7.4 just completed,
+next 7.5). The orchestrator approved running 7.4 against the Phase 8.4
+scope — see `.ai/last-run.json` history. If the next step needs
+clarification (Phase 8 / 7.5 alignment), surface that to the
+orchestrator before starting.
 
 ## Constraints (must hold from day one)
 
@@ -108,6 +121,8 @@ Proceed to **step 7.4** (per `.ai/plan.md`).
   production wiring gap surfaces immediately at first call.
 - `ClipboardService` writes values verbatim — never `"key: value"` —
   and gates auto-clear on token + `changeCount`.
+- `Invocation` never carries stdout; args + stderr are sanitised at
+  the publisher (`ProcessShellRunner`) via `PassErrorMapper.sanitize`.
 - All chat with user in Russian; all code/comments/docs/commits in
   English.
 
