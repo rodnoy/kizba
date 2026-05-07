@@ -36,7 +36,7 @@ import Foundation
 /// | anything else                                          | `.shellFailure`           |
 ///
 /// The accompanying excerpt is always passed through ``sanitize(_:maxLength:)``.
-public struct PassErrorMapper: Sendable {
+public nonisolated struct PassErrorMapper: Sendable {
 
     /// Default length cap for sanitised excerpts. Chosen to comfortably
     /// fit a single-line UI message while preserving enough context for

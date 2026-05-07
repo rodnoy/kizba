@@ -33,7 +33,7 @@ import os
 ///
 /// `.ai/decisions.md`: "pass show timeout = 120s with visible Cancel.
 /// Pinentry can take arbitrary user time; default 20s is too aggressive."
-public let kizbaPassShowDefaultTimeout: Duration = .seconds(120)
+public nonisolated let kizbaPassShowDefaultTimeout: Duration = .seconds(120)
 
 /// Composes and executes `pass show <entry>` and surfaces the result
 /// as a parsed ``PassShowResult`` or a mapped ``PassError``.
@@ -51,7 +51,7 @@ public let kizbaPassShowDefaultTimeout: Duration = .seconds(120)
 /// success and one `Log.pass.error` record on failure. Records carry
 /// only sanctioned shape-only fields plus `.private`-marked path /
 /// excerpt strings. Decrypted stdout is never logged.
-public struct PassCLI: Sendable {
+public nonisolated struct PassCLI: Sendable {
 
     /// Absolute path of the `pass` binary (resolved upstream by
     /// `BinaryLocating` in Phase 5).

@@ -30,16 +30,23 @@ struct AppEnvironment: Sendable {
     /// Persistent user preferences.
     let settings: any SettingsStoring
 
+    /// Lazily-discovered `pass` CLI wrapper. `nil` in preview / unit-
+    /// test wirings that have no real binary to talk to. Populated by
+    /// ``live()`` once Phase 5.3 wiring is complete.
+    let passCLI: LivePassCLI?
+
     /// Designated initialiser. All collaborators are required so the
     /// composition root is explicit at every call site.
     init(
         passManager: any PassManaging,
         clipboard: any ClipboardServicing,
-        settings: any SettingsStoring
+        settings: any SettingsStoring,
+        passCLI: LivePassCLI? = nil
     ) {
         self.passManager = passManager
         self.clipboard = clipboard
         self.settings = settings
+        self.passCLI = passCLI
     }
 }
 
@@ -49,44 +56,66 @@ extension AppEnvironment {
 
     /// Production wiring.
     ///
-    /// TODO(phase-4..8): replace the placeholder collaborators with the
-    /// real `PassCLI`, `ClipboardService`, and `UserDefaultsSettingsStore`
-    /// implementations as those phases land. Until then, `live()` falls
-    /// back to ``preview()`` in DEBUG builds and to a deterministic
-    /// failing placeholder in RELEASE builds so the app still links.
+    /// `live()` constructs the real infrastructure collaborators that
+    /// already exist (`ProcessShellRunner`, `BinaryDiscoveryService`,
+    /// `LivePassCLI`) and wires them into the environment. The
+    /// remaining services that are still scheduled for later phases
+    /// (`PassManaging` end-to-end, `ClipboardServicing`,
+    /// `SettingsStoring` production stores) keep their existing
+    /// behaviour: in DEBUG they fall through to ``preview()``-style
+    /// doubles, in RELEASE they are deterministic-failing
+    /// placeholders. `passCLI` itself is always populated so
+    /// downstream phases can flip the read path entry-by-entry.
     static func live() -> AppEnvironment {
+        let shellRunner = ProcessShellRunner()
+        let discovery = BinaryDiscoveryService()
+        let passCLI = LivePassCLI(
+            discovery: discovery,
+            shellRunner: shellRunner
+        )
+
         #if DEBUG
-        return preview()
+        return AppEnvironment(
+            passManager: MockPassManager.preview(),
+            clipboard: NoopClipboard(),
+            settings: InMemorySettingsStore(),
+            passCLI: passCLI
+        )
         #else
         return AppEnvironment(
             passManager: UnavailablePassManager(),
             clipboard: UnavailableClipboard(),
-            settings: UnavailableSettingsStore()
+            settings: UnavailableSettingsStore(),
+            passCLI: passCLI
         )
         #endif
     }
 
     /// Preview / SwiftUI / unit-test wiring.
     ///
-    /// In DEBUG builds the `passManager` is wired to
-    /// `MockPassManager.preview()` so the SwiftUI vertical slice and
-    /// previews can render without touching `pass`/`gpg`/`pinentry`.
-    /// In RELEASE builds (where `MockPassManager` is compiled out) the
-    /// preview environment falls back to a placeholder that fails
-    /// deterministically — `preview()` itself stays callable so the
-    /// surface compiles in both configurations.
+    /// `passCLI` is left `nil` here — previews and unit tests must
+    /// not reach for the real `pass` binary. In DEBUG builds the
+    /// `passManager` is wired to `MockPassManager.preview()` so the
+    /// SwiftUI vertical slice and previews can render without
+    /// touching `pass`/`gpg`/`pinentry`. In RELEASE builds (where
+    /// `MockPassManager` is compiled out) the preview environment
+    /// falls back to a placeholder that fails deterministically —
+    /// `preview()` itself stays callable so the surface compiles in
+    /// both configurations.
     static func preview() -> AppEnvironment {
         #if DEBUG
         return AppEnvironment(
             passManager: MockPassManager.preview(),
             clipboard: NoopClipboard(),
-            settings: InMemorySettingsStore()
+            settings: InMemorySettingsStore(),
+            passCLI: nil
         )
         #else
         return AppEnvironment(
             passManager: UnavailablePassManager(),
             clipboard: UnavailableClipboard(),
-            settings: UnavailableSettingsStore()
+            settings: UnavailableSettingsStore(),
+            passCLI: nil
         )
         #endif
     }

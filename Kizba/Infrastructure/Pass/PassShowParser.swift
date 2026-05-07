@@ -22,7 +22,7 @@ import Foundation
 /// - `notes`: the free-form remainder of the body (joined by `\n`),
 ///   or `nil` when the body contains only a password and an optional
 ///   metadata block.
-public struct PassShowResult: Sendable, Equatable {
+public nonisolated struct PassShowResult: Sendable, Equatable {
 
     public let password: String
     public let metadata: [(String, String)]
@@ -55,7 +55,7 @@ public struct PassShowResult: Sendable, Equatable {
 /// The parser never trims the password's interior whitespace and never
 /// reflows notes — newlines inside the notes section are preserved
 /// verbatim. Empty input throws ``PassError/parsingFailed(reason:)``.
-public struct PassShowParser: Sendable {
+public nonisolated struct PassShowParser: Sendable {
 
     /// Regex for the metadata key prefix, anchored at line start.
     /// Splitting on the *first* `:` is performed manually so that values
