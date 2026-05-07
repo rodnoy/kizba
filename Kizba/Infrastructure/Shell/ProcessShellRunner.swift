@@ -34,7 +34,22 @@ import os
 /// and would only inflate latency for parallel `pass show` requests.
 public final class ProcessShellRunner: ShellCommandRunning {
 
-    public nonisolated init() {}
+    /// Optional sink that receives one ``Invocation`` per `run` call
+    /// (success, non-zero, timeout, or cancellation). `nil` disables
+    /// publishing entirely so existing call sites keep their previous
+    /// behaviour. See `.ai/plan.md` Phase 8.4.
+    private let invocationLog: (any InvocationLogging)?
+
+    public nonisolated init() {
+        self.invocationLog = nil
+    }
+
+    /// Designated initialiser when a Diagnostics sink is desired.
+    /// The sink is invoked from a detached task per call so the
+    /// runner's hot path is not blocked by the actor's mailbox.
+    public nonisolated init(invocationLog: (any InvocationLogging)?) {
+        self.invocationLog = invocationLog
+    }
 
     public nonisolated func run(
         executable: URL,
@@ -44,6 +59,7 @@ public final class ProcessShellRunner: ShellCommandRunning {
     ) async throws -> ShellResult {
 
         let box = ProcessBox()
+        let sink = self.invocationLog
 
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<ShellResult, Error>) in
@@ -53,7 +69,8 @@ public final class ProcessShellRunner: ShellCommandRunning {
                     environment: environment,
                     timeout: timeout,
                     box: box,
-                    continuation: continuation
+                    continuation: continuation,
+                    invocationLog: sink
                 )
             }
         } onCancel: {
@@ -72,7 +89,8 @@ public final class ProcessShellRunner: ShellCommandRunning {
         environment: [String: String],
         timeout: Duration,
         box: ProcessBox,
-        continuation: CheckedContinuation<ShellResult, Error>
+        continuation: CheckedContinuation<ShellResult, Error>,
+        invocationLog: (any InvocationLogging)?
     ) {
         let process = Process()
         process.executableURL = executable
@@ -86,6 +104,7 @@ public final class ProcessShellRunner: ShellCommandRunning {
         process.standardInput = FileHandle.nullDevice
 
         let drain = DrainState()
+        let startedAt = Date()
 
         // Concurrent draining: each handler appends as bytes arrive.
         // Empty `Data` from the handler signals EOF — we tear the
@@ -132,6 +151,19 @@ public final class ProcessShellRunner: ShellCommandRunning {
             Log.shell.error(
                 "process spawn failed for \(executable.path, privacy: .private): \(String(describing: error), privacy: .public)"
             )
+            // Publish a sanitised invocation record so spawn-time
+            // failures are still visible in Diagnostics.
+            if let sink = invocationLog {
+                let invocation = Self.makeInvocation(
+                    executable: executable.path,
+                    arguments: arguments,
+                    exitCode: -1,
+                    stderr: "spawn failed",
+                    startedAt: startedAt,
+                    finishedAt: Date()
+                )
+                Task.detached { await sink.record(invocation) }
+            }
             continuation.resume(
                 throwing: PassError.shellFailure(
                     exitCode: -1,
@@ -170,6 +202,42 @@ public final class ProcessShellRunner: ShellCommandRunning {
         let exePath = executable.path
         box.onResolved { outcome in
             timeoutTask.cancel()
+            let finishedAt = Date()
+
+            // Compute the (exitCode, stderrBytes) pair the sink and
+            // logger need. Errors carry no captured stderr — we use
+            // a small sentinel string so Diagnostics still has
+            // something useful.
+            let recordedExit: Int32
+            let recordedStderr: Data
+            switch outcome {
+            case .exited(let exitCode, _, let stderr):
+                recordedExit = exitCode
+                recordedStderr = stderr
+            case .cancelled:
+                recordedExit = -2
+                recordedStderr = Data("cancelled".utf8)
+            case .timedOut:
+                recordedExit = -3
+                recordedStderr = Data("timed out".utf8)
+            }
+
+            if let sink = invocationLog {
+                let stderrString = String(data: recordedStderr, encoding: .utf8) ?? ""
+                let invocation = Self.makeInvocation(
+                    executable: exePath,
+                    arguments: arguments,
+                    exitCode: recordedExit,
+                    stderr: stderrString,
+                    startedAt: startedAt,
+                    finishedAt: finishedAt
+                )
+                let excerptLength = invocation.stderrExcerpt.count
+                Log.shell.debug(
+                    "invocation recorded: exe=\(exePath, privacy: .private) status=\(recordedExit, privacy: .public) excerptLen=\(excerptLength, privacy: .public)"
+                )
+                Task.detached { await sink.record(invocation) }
+            }
 
             switch outcome {
             case .exited(let exitCode, let stdout, let stderr):
@@ -195,6 +263,32 @@ public final class ProcessShellRunner: ShellCommandRunning {
                 continuation.resume(throwing: PassError.timedOut)
             }
         }
+    }
+
+    // MARK: - Invocation construction
+
+    /// Build an ``Invocation`` with sanitised fields, ready to be
+    /// stored in the ``InvocationLog``. Sanitisation reuses
+    /// ``PassErrorMapper/sanitize(_:maxLength:)`` so emails / hex IDs
+    /// are stripped consistently across UI surfaces.
+    private nonisolated static func makeInvocation(
+        executable: String,
+        arguments: [String],
+        exitCode: Int32,
+        stderr: String,
+        startedAt: Date,
+        finishedAt: Date
+    ) -> Invocation {
+        let safeArgs = arguments.map { PassErrorMapper.sanitize($0, maxLength: 256) }
+        let safeStderr = PassErrorMapper.sanitize(stderr, maxLength: Log.maxStderrExcerpt)
+        return Invocation(
+            executable: executable,
+            args: safeArgs,
+            exitCode: exitCode,
+            stderrExcerpt: safeStderr,
+            startedAt: startedAt,
+            duration: finishedAt.timeIntervalSince(startedAt)
+        )
     }
 }
 
