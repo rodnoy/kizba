@@ -99,6 +99,14 @@ Proceed to **step 7.5** (per `.ai/plan.md`).
 
 `.ai/step.md` is set to `7.5`.
 
+NOTE: The user explicitly authorised executing step **8.1** (UserDefaultsSettingsStore)
+now, deviating from the previously scheduled next step. Implementation of 8.1 was
+performed and committed (see commits below):
+
+- feat(settings): add UserDefaultsSettingsStore
+- test(settings): add UserDefaultsSettingsStore unit tests
+- chore(ai): record step 8.1 completion
+
 Note: `.ai/plan.md` numbers Diagnostics under Phase 8 (8.4) but
 `.ai/step.md` follows the working step counter (7.4 just completed,
 next 7.5). The orchestrator approved running 7.4 against the Phase 8.4
