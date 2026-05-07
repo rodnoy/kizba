@@ -9,8 +9,6 @@
 //
 import Foundation
 
-import Kizba
-
 /// Production implementation of `SettingsStoring` backed by
 /// `UserDefaults`.
 ///
