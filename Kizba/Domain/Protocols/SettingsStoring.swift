@@ -47,7 +47,7 @@ public struct SettingsKey<Value: SettingsValue>: Sendable, Hashable {
 /// actor; the underlying `UserDefaults` is itself thread-safe. UI
 /// callers typically observe via `@Observable` view models that
 /// re-read on demand.
-@MainActor public protocol SettingsStoring: Sendable {
+public protocol SettingsStoring: Sendable {
 
     /// Read the stored value for `key`, or `nil` if unset.
     func value<Value: SettingsValue>(for key: SettingsKey<Value>) -> Value?
@@ -69,7 +69,6 @@ func registerDefaults(_ defaults: [String: Any])
 
 // Backwards-compatible no-op defaults so lightweight test doubles
 // don't have to implement the entire surface unless needed.
-@MainActor
 extension SettingsStoring {
     public func removeValue(forKey key: String) {}
     public func resetAll() {}
