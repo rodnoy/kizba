@@ -74,16 +74,27 @@ extension AppEnvironment {
             shellRunner: shellRunner
         )
 
+        // Phase 6.5: filesystem-backed listing + lazy `pass show`
+        // composed into a single ``PassManaging`` for `live()`. Store
+        // root override via ``SettingsStoring`` is wired in Phase 8;
+        // for now we use the standard `~/.password-store` location.
+        let scanner = PasswordStoreScanner()
+        let passManager = LivePassManager(
+            scanner: scanner,
+            passCLI: passCLI,
+            storeRoot: LivePassManager.defaultStoreRoot
+        )
+
         #if DEBUG
         return AppEnvironment(
-            passManager: MockPassManager.preview(),
+            passManager: passManager,
             clipboard: NoopClipboard(),
             settings: InMemorySettingsStore(),
             passCLI: passCLI
         )
         #else
         return AppEnvironment(
-            passManager: UnavailablePassManager(),
+            passManager: passManager,
             clipboard: UnavailableClipboard(),
             settings: UnavailableSettingsStore(),
             passCLI: passCLI
