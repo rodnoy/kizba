@@ -15,7 +15,6 @@ import Foundation
 /// Threading: marked `@MainActor` to align with the project's
 /// default actor isolation. The underlying `UserDefaults` is safe for
 /// concurrent access from multiple threads.
-@MainActor
 public final class UserDefaultsSettingsStore: SettingsStoring {
 
     private let userDefaults: UserDefaults
