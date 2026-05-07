@@ -2,88 +2,95 @@
 
 ## Last completed action
 
-Step **3.4 — DONE** (SourceGrepTests finalisation/expansion — Phase 3
-closed).
+Step **4.1 — DONE** (PassShowParser pure parser + unit tests).
 
-`KizbaTests/SourceGrepTests.swift` was rewritten in place: scope
-broadened from `Infrastructure/Shell/`+`Infrastructure/Pass/` to the
-entire `Kizba/Infrastructure/` tree, and the rule set was extended
-to four deterministic properties. Production code untouched; no
-violations found.
+`Kizba/Infrastructure/Pass/PassShowParser.swift` is a new, IO-free
+parser for the body produced by `pass show <entry>`. It exposes
+`PassShowParser.parse(_: String) throws -> PassShowResult`, where
+`PassShowResult` carries the password, an ordered `[(String,String)]`
+metadata list, and an optional notes string.
 
 ### Behaviour
 
-`SourceGrepTests` now enforces, anchored via `#filePath`:
+Per `.ai/plan.md` Phase 4.1:
 
-1. **No raw `print(`** anywhere under `Kizba/Infrastructure/`
-   (`testNoRawPrintInInfrastructure`). Negative look-behind avoids
-   `something.print(` and `imprint(`. The sanctioned wrapper
-   `Kizba/Infrastructure/Logging/Log.swift` is excluded — its
-   docstring legitimately mentions the forbidden token.
-2. **No stdout-leaking references** (`testNoStdoutReferencesInInfrastructure`):
-   `FileHandle.standardOutput`, `Darwin.stdout`, `fputs(`, `fputc(`,
-   `puts(`, `printf(`, `fprintf(`, `fwrite(`. Wrapper excluded for
-   the same documentation reason.
-3. **No direct `Logger`/`OSLog` instantiation outside the wrapper**
-   (`testNoDirectLoggerInstantiationOutsideWrapper`): `Logger(subsystem:`
-   and `OSLog(` are forbidden everywhere except
-   `Kizba/Infrastructure/Logging/Log.swift`.
-4. **`PassSecret` not `Codable`** (`testPassSecretIsNotCodable`):
-   scans the whole `Kizba/` tree for any `struct PassSecret` /
-   `extension PassSecret` whose conformance list contains
-   `Codable`/`Encodable`/`Decodable`. Reports file path, line and
-   the offending snippet.
+1. **Password.** Line 1 of the raw stdout, verbatim — only the
+   trailing newline that splits it from the rest of the body is
+   consumed by the splitter.
+2. **Metadata block.** Contiguous run of lines matching
+   `^[A-Za-z0-9_.-]+:` immediately after the password. Each line is
+   split on the **first** `:` only, so values containing additional
+   colons (`url: https://x.test:8443/path`, `ratio: 1:2:3`) survive
+   intact. Ordering and duplicate keys are preserved.
+3. **Notes.** The first non-metadata line and everything after it,
+   joined verbatim by `\n`. Newlines inside the notes section are
+   preserved exactly. Once the metadata block ends, any
+   `key: value`-shaped line that follows is notes — not metadata.
+4. **Empty input.** Throws `PassError.parsingFailed(reason:)`.
 
-`KizbaTests/` is excluded from the scan by construction.
+The parser performs no shell calls, no `FileManager` work, no
+logging — its input is secret material.
+
+`PassError.parsingFailed(reason:)` was already declared in Phase 1.1,
+so no edits to `Kizba/Domain/Models/PassError.swift` were required.
 
 ### Applied changes
 
-- `KizbaTests/SourceGrepTests.swift` — rewritten (4 tests, +159 net
-  lines vs. previous 2-test version).
-- `.ai/build-log.md` — appended step 3.4 verification block.
-- `.ai/step.md` — bumped to `3.5`.
+- `Kizba/Infrastructure/Pass/PassShowParser.swift` — **new** (139 lines).
+- `KizbaTests/PassShowParserTests.swift` — **new** (10 tests, 166 lines).
+- `.ai/build-log.md` — appended step 4.1 verification block.
+- `.ai/step.md` — bumped to `4.2`.
 - `.ai/last-run.json` — refreshed.
-- `Kizba.xcodeproj/project.pbxproj` — **not modified** (file already
-  tracked; replaced in place).
-- No production source changed.
+- `Kizba.xcodeproj/project.pbxproj` — **not modified**; new files are
+  picked up by the existing `PBXFileSystemSynchronizedRootGroup`
+  entries for `Kizba/` and `KizbaTests/`.
 
 ### Verification (executed on this host)
 
 ```
 xcodebuild -scheme Kizba -project Kizba.xcodeproj \
   -destination 'platform=macOS' \
-  -only-testing:KizbaTests/SourceGrepTests test
+  -only-testing:KizbaTests/PassShowParserTests test
 # => ** TEST SUCCEEDED **
-#    Executed 4 tests, with 0 failures (0 unexpected) in 0.047 s
+#    Executed 10 tests, with 0 failures (0 unexpected) in 0.013 s
 
 xcodebuild -scheme Kizba -project Kizba.xcodeproj \
   -destination 'platform=macOS' test
 # => ** TEST SUCCEEDED **
-#    Executed 105 tests, with 0 failures (0 unexpected) in 2.630 s
+#    Executed 115 tests, with 0 failures (0 unexpected) in 6.487 s
 ```
 
 Build log: `.ai/build-log.md`.
 
 ### Commits
 
-- `b24de56` — `test(ci): enforce logging discipline with SourceGrepTests`
-- `019818c` — `chore(ai): record step 3.4 completion`
+- `9af612b` — `feat(pass): add PassShowParser (pure)`
+- `1adbb38` — `test(pass): add PassShowParser unit tests`
+- (pending) `chore(ai): record step 4.1 completion`
 
 ### Repo state at completion
 
-- HEAD: handoff bump commit (recorded in this file once committed).
+- HEAD will be the handoff bump commit once recorded.
 - `xcodeproj_created = true`,
   `xcode_instructions_path = .ai/xcode_instructions.md` (no new UI
-  steps required — existing test file replaced in place).
+  steps required).
 - `build_log_path = .ai/build-log.md`.
 
 ## Next action
 
-Phase 3 is closed. Proceed to **Phase 4 — step 3.5 / 4.1** per
-`.ai/plan.md`: implement `PassShowParser` (pure parser for the body
-of `pass show <entry>`).
+Proceed to **step 4.2** per `.ai/plan.md`: extend
+`PassShowParserTests` against a fixture corpus if needed, then begin
+**4.3 — `PassErrorMapper`** (map known `pass`/`gpg` stderr signatures
+to `PassError`, with a sanitiser that strips emails and hex IDs and
+caps excerpt length).
 
-`.ai/step.md` is set to `3.5`.
+Note: the Phase 4.1 test set in this commit already covers every
+case enumerated in plan step 4.2 (password-only, metadata, notes,
+duplicate keys, colon-in-value, notes containing key-like lines,
+empty throws). Step 4.2 may collapse into a no-op or a small fixture
+corpus addition — confirm with the user before adding test churn.
+
+`.ai/step.md` is set to `4.2`.
 
 ## Constraints (must hold from day one)
 

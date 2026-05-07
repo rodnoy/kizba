@@ -434,3 +434,38 @@ tracked (replaced in place).
 
 Total: 105 (103 prior + 2 new SourceGrepTests cases; the 2 original
 cases were renamed/rewritten into the broader engine).
+
+## 2026-05-07 — Step 4.1 (PassShowParser)
+
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
+  -only-testing:KizbaTests/PassShowParserTests test
+=> ** TEST SUCCEEDED **
+   Executed 10 tests, with 0 failures (0 unexpected) in 0.013 s
+
+xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' test
+=> ** TEST SUCCEEDED **
+   Executed 115 tests, with 0 failures (0 unexpected) in 6.487 s
+```
+
+New artefacts:
+
+- `Kizba/Infrastructure/Pass/PassShowParser.swift` — pure parser
+  (`PassShowParser.parse(_:) -> PassShowResult`) following the grammar
+  in `.ai/plan.md` Phase 4.1. IO-free; no logging; preserves ordering
+  and duplicate metadata keys; splits each metadata line on the first
+  `:` only; treats any non-metadata line and the rest of the body as
+  notes. Empty input throws `PassError.parsingFailed(reason:)`.
+- `KizbaTests/PassShowParserTests.swift` — 10 cases covering
+  password-only (with and without trailing newline), metadata block,
+  duplicate keys, colon-in-value (`url: https://x.test:8443/path`),
+  single-line and multi-line notes (newline-preserving), notes
+  containing `key: value`-shaped lines, notes starting immediately
+  after the password, and the empty-input throw.
+
+`PassError.parsingFailed(reason:)` was already defined in Phase 1.1 —
+no edits to `PassError.swift` were required. New files are picked up
+automatically through the existing `PBXFileSystemSynchronizedRootGroup`
+entries; `project.pbxproj` is unchanged.
+
+Total: 115 (105 prior + 10 new `PassShowParserTests`).
