@@ -750,3 +750,45 @@ unchanged (still uses `MockPassManager` in DEBUG). Added
 `Kizba.xcodeproj/project.pbxproj` not modified
 (PBXFileSystemSynchronizedRootGroup picks up the new files
 automatically).
+
+## 2026-05-07 — Step 6.6 (EntryListView ⌘R refresh wiring)
+
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' \
+  -only-testing:KizbaTests/EntryListModelRefreshTests test
+=> ** TEST SUCCEEDED **
+   Executed 2 tests, with 0 failures (0 unexpected) in 0.024s
+
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' test
+=> ** TEST SUCCEEDED **
+   Executed 168 tests, with 0 failures (0 unexpected) in 3.575s
+```
+
+Added a toolbar `Refresh` button (`arrow.clockwise`) with `⌘R`
+keyboard shortcut to `Kizba/Presentation/Features/EntryList/EntryListView.swift`.
+The button spawns a detached `Task { await model.refresh() }`.
+
+Made `EntryListModel.refresh()` cooperatively cancellable: it returns
+early if the surrounding `Task` is cancelled (before/after listing)
+and swallows `CancellationError` so a cancelled refresh never wipes
+the previously loaded snapshot. On other thrown errors the snapshot
+is still cleared (Phase 8 will surface error UI).
+
+Added `KizbaTests/EntryListModelRefreshTests.swift` with two
+deterministic tests:
+
+- `testRefresh_invokesScannerAndUpdatesEntries` — uses a local
+  `FakePassManager` actor returning successive canned responses;
+  asserts `allEntries` follows the fake's responses across two
+  refreshes and the fake is invoked exactly twice.
+- `testRefresh_cancellable` — uses a slow `FakePassManager`
+  (`Task.sleep(.milliseconds(500))`); cancels the wrapping task ~20ms
+  in; asserts the cancellable model's snapshot is left empty (no
+  partial write) and a sibling warm model retains its previously
+  loaded entries.
+
+`Kizba.xcodeproj/project.pbxproj` not modified
+(PBXFileSystemSynchronizedRootGroup picks up the new test file
+automatically).

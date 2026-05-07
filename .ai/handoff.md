@@ -2,79 +2,78 @@
 
 ## Last completed action
 
-Step **6.5 — DONE** (`LivePassManager` actor wires
-`PasswordStoreScanner` + `LivePassCLI` into a production
-`PassManaging`; `AppEnvironment.live()` now uses it instead of
-`MockPassManager`).
+Step **6.6 — DONE** (toolbar ⌘R refresh action wired into
+`EntryListView`; `EntryListModel.refresh()` made cooperatively
+cancellable; dedicated unit tests added).
 
 ### Applied changes
 
-- `Kizba/Infrastructure/Pass/LivePassManager.swift` — **new**.
-  `actor LivePassManager: PassManaging`. Constructor injects
-  `PasswordStoreScanning`, `LivePassCLI`, and `storeRoot: URL`.
-  `listEntries()` calls the scanner and maps result strings to
-  `PassEntry(path:)`. `show(_:)` calls `passCLI.show(entryPath:)` and
-  composes a `PassSecret`. `storeLocation()` returns the injected
-  store root via a `nonisolated public let` so the synchronous
-  protocol requirement is served without an actor hop. Domain
-  value-type initialisers are MainActor-isolated under Swift 6
-  strict-concurrency, so the mapping bodies use `await MainActor.run`.
-  Exposes `LivePassManager.defaultStoreRoot` (=`~/.password-store`)
-  for the standard layout.
-- `Kizba/App/AppEnvironment.swift` — **modified**. `live()` now
-  constructs `PasswordStoreScanner` + `LivePassManager` and uses it
-  in both DEBUG and RELEASE branches (replaces `MockPassManager` in
-  DEBUG and the `UnavailablePassManager` placeholder in RELEASE).
-  `preview()` unchanged.
-- `KizbaTests/LivePassManagerTests.swift` — **new**. Five tests:
-  `testListEntries_delegatesToScannerAndMapsToPassEntries`,
-  `testListEntries_emptyStoreReturnsEmpty`,
-  `testShow_delegatesToPassCLIWithEntryPath`,
-  `testStoreLocation_returnsInjectedRoot`,
-  `testStoreLocation_defaultRootMatchesHomePasswordStore`. Uses a
-  private `FakeScanner` (actor, records the store roots it was
-  queried with) and a `StubBinaryLocator`. Reuses the existing
-  internal `FakeShellRunner` from `PassCLITests.swift`.
-- `.ai/build-log.md` — appended step 6.5 verification block.
-- `.ai/plan.md` — 6.5 ticked.
-- `.ai/step.md` — bumped to `6.6`.
+- `Kizba/Presentation/Features/EntryList/EntryListView.swift` —
+  **modified**. Added a `.toolbar { ToolbarItem { Button … } }` with
+  `Label("Refresh", systemImage: "arrow.clockwise")`,
+  `keyboardShortcut("r", modifiers: .command)`, and a help tooltip.
+  The button spawns a detached `Task { await model.refresh() }`. The
+  existing `.task { await model.refresh() }` initial load is kept.
+- `Kizba/Presentation/Features/EntryList/EntryListModel.swift` —
+  **modified**. `refresh()` now honours cooperative cancellation:
+  early-returns on `Task.isCancelled` before and after the listing
+  call, and swallows `CancellationError` so a cancelled refresh
+  never overwrites a previously loaded snapshot with an empty list.
+  All other thrown errors still clear the snapshot (Phase 8 will
+  surface error UI).
+- `KizbaTests/EntryListModelRefreshTests.swift` — **new**. Two
+  deterministic tests:
+  - `testRefresh_invokesScannerAndUpdatesEntries` — local
+    `FakePassManager` actor returns successive canned lists; asserts
+    `model.allEntries` follows the responses across two refreshes
+    and the fake is invoked exactly twice.
+  - `testRefresh_cancellable` — slow `FakePassManager`
+    (`Task.sleep(.milliseconds(500))`); cancel after ~20ms; asserts
+    the cancelled model's snapshot stays empty (no partial write)
+    and a sibling pre-warmed model retains its earlier entries.
+  Also defines local `NullClipboard` / `NullSettings` doubles so a
+  full `AppEnvironment` can be constructed without touching
+  preview-only services.
+- `.ai/build-log.md` — appended step 6.6 verification block.
+- `.ai/plan.md` — unchanged (6.6 had been folded into 6.5's plan
+  bullet; the toolbar work itself is now complete).
+- `.ai/step.md` — bumped to `6.7`.
 - `.ai/handoff.md` — this file.
 - `.ai/last-run.json` — refreshed.
-- `Kizba.xcodeproj/project.pbxproj` — **not modified** (new files
-  picked up automatically by `PBXFileSystemSynchronizedRootGroup`).
+- `Kizba.xcodeproj/project.pbxproj` — **not modified** (new test
+  file picked up automatically by `PBXFileSystemSynchronizedRootGroup`).
 
 ### Scope notes
 
-- The plan line for 6.5 also mentions a toolbar ⌘R refresh action.
-  That UI hook is **deferred**: this brief was scoped to the
-  composition wiring + tests so the read path goes live without UI
-  churn. The next step (6.6 / Phase 7) will pick it up alongside the
-  Sidebar/EntryList model work.
-- Settings-based `storePathOverride` is wired in Phase 8;
-  `LivePassManager.defaultStoreRoot` is the temporary default.
+- No changes to `LivePassManager`, `PassCLI`, `PasswordStoreScanner`,
+  or `AppEnvironment` (per the brief).
+- Refresh failures still clear `allEntries` for now; proper error
+  UI (toast / banner) is Phase 8 territory.
+- Auto-refresh via FSEvents is explicitly out of scope for MVP 1
+  (`.ai/decisions.md` — ⌘R only).
 
 ### Verification (executed on this host)
 
 ```
 xcodebuild -scheme Kizba -project Kizba.xcodeproj \
   -destination 'platform=macOS' \
-  -only-testing:KizbaTests/LivePassManagerTests test
+  -only-testing:KizbaTests/EntryListModelRefreshTests test
 => ** TEST SUCCEEDED **
-   Executed 5 tests, with 0 failures (0 unexpected)
+   Executed 2 tests, with 0 failures (0 unexpected) in 0.024s
 
 xcodebuild -scheme Kizba -project Kizba.xcodeproj \
   -destination 'platform=macOS' test
 => ** TEST SUCCEEDED **
-   Executed 166 tests, with 0 failures (0 unexpected) in 3.360s
+   Executed 168 tests, with 0 failures (0 unexpected) in 3.575s
 ```
 
 Build log: `.ai/build-log.md`.
 
 ### Commits
 
-- `feat(pass): add LivePassManager using PasswordStoreScanner and PassCLI`
-- `test(pass): add LivePassManager unit tests`
-- `chore(ai): record step 6.5 completion`
+- `feat(ui): add refresh action (⌘R) to EntryListView`
+- `test(ui): add EntryListModel refresh tests`
+- `chore(ai): record step 6.6 completion`
 
 (Hashes recorded by git log after commit.)
 
@@ -88,12 +87,12 @@ Build log: `.ai/build-log.md`.
 
 ## Next action
 
-Proceed to **step 6.6** (next item under Phase 6 / Phase 7 boundary
-per `.ai/plan.md`): production wiring continues with the toolbar
-⌘R refresh action and the `Sidebar`/`EntryList` integration against
-the live `PassManaging`.
+Proceed to **step 6.7** (transition into Phase 7 — Clipboard
+service). Per `.ai/plan.md`, next concrete work item is 7.1:
+implement `ClipboardService` (write verbatim, generation token +
+`changeCount` snapshot, conditional auto-clear).
 
-`.ai/step.md` is set to `6.6`.
+`.ai/step.md` is set to `6.7`.
 
 ## Constraints (must hold from day one)
 

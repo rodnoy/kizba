@@ -1,22 +1,21 @@
 {
   "status": "ok",
-  "step_completed": "6.5",
-  "next_step": "6.6",
-  "notes": "Added Kizba/Infrastructure/Pass/LivePassManager.swift — an actor implementing PassManaging that composes the read paths added in earlier phases. Listing delegates to the injected PasswordStoreScanning (PasswordStoreScanner in production); decryption delegates to LivePassCLI (which lazily resolves the `pass` binary via BinaryLocating and runs `pass show <entry>` through ShellCommandRunning). storeLocation() returns the immutable injected store root (nonisolated let, so the synchronous protocol requirement is served without an actor hop). Domain value-type initialisers are MainActor-isolated under Swift 6 strict-concurrency, so the listEntries/show mappings are performed via `await MainActor.run { ... }`. Wired into AppEnvironment.live() for both DEBUG and RELEASE builds (storeRoot defaults to ~/.password-store via LivePassManager.defaultStoreRoot — settings-based override is wired in Phase 8). preview() left untouched (still uses MockPassManager in DEBUG). Added KizbaTests/LivePassManagerTests.swift with five deterministic tests using a private FakeScanner (records consulted store roots) and StubBinaryLocator; reuses internal FakeShellRunner from PassCLITests.swift. Toolbar ⌘R refresh action mentioned in the plan is deferred (out of scope for this brief). project.pbxproj unchanged (PBXFileSystemSynchronizedRootGroup auto-picks new files).",
+  "step_completed": "6.6",
+  "next_step": "6.7",
+  "notes": "Wired the toolbar ⌘R refresh action into EntryListView. The toolbar button uses Label('Refresh', systemImage: 'arrow.clockwise') with keyboardShortcut('r', modifiers: .command); tapping spawns Task { await model.refresh() }. Made EntryListModel.refresh() cooperatively cancellable: early-returns on Task.isCancelled before/after the pass-manager call and swallows CancellationError so a cancelled refresh never wipes a previously loaded snapshot. Other thrown errors still clear the snapshot (Phase 8 wires real error UI). Added KizbaTests/EntryListModelRefreshTests.swift with two deterministic tests using a local FakePassManager actor (canned responses + optional sleep delay) and Null* doubles for clipboard/settings. project.pbxproj unchanged (PBXFileSystemSynchronizedRootGroup auto-picks the new file). No changes to LivePassManager / PassCLI / PasswordStoreScanner / AppEnvironment.",
   "changed_files": [
-    "Kizba/Infrastructure/Pass/LivePassManager.swift",
-    "Kizba/App/AppEnvironment.swift",
-    "KizbaTests/LivePassManagerTests.swift",
+    "Kizba/Presentation/Features/EntryList/EntryListView.swift",
+    "Kizba/Presentation/Features/EntryList/EntryListModel.swift",
+    "KizbaTests/EntryListModelRefreshTests.swift",
     ".ai/build-log.md",
-    ".ai/plan.md",
     ".ai/step.md",
     ".ai/handoff.md",
     ".ai/last-run.json"
   ],
   "commits": [
-    "feat(pass): add LivePassManager using PasswordStoreScanner and PassCLI",
-    "test(pass): add LivePassManager unit tests",
-    "chore(ai): record step 6.5 completion"
+    "feat(ui): add refresh action (⌘R) to EntryListView",
+    "test(ui): add EntryListModel refresh tests",
+    "chore(ai): record step 6.6 completion"
   ],
   "production_code_changed": true,
   "xcodeproj_created": true,
@@ -24,10 +23,10 @@
   "xcode_instructions_path": ".ai/xcode_instructions.md",
   "build_log_path": ".ai/build-log.md",
   "tests": {
-    "total": 166,
-    "passed": 166,
+    "total": 168,
+    "passed": 168,
     "failed": 0,
-    "added_in_step": 5,
+    "added_in_step": 2,
     "rewritten_in_step": 0
   }
 }
