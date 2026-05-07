@@ -108,7 +108,7 @@ Each step is sized for a single focused implementation session. Verification com
 - [x] 6.2 `EntryPathConverterTests` — nested, top-level, non-gpg, outside root, Unicode, spaces.
 - [x] 6.3 `PasswordStoreScanner` — `FileManager.enumerator` with `[.skipsHiddenFiles]`; ignores `.git`, `.gpg-id`; only `.gpg`; sorted result.
 - [x] 6.4 `TempStoreFixture` + `PasswordStoreScannerTests` — nested with `.git` ignored; `.gpg-id` ignored; non-gpg ignored; empty store; missing root throws; deterministic sort.
-- [ ] 6.5 Wire scanner into `PassCLI.listEntries`; ⌘R refresh action in toolbar.
+- [x] 6.5 Wire scanner into `PassCLI.listEntries`; ⌘R refresh action in toolbar.
 
 **DoD:** Real list + real decrypt; ⌘R refreshes.
 

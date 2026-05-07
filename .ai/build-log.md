@@ -721,3 +721,32 @@ is cleaned up via `defer { fixture.cleanup() }` in each test.
 `Kizba.xcodeproj/project.pbxproj` not modified
 (PBXFileSystemSynchronizedRootGroup picks up the new files
 automatically).
+
+## 2026-05-07 — Step 6.5 (LivePassManager wiring)
+
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' \
+  -only-testing:KizbaTests/LivePassManagerTests test
+=> ** TEST SUCCEEDED **
+   Executed 5 tests, with 0 failures (0 unexpected)
+
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' test
+=> ** TEST SUCCEEDED **
+   Executed 166 tests, with 0 failures (0 unexpected) in 3.360s
+```
+
+Added `Kizba/Infrastructure/Pass/LivePassManager.swift` (actor
+implementing `PassManaging`: listing via injected
+`PasswordStoreScanning`, decryption via injected `LivePassCLI`,
+`storeLocation()` returns immutable injected store root). Wired into
+`AppEnvironment.live()` for both DEBUG and RELEASE builds; `preview()`
+unchanged (still uses `MockPassManager` in DEBUG). Added
+`KizbaTests/LivePassManagerTests.swift` with `FakeScanner` +
+`StubBinaryLocator` doubles (reusing `FakeShellRunner` from
+`PassCLITests.swift`).
+
+`Kizba.xcodeproj/project.pbxproj` not modified
+(PBXFileSystemSynchronizedRootGroup picks up the new files
+automatically).

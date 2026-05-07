@@ -1,11 +1,12 @@
 {
   "status": "ok",
-  "step_completed": "6.4",
-  "next_step": "6.5",
-  "notes": "Added KizbaTests/Fixtures/TempStoreFixture.swift — a deterministic value-type fixture that creates a unique temp directory under FileManager.default.temporaryDirectory and provides createStandardLayout(), createEmptyStore(), and cleanup(). The standard layout matches the brief: pass.gpg, personal/two.gpg, personal/work/one.gpg, work/entry.gpg, archive/old.gpg, .gpg-id, .git/ignored.gpg, readme.txt, and a unicode+spaces entry. Rewrote KizbaTests/PasswordStoreScannerTests.swift to use the fixture with `defer { fixture.cleanup() }` in each test. Tests cover: standard layout sorted output (localizedStandardCompare), empty store, missing root throws PassError.storeNotFound, .gpg-id and .git ignored, unicode/spaces preserved, plus retained caching/invalidate, case-insensitive .gpg, and validateStoreRoot. No production code modified. project.pbxproj unchanged (PBXFileSystemSynchronizedRootGroup auto-picks new files).",
+  "step_completed": "6.5",
+  "next_step": "6.6",
+  "notes": "Added Kizba/Infrastructure/Pass/LivePassManager.swift — an actor implementing PassManaging that composes the read paths added in earlier phases. Listing delegates to the injected PasswordStoreScanning (PasswordStoreScanner in production); decryption delegates to LivePassCLI (which lazily resolves the `pass` binary via BinaryLocating and runs `pass show <entry>` through ShellCommandRunning). storeLocation() returns the immutable injected store root (nonisolated let, so the synchronous protocol requirement is served without an actor hop). Domain value-type initialisers are MainActor-isolated under Swift 6 strict-concurrency, so the listEntries/show mappings are performed via `await MainActor.run { ... }`. Wired into AppEnvironment.live() for both DEBUG and RELEASE builds (storeRoot defaults to ~/.password-store via LivePassManager.defaultStoreRoot — settings-based override is wired in Phase 8). preview() left untouched (still uses MockPassManager in DEBUG). Added KizbaTests/LivePassManagerTests.swift with five deterministic tests using a private FakeScanner (records consulted store roots) and StubBinaryLocator; reuses internal FakeShellRunner from PassCLITests.swift. Toolbar ⌘R refresh action mentioned in the plan is deferred (out of scope for this brief). project.pbxproj unchanged (PBXFileSystemSynchronizedRootGroup auto-picks new files).",
   "changed_files": [
-    "KizbaTests/Fixtures/TempStoreFixture.swift",
-    "KizbaTests/PasswordStoreScannerTests.swift",
+    "Kizba/Infrastructure/Pass/LivePassManager.swift",
+    "Kizba/App/AppEnvironment.swift",
+    "KizbaTests/LivePassManagerTests.swift",
     ".ai/build-log.md",
     ".ai/plan.md",
     ".ai/step.md",
@@ -13,20 +14,20 @@
     ".ai/last-run.json"
   ],
   "commits": [
-    "test(store): add TempStoreFixture helper",
-    "test(store): use TempStoreFixture in PasswordStoreScanner tests",
-    "chore(ai): record step 6.4 completion"
+    "feat(pass): add LivePassManager using PasswordStoreScanner and PassCLI",
+    "test(pass): add LivePassManager unit tests",
+    "chore(ai): record step 6.5 completion"
   ],
-  "production_code_changed": false,
+  "production_code_changed": true,
   "xcodeproj_created": true,
   "xcodeproj_modified": false,
   "xcode_instructions_path": ".ai/xcode_instructions.md",
   "build_log_path": ".ai/build-log.md",
   "tests": {
-    "total": 161,
-    "passed": 161,
+    "total": 166,
+    "passed": 166,
     "failed": 0,
-    "added_in_step": 0,
-    "rewritten_in_step": 8
+    "added_in_step": 5,
+    "rewritten_in_step": 0
   }
 }
