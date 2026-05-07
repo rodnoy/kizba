@@ -643,3 +643,56 @@ New files:
 `Kizba.xcodeproj/project.pbxproj` not modified
 (PBXFileSystemSynchronizedRootGroup picks up the new files
 automatically).
+
+## 2026-05-07 — Step 6.3 (PasswordStoreScanner)
+
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' \
+  -only-testing:KizbaTests/PasswordStoreScannerTests test
+=> ** TEST SUCCEEDED **
+   Executed 9 tests, with 0 failures (0 unexpected) in 0.070s
+
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' test
+=> ** TEST SUCCEEDED **
+   Executed 162 tests, with 0 failures (0 unexpected) in 7.364s
+```
+
+New files:
+
+- `Kizba/Domain/Protocols/PasswordStoreScanning.swift` — new domain
+  protocol (`Sendable`) declaring `listEntries(in:) async throws ->
+  [String]`, `validateStoreRoot(_:) async -> Bool`, and
+  `invalidate(storeRoot:) async`.
+- `Kizba/Infrastructure/Store/PasswordStoreScanner.swift` — `actor`
+  implementation using `FileManager.default.enumerator(at:...)` with
+  `[.skipsHiddenFiles]`. Ignores `.git` (and any configured
+  directories) via `enumerator.skipDescendants()` plus a defensive
+  pathComponents check. Skips `.gpg-id` markers. Includes only
+  regular files whose final extension is `.gpg` (case-insensitive).
+  Computes the relative entry path through the existing
+  `EntryPathConverter` and emits results sorted by
+  `localizedStandardCompare`. Caches results per standardised store-
+  root path; `invalidate(storeRoot:)` drops a single key. Logs only
+  shape-only metadata via `Log.discovery` (count `.public`, store
+  path `.private`).
+- `KizbaTests/PasswordStoreScannerTests.swift` — 9 deterministic
+  tests using a per-test temp directory under
+  `FileManager.default.temporaryDirectory`: nested+top-level entries
+  with deterministic sort, `.git`/`.gpg-id` ignored, non-gpg ignored,
+  empty store, missing root throws `PassError.storeNotFound`,
+  Unicode + spaces preserved, case-insensitive `.gpg` extension,
+  caching + `invalidate` round-trip, `validateStoreRoot` happy/sad
+  paths.
+
+Design note: `FileManager` is not `Sendable` and cannot be stored
+on an actor under strict concurrency without an unsafe wrapper. The
+scanner therefore drops the originally-planned `FileManager`
+injection point and uses `FileManager.default` directly. Tests
+exercise the real filesystem via per-test temporary directories,
+which is sufficient and avoids `@unchecked Sendable` wrappers.
+
+`Kizba.xcodeproj/project.pbxproj` not modified
+(PBXFileSystemSynchronizedRootGroup picks up the new files
+automatically).

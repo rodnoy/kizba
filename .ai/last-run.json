@@ -1,11 +1,12 @@
 {
   "status": "ok",
-  "step_completed": "6.1",
-  "next_step": "6.2",
-  "notes": "Added pure EntryPathConverter (Kizba/Infrastructure/Store/EntryPathConverter.swift): static func entryPath(from:storeRoot:) -> String?. Strictly IO-free (no FileManager, no logging) per durable decisions. Returns nil for non-.gpg files, files outside the store root, the store root itself, and bare `.gpg` filenames. Strips only the final `.gpg` extension; preserves Unicode, whitespace, and earlier dots in basenames verbatim. 8 deterministic XCTests added; full suite green (153 passed, 8 new). Xcodeproj uses PBXFileSystemSynchronizedRootGroup so project.pbxproj was not modified.",
+  "step_completed": "6.3",
+  "next_step": "6.4",
+  "notes": "Added PasswordStoreScanning protocol (Domain/Protocols) and FileManager-backed PasswordStoreScanner actor (Infrastructure/Store). Walks the store with FileManager.default.enumerator(at:) using [.skipsHiddenFiles]; ignores .git and .gpg-id; includes only regular .gpg files (case-insensitive); computes relative entry paths via EntryPathConverter; sorts via localizedStandardCompare. Caches per standardised store-root path; invalidate(storeRoot:) drops a single key. Logs only shape-only metadata via Log.discovery (count public, paths private). Note: FileManager is not Sendable and cannot be a stored actor property under strict concurrency, so injection of a custom FileManager was dropped; tests exercise the real filesystem via per-test temp directories. 9 deterministic XCTests added; full suite green (162 passed, 9 new). project.pbxproj unchanged (PBXFileSystemSynchronizedRootGroup).",
   "changed_files": [
-    "Kizba/Infrastructure/Store/EntryPathConverter.swift",
-    "KizbaTests/EntryPathConverterTests.swift",
+    "Kizba/Domain/Protocols/PasswordStoreScanning.swift",
+    "Kizba/Infrastructure/Store/PasswordStoreScanner.swift",
+    "KizbaTests/PasswordStoreScannerTests.swift",
     ".ai/build-log.md",
     ".ai/plan.md",
     ".ai/step.md",
@@ -13,9 +14,9 @@
     ".ai/last-run.json"
   ],
   "commits": [
-    "feat(store): add EntryPathConverter (pure URL -> entry path)",
-    "test(store): add EntryPathConverter unit tests",
-    "chore(ai): record step 6.1 completion"
+    "feat(store): add PasswordStoreScanner (FileManager enumerator, ignores .git / .gpg-id)",
+    "test(store): add PasswordStoreScanner unit tests",
+    "chore(ai): record step 6.3 completion"
   ],
   "production_code_changed": true,
   "xcodeproj_created": true,
@@ -23,9 +24,9 @@
   "xcode_instructions_path": ".ai/xcode_instructions.md",
   "build_log_path": ".ai/build-log.md",
   "tests": {
-    "total": 153,
-    "passed": 153,
+    "total": 162,
+    "passed": 162,
     "failed": 0,
-    "added_in_step": 8
+    "added_in_step": 9
   }
 }
