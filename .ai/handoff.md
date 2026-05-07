@@ -2,106 +2,136 @@
 
 ## Last completed action
 
-Step **5.1 — DONE** (`BinaryDiscoveryService` — actor-isolated
-implementation of `BinaryLocating`).
+Step **5.3 — DONE** (Wire `PassCLI` into `AppEnvironment.live()`).
 
-`Kizba/Infrastructure/Discovery/BinaryDiscoveryService.swift` is a
-new, `Sendable` (actor), cache-backed service that:
+`AppEnvironment.live()` now constructs the real production
+collaborators that already exist:
 
-- conforms to the pre-existing `BinaryLocating` protocol (already
-  declared in Phase 1 with `BinaryName` enum and
-  `locate(_:)` / `reDetect()` async methods);
-- accepts an optional `[BinaryName: URL]` override map, an optional
-  `pathOverride` string, an injected `@Sendable () -> [String: String]`
-  environment reader, and an injected `FileExistenceChecking`
-  (defaults to `DefaultFileExistenceChecker` wrapping
-  `FileManager.default.isExecutableFile(atPath:)`);
-- resolves in the documented order:
-  1. explicit `overridePaths[name]` if it passes the executability
-     check (a configured-but-missing override returns `nil` rather
-     than silently falling back — by design, so the UI can show a
-     Settings nudge);
-  2. `/opt/homebrew/bin` → `/usr/local/bin` → `/usr/bin`;
-  3. sanitised PATH walk — empty entries, relative paths, any
-     entry containing a `..` component and duplicates are dropped;
-     well-known directories already probed in step 2 are skipped;
-  4. `nil`.
-- caches results in `[BinaryName: URL?]`; `reDetect()` clears it;
-- logs only sanctioned metadata via `Log.discovery`:
-  * `name` `.public` (raw enum value),
-  * resolved `path` `.private`,
-  * `found` / cache-hit booleans `.public`;
-- never logs raw PATH strings or environment values;
-- no direct `Logger(subsystem:` instantiation; no `print(`; no
-  reference to standard output (verified by `SourceGrepTests`).
+- `ProcessShellRunner()` — Phase 3 production shell runner.
+- `BinaryDiscoveryService()` — Phase 5.1 binary locator.
+- `LivePassCLI(discovery:shellRunner:)` — new thin actor wrapper
+  (this step) that lazily resolves the absolute path of `pass`
+  through `BinaryLocating` at the first `show(entryPath:)` call
+  rather than at composition-root construction time. This keeps
+  `live()` synchronous.
 
-A new public protocol `FileExistenceChecking` lives alongside the
-service in the same file (it is implementation-detail of the
-discovery subsystem; not in `Domain/Protocols/`).
+`AppEnvironment` gained an optional `passCLI: LivePassCLI?` field.
+`live()` always populates it; `preview()` leaves it `nil` so
+SwiftUI previews and unit tests never reach for the real binary.
+The remaining services (`passManager`, `clipboard`, `settings`)
+keep their existing behaviour: in DEBUG they continue to use
+`MockPassManager.preview()` / `NoopClipboard` / `InMemorySettingsStore`;
+in RELEASE the deterministic-failing placeholders remain in place.
+Phase 6.5 will replace `passManager` with a real wiring that uses
+`passCLI` end-to-end.
+
+### Why `LivePassCLI` exists
+
+`PassCLI` requires an absolute executable URL at construction time,
+and `BinaryDiscoveryService.locate(_:)` is `async`. Rather than
+making `AppEnvironment.live()` itself `async` (which would propagate
+through `KizbaApp` startup and break SwiftUI scene wiring), we wrap
+`PassCLI` in a small `actor` that performs discovery on first use
+and caches the resolved instance. `invalidate()` is exposed for the
+Settings "Re-detect binaries" action scheduled in Phase 8.3.
+
+### Minor `nonisolated` annotations on the pass-stack
+
+The project compiles under `default-isolation=MainActor`, so by
+default every type without an explicit isolation attribute is
+treated as `@MainActor`. `LivePassCLI` is an `actor` and therefore
+nonisolated; constructing and invoking `PassCLI` from inside it
+required the following pure value-types to be marked `nonisolated`:
+
+- `PassCLI` (struct)
+- `PassErrorMapper` (struct)
+- `PassShowParser` (struct)
+- `PassShowResult` (struct)
+- `kizbaPassShowDefaultTimeout` (top-level let)
+
+These types are pure logic with no UI/AppKit dependencies, so the
+annotation is semantically correct and matches the existing
+`Sendable` conformance. No public API surface changed; existing
+MainActor-isolated callers (e.g. `PassCLITests`) can still invoke
+them transparently.
 
 ### Applied changes
 
-- `Kizba/Infrastructure/Discovery/BinaryDiscoveryService.swift` —
-  **new**.
-- `KizbaTests/BinaryDiscoveryServiceTests.swift` — **new** (6 tests
-  + an embedded `FakeFileExistenceChecker` test double).
-- `.ai/build-log.md` — appended step 5.1 verification block.
-- `.ai/step.md` — bumped to `5.2`.
+- `Kizba/App/AppEnvironment.swift` — added optional `passCLI`
+  field; `live()` constructs and threads through
+  `ProcessShellRunner` + `BinaryDiscoveryService` + `LivePassCLI`.
+- `Kizba/Infrastructure/Pass/LivePassCLI.swift` — **new**.
+- `Kizba/Infrastructure/Pass/PassCLI.swift` — `nonisolated struct`
+  + `nonisolated let kizbaPassShowDefaultTimeout`.
+- `Kizba/Infrastructure/Pass/PassErrorMapper.swift` — `nonisolated`.
+- `Kizba/Infrastructure/Pass/PassShowParser.swift` — `nonisolated`
+  on both `PassShowResult` and `PassShowParser`.
+- `KizbaTests/AppEnvironmentPassCLITests.swift` — **new** (4 tests).
+- `.ai/build-log.md` — appended step 5.3 verification block.
+- `.ai/step.md` — bumped to `5.4`.
 - `.ai/handoff.md` — this file.
 - `.ai/last-run.json` — refreshed.
-- `Kizba.xcodeproj/project.pbxproj` — **not modified**; the new
-  `Infrastructure/Discovery/` directory is picked up by the existing
-  `PBXFileSystemSynchronizedRootGroup` entries.
+- `Kizba.xcodeproj/project.pbxproj` — **not modified** (new files
+  picked up by the existing `PBXFileSystemSynchronizedRootGroup`).
 
 ### Verification (executed on this host)
 
 ```
 xcodebuild -scheme Kizba -project Kizba.xcodeproj \
   -destination 'platform=macOS' \
-  -only-testing:KizbaTests/BinaryDiscoveryServiceTests test
-# => ** TEST SUCCEEDED **
-#    Executed 6 tests, with 0 failures (0 unexpected) in 0.009s
+  -only-testing:KizbaTests/AppEnvironmentPassCLITests test
+=> ** TEST SUCCEEDED **
+   Executed 4 tests, with 0 failures (0 unexpected) in 0.005s
 
 xcodebuild -scheme Kizba -project Kizba.xcodeproj \
   -destination 'platform=macOS' test
-# => ** TEST SUCCEEDED **
-#    Executed 141 tests, with 0 failures (0 unexpected) in 2.733s
+=> ** TEST SUCCEEDED **
+   Executed 145 tests, with 0 failures (0 unexpected) in 2.964s
+
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' -configuration Release build
+=> ** BUILD SUCCEEDED **
 ```
 
 Build log: `.ai/build-log.md`.
 
-### Test coverage
+### New test coverage
 
-`BinaryDiscoveryServiceTests`:
+`AppEnvironmentPassCLITests`:
 
-1. `testOverrideWins` — explicit override beats every system path.
-2. `testHomebrewPreferredOverUsrLocal` — Apple-silicon Homebrew is
-   probed before `/usr/bin`.
-3. `testPathFallbackUsesSanitizedPathOrder` — relative entries,
-   `..` components, empty entries and duplicates are dropped;
-   sanitised order is preserved.
-4. `testCachingAndReDetect` — first lookup caches; cache shields
-   subsequent lookups from disk; `reDetect()` invalidates.
-5. `testNoFalsePositives` — names whose probes all return false
-   resolve to `nil`.
-6. `testOverrideMisconfigurationDoesNotFallBack` — an override
-   pointing at a non-existent file yields `nil` (no silent
-   fallback).
+1. `testLive_includesPassCLI` — `live().passCLI` is non-nil.
+2. `testPreview_doesNotIncludePassCLI` — `preview().passCLI` is nil.
+3. `testLive_passCLIWiresBinaryDiscoveryService` — the wired
+   discovery is a `BinaryDiscoveryService` instance.
+4. `testLivePassCLI_throwsBinaryNotFoundWhenDiscoveryReturnsNil` —
+   when discovery resolves to `nil`, `show(...)` throws
+   `PassError.binaryNotFound("pass")` and the shell runner is
+   never invoked.
 
-### Step 4.6 disposition
+### Manual end-to-end decrypt
 
-As noted in the previous handoff, plan step 4.6
-("FakeShellRunner + PassCLITests — success, decryption failure,
-timeout, cancellation, arg/env composition") was already covered
-inline by the 6 `PassCLITests` + embedded `FakeShellRunner`
-committed in step 4.5. No separate 4.6 commit was made; the
-orchestrator confirmed jumping straight to 5.1.
+Per the plan, real-decrypt verification on a host with `pass` +
+`pinentry-mac` is part of step 5.3 DoD but cannot be executed in
+the CI/sandbox environment. To exercise it manually on a developer
+machine:
+
+```
+# AppEnvironment.live() is wired to real ProcessShellRunner +
+# BinaryDiscoveryService + LivePassCLI. The DEBUG passManager is
+# still MockPassManager; reach LivePassCLI directly:
+let env = AppEnvironment.live()
+let result = try await env.passCLI!.show(entryPath: "your/entry")
+```
+
+(Phase 6.5 will replace `passManager` with a real conformer that
+calls into `passCLI` end-to-end so the UI exercises decrypt
+through normal selection events.)
 
 ### Commits
 
-- `feat(discovery): add BinaryDiscoveryService with caching and override support`
-- `test(discovery): add BinaryDiscoveryService unit tests`
-- (pending) `chore(ai): record step 5.1 completion`
+- `feat(app): wire PassCLI into AppEnvironment.live()`
+- `test(app): add AppEnvironment passCLI wiring tests`
+- (pending) `chore(ai): record step 5.3 completion`
 
 ### Repo state at completion
 
@@ -113,16 +143,12 @@ orchestrator confirmed jumping straight to 5.1.
 
 ## Next action
 
-Proceed to **step 5.2** per `.ai/plan.md`. Plan step 5.2 reads
-*"FakeFileExistenceChecker + BinaryDiscoveryServiceTests —
-override wins; arm64 Homebrew first; fallback order; sanitized
-PATH; cache; re-detect."* That spec is already satisfied inline
-by the 6 tests + embedded `FakeFileExistenceChecker` committed
-in this step. Confirm with the user whether to mark 5.2 as a
-no-op and jump to **5.3 — wire `PassCLI` into
-`AppEnvironment.live()`**.
+Proceed to **step 5.4 / Phase 6.1** per `.ai/plan.md`.
+Plan Phase 5 has no further numbered substeps after 5.3, so the
+natural continuation is **6.1 — `EntryPathConverter` (pure URL →
+entry path string)**.
 
-`.ai/step.md` is set to `5.2`.
+`.ai/step.md` is set to `5.4`.
 
 ## Constraints (must hold from day one)
 

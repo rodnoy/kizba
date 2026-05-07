@@ -577,3 +577,42 @@ instantiation outside `Log.swift`).
 
 `Kizba.xcodeproj/project.pbxproj` not modified — the new file is
 auto-picked up by the existing `PBXFileSystemSynchronizedRootGroup`.
+
+## 2026-05-07 — Step 5.3 (Wire PassCLI into AppEnvironment.live())
+
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' \
+  -only-testing:KizbaTests/AppEnvironmentPassCLITests test
+=> ** TEST SUCCEEDED **
+   Executed 4 tests, with 0 failures (0 unexpected) in 0.005s
+
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' test
+=> ** TEST SUCCEEDED **
+   Executed 145 tests, with 0 failures (0 unexpected) in 2.964s
+
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' -configuration Release build
+=> ** BUILD SUCCEEDED **
+```
+
+New files:
+- `Kizba/Infrastructure/Pass/LivePassCLI.swift` — actor wrapper that
+  lazily resolves `pass` through `BinaryLocating` at first call.
+- `KizbaTests/AppEnvironmentPassCLITests.swift` — 4 tests covering
+  `live()`/`preview()` wiring + `binaryNotFound` propagation.
+
+Modified files:
+- `Kizba/App/AppEnvironment.swift` — added optional `passCLI` field;
+  `live()` now constructs `ProcessShellRunner`, `BinaryDiscoveryService`,
+  `LivePassCLI` and threads them through.
+- `Kizba/Infrastructure/Pass/PassCLI.swift` — type and default-timeout
+  constant marked `nonisolated` so non-MainActor callers (the new
+  `LivePassCLI` actor) can construct and invoke them. Pure logic only.
+- `Kizba/Infrastructure/Pass/PassErrorMapper.swift`,
+  `Kizba/Infrastructure/Pass/PassShowParser.swift`,
+  `PassShowResult` — same `nonisolated` annotation for the same reason.
+
+`Kizba.xcodeproj/project.pbxproj` not modified (PBXFileSystemSynchronizedRootGroup
+picks up the new file automatically).
