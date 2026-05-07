@@ -55,4 +55,14 @@ public protocol SettingsStoring: Sendable {
     /// Write `value` for `key`, or remove the entry when `value` is
     /// `nil`.
     func set<Value: SettingsValue>(_ value: Value?, for key: SettingsKey<Value>)
+
+    /// Remove the entry for the given bare key name.
+    func removeValue(forKey key: String)
+
+    /// Remove all keys belonging to the store's namespace.
+    func resetAll()
+
+    /// Register default values for bare key names. Keys provided here
+    /// should be the un-prefixed names (e.g. `clipboardClearDelaySeconds`).
+    func registerDefaults(_ defaults: [String: Any])
 }
