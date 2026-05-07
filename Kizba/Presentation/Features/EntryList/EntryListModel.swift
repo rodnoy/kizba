@@ -74,13 +74,21 @@ final class EntryListModel {
 
     /// Reload the underlying entry snapshot from the pass-manager.
     ///
-    /// On any failure the snapshot is left empty — error UI surfaces
-    /// are wired in Phase 8.
+    /// Cooperatively cancellable: if the surrounding `Task` is
+    /// cancelled before or after the listing completes, the previous
+    /// snapshot is preserved so the UI never observes a transient
+    /// empty state caused by cancellation. On any thrown failure the
+    /// snapshot is cleared — error UI surfaces are wired in Phase 8.
     func refresh() async {
+        if Task.isCancelled { return }
         do {
             let loaded = try await passManager.listEntries()
+            if Task.isCancelled { return }
             self.allEntries = loaded
+        } catch is CancellationError {
+            return
         } catch {
+            if Task.isCancelled { return }
             self.allEntries = []
         }
     }

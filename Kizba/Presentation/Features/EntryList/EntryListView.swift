@@ -38,6 +38,17 @@ struct EntryListView: View {
         }
         .navigationTitle(state.selectedFolder ?? "Entries")
         .searchable(text: $state.searchQuery, placement: .toolbar)
+        .toolbar {
+            ToolbarItem {
+                Button {
+                    Task { await model.refresh() }
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+                .keyboardShortcut("r", modifiers: .command)
+                .help("Refresh entries (⌘R)")
+            }
+        }
         .task {
             await model.refresh()
         }
