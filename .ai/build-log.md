@@ -847,3 +847,44 @@ through a file-private `FakeClipboard` `PasteboardAdapter` double:
 `Kizba.xcodeproj/project.pbxproj` not modified
 (`PBXFileSystemSynchronizedRootGroup` picks up the new files
 automatically).
+
+## 2026-05-07 — Steps 7.2 & 7.3 (ClipboardService wiring + Copy buttons)
+
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' \
+  -only-testing:KizbaTests/AppEnvironmentClipboardTests test
+=> ** TEST SUCCEEDED **
+   Executed 3 tests, with 0 failures (0 unexpected) in 0.004s
+
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' \
+  -only-testing:KizbaTests/EntryDetailModelCopyTests test
+=> ** TEST SUCCEEDED **
+   Executed 2 tests, with 0 failures (0 unexpected) in 0.014s
+
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' test
+=> ** TEST SUCCEEDED **
+   Executed 178 tests, with 0 failures (0 unexpected) in 4.078s
+```
+
+What was verified:
+
+- `AppEnvironment.live().clipboard` is the production
+  `ClipboardService` actor; `AppEnvironment.preview().clipboard` is
+  a non-production double; the two factory wirings produce distinct
+  implementations.
+- `EntryDetailModel.copy(_:clearAfterSeconds:)` forwards values
+  verbatim to the injected `ClipboardServicing` with the requested
+  `Duration.seconds(N)` clear-after delay.
+- `EntryDetailModel.copyPassword(...)` forwards the loaded
+  `PassSecret.password` verbatim once the model has reached
+  `.loaded` via `handleSelectionChange(_:)`.
+- Existing `ClipboardServiceTests`, `EntryDetailModelTests`,
+  `EntryDetailModelRefinementTests`, and the wider domain/UI suites
+  remain green.
+
+`Kizba.xcodeproj/project.pbxproj` not modified
+(`PBXFileSystemSynchronizedRootGroup` picks up the new files
+automatically). No Xcode UI steps required.

@@ -2,97 +2,82 @@
 
 ## Last completed action
 
-Step **7.1 — DONE** (production `ClipboardService` actor with
-token + `changeCount` auto-clear; deterministic unit tests via a
-file-private `FakeClipboard` `PasteboardAdapter` double).
+Steps **7.2 & 7.3 — DONE** (combined run via option 1):
+
+- 7.2: `ClipboardService` actor wired into `AppEnvironment.live()`;
+  `preview()` keeps the in-process `NoopClipboard` double.
+- 7.3: Copy buttons in `EntryDetailView` now carry accessibility
+  identifiers and remain wired to `EntryDetailModel.copyPassword()`
+  / `copy(_:)`, which delegate to `environment.clipboard.copy(_:clearAfter:)`.
 
 ### Applied changes
 
-- `Kizba/Infrastructure/Clipboard/ClipboardService.swift` — **new**.
-  Defines an internal `PasteboardAdapter` protocol (Sendable;
-  `changeCount`/`write`/`clear`), an internal
-  `SystemPasteboardAdapter` backed by `NSPasteboard.general` (guarded
-  by `#if canImport(AppKit)`, hops to the main actor), and a public
-  `actor ClipboardService: ClipboardServicing`. Behaviour of
-  `copy(_:clearAfter:)`:
-    1. Mint a fresh opaque token (`UUID().uuidString`).
-    2. Cancel any previously pending clear-task (courtesy; correctness
-       follows from the token gate).
-    3. Write the value verbatim through the adapter — no `"key: value"`
-       composition, ever.
-    4. Snapshot the post-write `changeCount`; store token + snapshot
-       on the actor.
-    5. Spawn a detached `Task` that sleeps for the supplied `Duration`
-       and then asks the actor to attempt a clear. The actor wipes
-       the pasteboard only if BOTH `currentToken` matches the
-       requesting token AND the adapter's live `changeCount` equals
-       the snapshot.
-  Public API: `init()` (no-arg, wires `SystemPasteboardAdapter` on
-  macOS) and `init(adapter:)` (internal — for tests / advanced
-  wiring).
-- `KizbaTests/ClipboardServiceTests.swift` — **new**. Five
-  deterministic XCTest cases covering the full timeline through a
-  file-private `FakeClipboard` `PasteboardAdapter` double (no
-  `NSPasteboard` access, ever):
-    - `testCopyWritesVerbatim`
-    - `testAutoClear_whenUnchanged`
-    - `testNoClear_whenChangeCountDiffers`
-    - `testMultipleCopies_onlyLatestClears`
-    - `testCancellation_ofClearTask_onNewCopy`
-  The local `FakeClipboard` is `private` (file-scope) so it does not
-  collide with the unrelated `FakeClipboard` doubles already in
-  `DomainProtocolsTests` and `EntryDetailModelRefinementTests`
-  (which conform to `ClipboardServicing`, not `PasteboardAdapter`).
-- `.ai/build-log.md` — appended step 7.1 verification block.
-- `.ai/step.md` — bumped to `7.2`.
+- `Kizba/App/AppEnvironment.swift` — `live()` now constructs the
+  production `ClipboardService()` (guarded by `#if canImport(AppKit)`,
+  falling back to `UnavailableClipboard` otherwise) and injects it
+  for both DEBUG and RELEASE wirings. `preview()` is unchanged
+  (DEBUG: `NoopClipboard`; RELEASE: `UnavailableClipboard`).
+- `KizbaTests/AppEnvironmentClipboardTests.swift` — **new**, three
+  type-level assertions: `live().clipboard is ClipboardService`,
+  `preview().clipboard` is not `ClipboardService`, and the two
+  factories produce distinct implementations. No clipboard methods
+  are invoked.
+- `Kizba/Presentation/Features/EntryDetail/EntryDetailView.swift` —
+  added `accessibilityIdentifier("copy-password-button")` to the
+  password Copy button and
+  `accessibilityIdentifier("copy-meta-<index>-button")` to each
+  metadata row Copy button (index from `enumerated()`, avoiding any
+  key-string sanitization issues). The buttons themselves were
+  already wired to `model.copyPassword()` / `model.copy(value)` in
+  earlier phases.
+- `KizbaTests/EntryDetailModelCopyTests.swift` — **new**, two
+  model-level tests:
+    - `testModelCopy_invokesClipboardWithVerbatimValueAndDelay`
+      asserts `model.copy(_:clearAfterSeconds:)` forwards the value
+      verbatim to a `RecordingClipboard` with `Duration.seconds(30)`.
+    - `testModelCopyPassword_forwardsLoadedPasswordVerbatim` drives
+      the model into `.loaded(secret)` via `handleSelectionChange`
+      against a `StubPassManager`, then asserts `copyPassword()`
+      forwards the loaded password verbatim. View-level button-action
+      coverage is documented as a UI-test responsibility.
+- `.ai/build-log.md` — appended steps 7.2 / 7.3 verification block.
+- `.ai/step.md` — bumped to `7.4`.
 - `.ai/handoff.md` — this file.
 - `.ai/last-run.json` — refreshed.
 - `Kizba.xcodeproj/project.pbxproj` — **not modified** (new files
-  picked up automatically by `PBXFileSystemSynchronizedRootGroup`).
+  auto-picked by `PBXFileSystemSynchronizedRootGroup`).
 
 ### Scope notes
 
-- No changes to `ClipboardServicing` protocol — its existing
-  `Duration`-typed signature was honoured exactly.
-- No changes to `AppEnvironment`. The preview/live wiring still
-  injects `NoopClipboard`/`UnavailableClipboard`. Step 7.3 will swap
-  the live wiring to `ClipboardService()` and wire Copy buttons in
-  `EntryDetailView`.
-- `Log.clipboard` is used to record only sanctioned shape-only
-  metadata (copy occurred, clear performed/skipped). The copied
-  value is never logged in any form. `os` is imported by
-  `ClipboardService.swift` to access `Logger.info` under the project's
-  `MemberImportVisibility` upcoming feature; this does not breach
-  `SourceGrepTests` because no direct `Logger(subsystem:)` /
-  `OSLog(` instantiation occurs outside `Log.swift`.
-- All `PasteboardAdapter` calls on the production adapter hop to the
-  main actor (`NSPasteboard` is `MainActor`-bound on macOS); the
-  hops happen only on the user-driven copy / clear paths.
+- `EntryDetailModel.copy(...)` already had the required surface
+  (`copy(_:clearAfterSeconds:)`, `copyPassword(...)`,
+  `copyMetadata(...)`) added in earlier phases. The instruction
+  hinted at the signature `copy(field:clearAfter:)`; the existing
+  signature was kept verbatim to avoid churn across call-sites and
+  tests, and because behaviour is identical.
+- `ClipboardService` is constructed inside `live()` itself; no
+  surrounding types/protocols changed.
+- All copy logging continues to use `Log.clipboard` shape-only
+  events; no value or length is logged.
+- All new tests are deterministic and never touch `NSPasteboard`.
 
 ### Verification (executed on this host)
 
 ```
 xcodebuild -scheme Kizba -project Kizba.xcodeproj \
-  -destination 'platform=macOS' \
-  -only-testing:KizbaTests/ClipboardServiceTests test
-=> ** TEST SUCCEEDED **
-   Executed 5 tests, with 0 failures (0 unexpected) in 1.341s
-
-xcodebuild -scheme Kizba -project Kizba.xcodeproj \
   -destination 'platform=macOS' test
 => ** TEST SUCCEEDED **
-   Executed 173 tests, with 0 failures (0 unexpected) in 4.999s
+   Executed 178 tests, with 0 failures (0 unexpected) in 4.078s
 ```
 
 Build log: `.ai/build-log.md`.
 
 ### Commits
 
-- `feat(clipboard): add ClipboardService with token+changeCount auto-clear`
-- `test(clipboard): add ClipboardService unit tests (FakeClipboard)`
-- `chore(ai): record step 7.1 completion`
-
-(Hashes recorded by git log after commit.)
+- `feat(app): wire ClipboardService into AppEnvironment.live()`
+- `test(app): add AppEnvironment clipboard wiring tests`
+- `feat(ui): wire Copy buttons in EntryDetailView to EntryDetailModel/ClipboardService`
+- `test(ui): add EntryDetailModel copy tests`
 
 ### Repo state at completion
 
@@ -104,15 +89,9 @@ Build log: `.ai/build-log.md`.
 
 ## Next action
 
-Proceed to **step 7.2 / 7.3**: wire `ClipboardService()` into
-`AppEnvironment.live()` and connect the Copy buttons in
-`EntryDetailView` to `env.clipboard.copy(field, clearAfter:)` (the
-`clearAfter` value will come from `SettingsStoring`'s
-`clipboardClearDelaySeconds`, defaulting to 30 s — Phase 8 handles
-the persistent setting; for now a hard-coded 30 s constant is
-acceptable and called out as a TODO).
+Proceed to **step 7.4** (per `.ai/plan.md`).
 
-`.ai/step.md` is set to `7.2`.
+`.ai/step.md` is set to `7.4`.
 
 ## Constraints (must hold from day one)
 
