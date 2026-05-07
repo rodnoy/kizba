@@ -64,5 +64,14 @@ public struct SettingsKey<Value: SettingsValue>: Sendable, Hashable {
 
     /// Register default values for bare key names. Keys provided here
     /// should be the un-prefixed names (e.g. `clipboardClearDelaySeconds`).
-    func registerDefaults(_ defaults: [String: Any])
+func registerDefaults(_ defaults: [String: Any])
+}
+
+// Backwards-compatible no-op defaults so lightweight test doubles
+// don't have to implement the entire surface unless needed.
+@MainActor
+extension SettingsStoring {
+    public func removeValue(forKey key: String) {}
+    public func resetAll() {}
+    public func registerDefaults(_ defaults: [String: Any]) {}
 }
