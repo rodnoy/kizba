@@ -85,17 +85,27 @@ extension AppEnvironment {
             storeRoot: LivePassManager.defaultStoreRoot
         )
 
+        // Phase 7.2: production clipboard wiring. `ClipboardService()`
+        // (no-arg) wires the real `SystemPasteboardAdapter` on macOS;
+        // outside `canImport(AppKit)` we fall back to the deterministic
+        // failing placeholder so the surface still compiles.
+        #if canImport(AppKit)
+        let clipboard: any ClipboardServicing = ClipboardService()
+        #else
+        let clipboard: any ClipboardServicing = UnavailableClipboard()
+        #endif
+
         #if DEBUG
         return AppEnvironment(
             passManager: passManager,
-            clipboard: NoopClipboard(),
+            clipboard: clipboard,
             settings: InMemorySettingsStore(),
             passCLI: passCLI
         )
         #else
         return AppEnvironment(
             passManager: passManager,
-            clipboard: UnavailableClipboard(),
+            clipboard: clipboard,
             settings: UnavailableSettingsStore(),
             passCLI: passCLI
         )
