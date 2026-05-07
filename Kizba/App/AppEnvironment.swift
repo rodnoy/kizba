@@ -171,6 +171,9 @@ private struct UnavailableClipboard: ClipboardServicing {
 private struct UnavailableSettingsStore: SettingsStoring {
     func value<Value: SettingsValue>(for key: SettingsKey<Value>) -> Value? { nil }
     func set<Value: SettingsValue>(_ value: Value?, for key: SettingsKey<Value>) {}
+    func removeValue(forKey key: String) {}
+    func resetAll() {}
+    func registerDefaults(_ defaults: [String : Any]) {}
 }
 
 // MARK: - Lightweight DEBUG fakes
@@ -205,6 +208,30 @@ private final class InMemorySettingsStore: SettingsStoring, @unchecked Sendable 
             storage[key.name] = value
         } else {
             storage.removeValue(forKey: key.name)
+        }
+    }
+
+    func removeValue(forKey key: String) {
+        lock.lock(); defer { lock.unlock() }
+        storage.removeValue(forKey: key)
+    }
+
+    func resetAll() {
+        lock.lock(); defer { lock.unlock() }
+        storage.removeAll()
+    }
+
+    func registerDefaults(_ defaults: [String : Any]) {
+        // Convert only known types from defaults into storage if absent.
+        lock.lock(); defer { lock.unlock() }
+        for (k, v) in defaults {
+            if storage[k] == nil {
+                if let s = v as? String { storage[k] = s }
+                else if let i = v as? Int { storage[k] = i }
+                else if let d = v as? Double { storage[k] = d }
+                else if let b = v as? Bool { storage[k] = b }
+                else if let s = v as? NSString, let str = s as String? { storage[k] = str }
+            }
         }
     }
 }
