@@ -105,6 +105,7 @@ private struct LoadedSecretView: View {
                     isRevealed.toggle()
                 }
                 Button("Copy", action: onCopyPassword)
+                    .accessibilityIdentifier("copy-password-button")
             }
         }
     }
@@ -114,7 +115,7 @@ private struct LoadedSecretView: View {
             Text("Metadata")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            ForEach(Array(secret.metadata.fields.enumerated()), id: \.offset) { _, field in
+            ForEach(Array(secret.metadata.fields.enumerated()), id: \.offset) { index, field in
                 HStack(spacing: 8) {
                     Text("\(field.key):")
                         .font(.system(.body, design: .monospaced))
@@ -124,6 +125,7 @@ private struct LoadedSecretView: View {
                         .textSelection(.enabled)
                     Spacer()
                     Button("Copy") { onCopyField(field.value) }
+                        .accessibilityIdentifier("copy-meta-\(index)-button")
                 }
             }
         }
