@@ -2,51 +2,52 @@
 
 ## Last completed action
 
-Step **6.3 — DONE** (`PasswordStoreScanner` — FileManager-backed
-filesystem enumerator).
-
-Added a new domain protocol and an `actor` implementation:
-
-- `Kizba/Domain/Protocols/PasswordStoreScanning.swift` — `Sendable`
-  protocol with `listEntries(in:) async throws -> [String]`,
-  `validateStoreRoot(_:) async -> Bool`,
-  `invalidate(storeRoot:) async`.
-- `Kizba/Infrastructure/Store/PasswordStoreScanner.swift` —
-  `public actor PasswordStoreScanner: PasswordStoreScanning`. Walks
-  the store with `FileManager.default.enumerator(at:...)` and the
-  `[.skipsHiddenFiles]` option. Skips `.git` (and any configured
-  directories) via `enumerator.skipDescendants()` plus a defensive
-  pathComponents check. Skips `.gpg-id` markers. Includes only
-  regular files whose final extension is `.gpg` (case-insensitive).
-  Computes the relative entry path through the existing
-  `EntryPathConverter` and sorts the result via
-  `localizedStandardCompare`. Caches results per standardised store-
-  root path; `invalidate(storeRoot:)` drops a single key. Logs only
-  shape-only metadata via `Log.discovery` (count `.public`, store
-  path `.private`).
+Step **6.4 — DONE** (`TempStoreFixture` test helper +
+`PasswordStoreScannerTests` rewritten to use it).
 
 ### Applied changes
 
-- `Kizba/Domain/Protocols/PasswordStoreScanning.swift` — **new**.
-- `Kizba/Infrastructure/Store/PasswordStoreScanner.swift` — **new**.
-- `KizbaTests/PasswordStoreScannerTests.swift` — **new** (9 tests).
-- `.ai/build-log.md` — appended step 6.3 verification block.
-- `.ai/plan.md` — 6.2 and 6.3 ticked.
-- `.ai/step.md` — bumped to `6.4`.
+- `KizbaTests/Fixtures/TempStoreFixture.swift` — **new**.
+  Value-type fixture: `init(name:)` creates a unique temp dir under
+  `FileManager.default.temporaryDirectory`; `createStandardLayout()`
+  writes a fixed layout (top-level + nested + `.git/` ignored +
+  `.gpg-id` ignored + non-`.gpg` ignored + unicode/spaces entry);
+  `createEmptyStore()` ensures empty root; `cleanup()` removes the
+  tree (idempotent). All file contents are short ASCII placeholders
+  (`"fixture"`); no real secrets are ever written.
+- `KizbaTests/PasswordStoreScannerTests.swift` — **rewritten**.
+  Uses `TempStoreFixture` and `defer { fixture.cleanup() }` in every
+  test. Covers the brief's required cases:
+  `testStandardLayout_returnsExpectedSortedEntries`,
+  `testEmptyStore_returnsEmpty`,
+  `testMissingRoot_throws`,
+  `testGpgIdAndGitIgnored`,
+  `testUnicodeAndSpacesPreserved`, plus retained
+  `testCachingAndInvalidate`, `testCaseInsensitiveGpgExtension`,
+  `testValidateStoreRoot`. 8 tests total.
+- `.ai/build-log.md` — appended step 6.4 verification block.
+- `.ai/plan.md` — 6.4 ticked.
+- `.ai/step.md` — bumped to `6.5`.
 - `.ai/handoff.md` — this file.
 - `.ai/last-run.json` — refreshed.
-- `Kizba.xcodeproj/project.pbxproj` — **not modified** (new files
-  picked up by the existing `PBXFileSystemSynchronizedRootGroup`).
+- `Kizba.xcodeproj/project.pbxproj` — **not modified** (new file
+  picked up automatically by `PBXFileSystemSynchronizedRootGroup`).
 
-### Design note
+### Production code
 
-`FileManager` is not `Sendable` and cannot be stored as an actor
-property under strict concurrency without an `@unchecked Sendable`
-wrapper. The scanner therefore deviates from the original "inject a
-`FileManager`" instruction in the work order: it uses
-`FileManager.default` directly. Tests exercise the real filesystem
-through per-test temporary directories, which is sufficient and
-avoids unsafe wrappers. `ignoreList` is still injectable.
+**Not modified.** Step 6.4 is test-only.
+
+### Sort order note
+
+`PasswordStoreScanner` sorts via `localizedStandardCompare`. With the
+standard layout the deterministic expected order is:
+
+```
+["archive/old", "pass", "personal/two", "personal/work/one",
+ "work/entry", "スペース dir/entry name ☃"]
+```
+
+(Latin paths precede the Japanese-prefixed entry.)
 
 ### Verification (executed on this host)
 
@@ -55,21 +56,23 @@ xcodebuild -scheme Kizba -project Kizba.xcodeproj \
   -destination 'platform=macOS' \
   -only-testing:KizbaTests/PasswordStoreScannerTests test
 => ** TEST SUCCEEDED **
-   Executed 9 tests, with 0 failures (0 unexpected) in 0.070s
+   Executed 8 tests, with 0 failures (0 unexpected) in 0.152s
 
 xcodebuild -scheme Kizba -project Kizba.xcodeproj \
   -destination 'platform=macOS' test
 => ** TEST SUCCEEDED **
-   Executed 162 tests, with 0 failures (0 unexpected) in 7.364s
+   Executed 161 tests, with 0 failures (0 unexpected) in 8.209s
 ```
 
 Build log: `.ai/build-log.md`.
 
 ### Commits
 
-- `feat(store): add PasswordStoreScanner (FileManager enumerator, ignores .git / .gpg-id)`
-- `test(store): add PasswordStoreScanner unit tests`
-- `chore(ai): record step 6.3 completion`
+- `test(store): add TempStoreFixture helper`
+- `test(store): use TempStoreFixture in PasswordStoreScanner tests`
+- `chore(ai): record step 6.4 completion`
+
+(Hashes recorded by git log after commit.)
 
 ### Repo state at completion
 
@@ -81,13 +84,10 @@ Build log: `.ai/build-log.md`.
 
 ## Next action
 
-Proceed to **step 6.4** per `.ai/plan.md` (`TempStoreFixture` +
-`PasswordStoreScannerTests`). The scanner already has 9 deterministic
-tests using inline per-test temp directories. Step 6.4 is expected to
-extract that fixture into `KizbaTests/Support/TempStoreFixture` and
-broaden coverage if needed.
+Proceed to **step 6.5** per `.ai/plan.md`: wire `PasswordStoreScanner`
+into `PassCLI.listEntries`, add the ⌘R refresh action in the toolbar.
 
-`.ai/step.md` is set to `6.4`.
+`.ai/step.md` is set to `6.5`.
 
 ## Constraints (must hold from day one)
 

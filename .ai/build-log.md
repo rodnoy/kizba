@@ -696,3 +696,28 @@ which is sufficient and avoids `@unchecked Sendable` wrappers.
 `Kizba.xcodeproj/project.pbxproj` not modified
 (PBXFileSystemSynchronizedRootGroup picks up the new files
 automatically).
+
+## 2026-05-07 — Step 6.4 (TempStoreFixture + scanner tests)
+
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' \
+  -only-testing:KizbaTests/PasswordStoreScannerTests test
+=> ** TEST SUCCEEDED **
+   Executed 8 tests, with 0 failures (0 unexpected) in 0.152s
+
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' test
+=> ** TEST SUCCEEDED **
+   Executed 161 tests, with 0 failures (0 unexpected) in 8.209s
+```
+
+Added `KizbaTests/Fixtures/TempStoreFixture.swift` and rewrote
+`KizbaTests/PasswordStoreScannerTests.swift` to use it. The fixture
+builds a deterministic mixed layout (top-level + nested + `.git/` +
+`.gpg-id` + non-`.gpg` + unicode/spaces) under a unique temp dir and
+is cleaned up via `defer { fixture.cleanup() }` in each test.
+
+`Kizba.xcodeproj/project.pbxproj` not modified
+(PBXFileSystemSynchronizedRootGroup picks up the new files
+automatically).
