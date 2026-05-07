@@ -2,61 +2,69 @@
 
 ## Last completed action
 
-Step **4.3 — DONE** (PassErrorMapper + sanitiser + unit tests).
+Step **4.5 — DONE** (`PassCLI` — composes `pass show <entry>`, runs
+through `ShellCommandRunning`, parses with `PassShowParser`, maps
+errors via `PassErrorMapper`).
 
-`Kizba/Infrastructure/Pass/PassErrorMapper.swift` is a new, pure (no
-shell, no FileManager, no logging) mapper that translates `pass` /
-`gpg` stderr (with optional exit code) into a domain `PassError` plus
-a sanitised excerpt suitable for UI / Diagnostics. Step 4.2 collapsed
-into a no-op as flagged in the previous handoff: the existing 10-case
-`PassShowParserTests` already cover the corpus enumerated in plan 4.2.
+Step **4.4** was treated as a no-op as flagged in the previous
+handoff: its DoD ("PassErrorMapperTests — every signature; sanitizer
+cases; idempotent.") was already satisfied by the 14 tests committed
+in Phase 4.3.
+
+`Kizba/Infrastructure/Pass/PassCLI.swift` is a new, `Sendable`,
+side-effect-free-except-for-logging composer that:
+
+- takes a pre-resolved absolute `executable: URL` (PATH lookup is
+  the job of `BinaryDiscoveryService`, Phase 5);
+- accepts explicit overrides for `PASSWORD_STORE_DIR`, `GNUPGHOME`,
+  `PATH`, `HOME`;
+- forwards the parent's `HOME` when no override is supplied (needed
+  by `gpg`/`pinentry-mac`); never forwards any other parent env;
+- exports a sanitised default `PATH`
+  (`/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin`) when no override
+  is supplied — `ShellCommandRunning` does not inherit parent env;
+- routes failures through `PassErrorMapper.map(stderr:exitCode:)`
+  and re-throws domain `PassError`s from the runner verbatim
+  (`.timedOut` / `.cancelled` / spawn-time `.shellFailure`);
+- logs only sanctioned metadata via `Log.pass`
+  (executable `.private`, argc `.public`, status `.public`,
+  stderrBytes `.public`, sanitised excerpt `.private`);
+- never logs decrypted stdout (enforced statically by
+  `SourceGrepTests` and reviewed in this step).
 
 ### Behaviour
 
-Per `.ai/plan.md` Phase 4.3 and `.ai/decisions.md` (no stdout logging
-in `Infrastructure/Pass/`, sanitised excerpts only):
+Per `.ai/plan.md` Phase 4.5 / 4.6 and `.ai/decisions.md`:
 
-1. **Mapping rules** (case-insensitive substring matches on stderr,
-   exit code consulted for timeout):
-   - `decryption failed`, `no secret key`, `bad session key`,
-     `secret key not available` → `.decryptionFailed(stderrExcerpt:)`.
-   - `no pinentry`, `pinentry`, `inappropriate ioctl for device`,
-     `gpg-agent` → `.pinentryNotConfigured`.
-   - `<path>: No such file or directory` → `.binaryNotFound(<basename>)`.
-   - `<shell>: command not found: <name>` → `.binaryNotFound(<name>)`.
-   - `command not found` / `could not find executable` (no name
-     parseable) → `.binaryNotFound("")`.
-   - `exitCode == PassErrorMapper.timeoutExitCode` (124) or stderr
-     contains `timed out` / `operation timed out` → `.timedOut`.
-   - Anything else → `.shellFailure(exitCode:, stderrExcerpt:)`.
-2. **Sanitiser** (`sanitize(_:maxLength:)`):
-   - Replaces emails (`\S+@\S+`) with `<redacted-email>`.
-   - Replaces long hex runs (`(?i)\b[0-9a-f]{8,}\b`) with
-     `<redacted-id>` — covers OpenPGP key IDs and fingerprints.
-   - Collapses whitespace runs (incl. newlines) into a single space.
-   - Trims and caps length, with the ellipsis included in the budget
-     so the result is always `<= maxLength` characters and the second
-     pass leaves the string untouched.
-   - **Idempotent**: `sanitize(sanitize(x)) == sanitize(x)`, verified
-     in tests both for the redaction pipeline and at the exact cap.
-3. The mapper never throws; every input yields a deterministic
-   `(PassError, String)` pair.
-
-`PassError.swift` was **not modified** — every case required by the
-mapping table (`binaryNotFound`, `pinentryNotConfigured`,
-`decryptionFailed`, `timedOut`, `shellFailure`) was already declared
-in Phase 1.1.
+1. `show(entryPath:timeout:)` builds `argv = ["show", entryPath]`,
+   composes the env (PATH + optional STORE / GNUPGHOME / HOME), and
+   delegates to `shellRunner.run(...)`.
+2. Default timeout = `.seconds(120)` (constant
+   `kizbaPassShowDefaultTimeout`) per the decision log.
+3. On exit code `0`: stdout is decoded as strict UTF-8 and parsed
+   by `PassShowParser`. UTF-8 decode failure surfaces as
+   `PassError.parsingFailed`.
+4. On non-zero exit: `PassErrorMapper` produces a sanitised
+   excerpt and a domain `PassError`; the excerpt is included in the
+   log record under `.private` privacy and the mapped error is
+   thrown.
+5. `Foundation.Process` is not touched in this file — every spawn
+   goes through the injected `ShellCommandRunning` so tests use a
+   `FakeShellRunner` and the production binary uses
+   `ProcessShellRunner`.
 
 ### Applied changes
 
-- `Kizba/Infrastructure/Pass/PassErrorMapper.swift` — **new**.
-- `KizbaTests/PassErrorMapperTests.swift` — **new** (14 tests).
-- `.ai/build-log.md` — appended step 4.3 verification block.
-- `.ai/step.md` — bumped to `4.4`.
+- `Kizba/Infrastructure/Pass/PassCLI.swift` — **new**.
+- `KizbaTests/PassCLITests.swift` — **new** (6 tests + an embedded
+  `FakeShellRunner` test double satisfying `ShellCommandRunning`).
+- `.ai/build-log.md` — appended step 4.5 verification block.
+- `.ai/step.md` — bumped to `4.6` (4.4 collapsed; 4.5 is the just-
+  completed step).
 - `.ai/handoff.md` — this file.
 - `.ai/last-run.json` — refreshed.
-- `Kizba.xcodeproj/project.pbxproj` — **not modified**; new files are
-  picked up by the existing `PBXFileSystemSynchronizedRootGroup`
+- `Kizba.xcodeproj/project.pbxproj` — **not modified**; the new files
+  are picked up by the existing `PBXFileSystemSynchronizedRootGroup`
   entries for `Kizba/` and `KizbaTests/`.
 
 ### Verification (executed on this host)
@@ -64,23 +72,23 @@ in Phase 1.1.
 ```
 xcodebuild -scheme Kizba -project Kizba.xcodeproj \
   -destination 'platform=macOS' \
-  -only-testing:KizbaTests/PassErrorMapperTests test
+  -only-testing:KizbaTests/PassCLITests test
 # => ** TEST SUCCEEDED **
-#    Executed 14 tests, with 0 failures (0 unexpected)
+#    Executed 6 tests, with 0 failures (0 unexpected) in 0.074s
 
 xcodebuild -scheme Kizba -project Kizba.xcodeproj \
   -destination 'platform=macOS' test
 # => ** TEST SUCCEEDED **
-#    Executed 129 tests, with 0 failures (0 unexpected) in 2.896s
+#    Executed 135 tests, with 0 failures (0 unexpected) in 7.197s
 ```
 
 Build log: `.ai/build-log.md`.
 
 ### Commits
 
-- `feat(pass): add PassErrorMapper (sanitize + map stderr to PassError)`
-- `test(pass): add PassErrorMapper unit tests`
-- (pending) `chore(ai): record step 4.3 completion`
+- `feat(pass): add PassCLI (show via ProcessShellRunner, parse+map errors)`
+- `test(pass): add PassCLITests (success, decryption, timeout, cancellation, env)`
+- (pending) `chore(ai): record step 4.5 completion`
 
 ### Repo state at completion
 
@@ -91,21 +99,42 @@ Build log: `.ai/build-log.md`.
   steps required).
 - `build_log_path = .ai/build-log.md`.
 
+### API note for downstream phases
+
+`PassCLI.init` does **not** take a `SettingsStoring` parameter. The
+plan calls for that wiring to land in Phase 8.1 (where the concrete
+`SettingsKey<…>` constants for `passBinaryOverride` /
+`storePathOverride` / etc. are first declared) and to be assembled in
+`AppEnvironment.live()` (Phase 5.3). For 4.5 we kept the constructor
+to explicit URL/string overrides — the only contract the runner's
+absolute-URL requirement and the empty-env-no-inheritance contract
+permit at this stage. Downstream callers compose:
+
+```swift
+PassCLI(
+    executable: try await locator.locate(.pass),
+    shellRunner: ProcessShellRunner(),
+    passwordStoreDir: settings.value(for: .storePathOverride).map(URL.init(fileURLWithPath:)),
+    gnupgHome: nil,
+    pathOverride: nil,   // production uses defaultPATH
+    homeOverride: nil
+)
+```
+
+Adapter conforming `PassCLI` to `PassManaging` (combining a
+`PasswordStoreScanner` for `listEntries()` with `PassCLI.show(...)`)
+is Phase 6.5; not in scope for 4.5.
+
 ## Next action
 
-Proceed to **step 4.4** per `.ai/plan.md`. Plan step 4.4 reads
-*"PassErrorMapperTests — every signature; sanitizer cases;
-idempotent."* That spec is already satisfied by the 14 tests committed
-in this step (decryption / pinentry / both binary-not-found shapes /
-timeout via exit code and via stderr / shell-failure fallback /
-redaction / length cap / short-string passthrough / idempotent
-general / idempotent at exact cap / mapper-excerpt-equals-sanitised
-invariant). Confirm with the user whether to mark 4.4 as a no-op and
-jump to **4.5 — `PassCLI`** (compose `pass show <entry>` with 120s
-timeout, build env (PATH prepend, optional `PASSWORD_STORE_DIR` /
-`GNUPGHOME`), and route errors through `PassErrorMapper`).
+Proceed to **step 4.6** per `.ai/plan.md`. Plan step 4.6 reads
+*"FakeShellRunner + PassCLITests — success, decryption failure,
+timeout, cancellation, arg/env composition."* That spec is largely
+satisfied in-line by the 6 tests + embedded `FakeShellRunner`
+committed in this step. Confirm with the user whether to mark 4.6 as
+a no-op and jump to **5.1 — `BinaryDiscoveryService`**.
 
-`.ai/step.md` is set to `4.4`.
+`.ai/step.md` is set to `4.6`.
 
 ## Constraints (must hold from day one)
 

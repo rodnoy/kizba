@@ -507,3 +507,34 @@ Phase 1.1). New files picked up via `PBXFileSystemSynchronizedRootGroup`;
 `project.pbxproj` unchanged.
 
 Total: 129 (115 prior + 14 new `PassErrorMapperTests`).
+
+## 2026-05-07 — Step 4.5 (PassCLI)
+
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' \
+  -only-testing:KizbaTests/PassCLITests test
+=> ** TEST SUCCEEDED **
+   Executed 6 tests, with 0 failures (0 unexpected) in 0.074s
+
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' test
+=> ** TEST SUCCEEDED **
+   Executed 135 tests, with 0 failures (0 unexpected) in 7.197s
+```
+
+Test suites added in this step:
+
+- PassCLITests: 6 passed
+  - testShowSuccess_parsesPasswordAndMetadata
+  - testDecryptionFailure_mapsToPassError
+  - testTimeout_throwsTimedOut
+  - testCancellation_propagatesCancellation
+  - testEnvAndBinaryOverride_composition
+  - testDefaultPATHIsExportedWhenNoOverridesSupplied
+
+SourceGrepTests still green — no raw `print(`, no stdout reference,
+no direct `Logger`/`OSLog` instantiation introduced; `PassSecret`
+remains non-Codable. PassCLI logs only sanitised metadata
+(executable .private, argc .public, status .public, stderrBytes
+.public, sanitised excerpt .private).

@@ -1,19 +1,20 @@
 {
   "status": "ok",
-  "step_completed": "4.3",
-  "next_step": "4.4",
+  "step_completed": "4.5",
+  "next_step": "4.6",
+  "notes": "Step 4.4 collapsed to a no-op (DoD already covered by the 14 PassErrorMapperTests committed in 4.3). Orchestrator confirmed jump to 4.5.",
   "changed_files": [
-    "Kizba/Infrastructure/Pass/PassErrorMapper.swift",
-    "KizbaTests/PassErrorMapperTests.swift",
+    "Kizba/Infrastructure/Pass/PassCLI.swift",
+    "KizbaTests/PassCLITests.swift",
     ".ai/build-log.md",
     ".ai/step.md",
     ".ai/handoff.md",
     ".ai/last-run.json"
   ],
   "commits": [
-    "feat(pass): add PassErrorMapper (sanitize + map stderr to PassError)",
-    "test(pass): add PassErrorMapper unit tests",
-    "chore(ai): record step 4.3 completion"
+    "feat(pass): add PassCLI (show via ProcessShellRunner, parse+map errors)",
+    "test(pass): add PassCLITests (success, decryption, timeout, cancellation, env)",
+    "chore(ai): record step 4.5 completion"
   ],
   "production_code_changed": true,
   "xcodeproj_created": true,
@@ -21,9 +22,9 @@
   "xcode_instructions_path": ".ai/xcode_instructions.md",
   "build_log_path": ".ai/build-log.md",
   "tests": {
-    "total": 129,
-    "passed": 129,
+    "total": 135,
+    "passed": 135,
     "failed": 0,
-    "added_in_step": 14
+    "added_in_step": 6
   }
 }
