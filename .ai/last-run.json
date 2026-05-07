@@ -1,21 +1,20 @@
 {
   "status": "ok",
-  "step_completed": "6.6",
-  "next_step": "6.7",
-  "notes": "Wired the toolbar ⌘R refresh action into EntryListView. The toolbar button uses Label('Refresh', systemImage: 'arrow.clockwise') with keyboardShortcut('r', modifiers: .command); tapping spawns Task { await model.refresh() }. Made EntryListModel.refresh() cooperatively cancellable: early-returns on Task.isCancelled before/after the pass-manager call and swallows CancellationError so a cancelled refresh never wipes a previously loaded snapshot. Other thrown errors still clear the snapshot (Phase 8 wires real error UI). Added KizbaTests/EntryListModelRefreshTests.swift with two deterministic tests using a local FakePassManager actor (canned responses + optional sleep delay) and Null* doubles for clipboard/settings. project.pbxproj unchanged (PBXFileSystemSynchronizedRootGroup auto-picks the new file). No changes to LivePassManager / PassCLI / PasswordStoreScanner / AppEnvironment.",
+  "step_completed": "7.1",
+  "next_step": "7.2",
+  "notes": "Added the production ClipboardService actor at Kizba/Infrastructure/Clipboard/ClipboardService.swift conforming to the existing ClipboardServicing protocol. Each copy mints a fresh UUID token, writes verbatim through a narrow internal PasteboardAdapter, snapshots the post-write changeCount, and schedules a detached Task that requests a clear after the configured Duration. The actor's gate clears the pasteboard only if the requesting token still matches currentToken AND the live changeCount equals the snapshot — otherwise the clear is a no-op. Newer copies cancel the previous pending clear-task as a courtesy. Production wiring uses the internal SystemPasteboardAdapter backed by NSPasteboard.general (guarded by #if canImport(AppKit), hops to MainActor). Logging via Log.clipboard records only sanctioned shape-only metadata (copy occurred, clear performed, clear skipped: token superseded / changeCount diverged); the copied value is never logged. Added 5 deterministic XCTest cases in KizbaTests/ClipboardServiceTests.swift driving the full timeline through a file-private FakeClipboard PasteboardAdapter double — no real NSPasteboard access. The local FakeClipboard is private (file-scope) so it does not collide with the unrelated FakeClipboard doubles in DomainProtocolsTests / EntryDetailModelRefinementTests (which conform to ClipboardServicing, not PasteboardAdapter). project.pbxproj unchanged (PBXFileSystemSynchronizedRootGroup auto-picks the new files). No changes to AppEnvironment, ClipboardServicing, or any other module.",
   "changed_files": [
-    "Kizba/Presentation/Features/EntryList/EntryListView.swift",
-    "Kizba/Presentation/Features/EntryList/EntryListModel.swift",
-    "KizbaTests/EntryListModelRefreshTests.swift",
+    "Kizba/Infrastructure/Clipboard/ClipboardService.swift",
+    "KizbaTests/ClipboardServiceTests.swift",
     ".ai/build-log.md",
     ".ai/step.md",
     ".ai/handoff.md",
     ".ai/last-run.json"
   ],
   "commits": [
-    "feat(ui): add refresh action (⌘R) to EntryListView",
-    "test(ui): add EntryListModel refresh tests",
-    "chore(ai): record step 6.6 completion"
+    "feat(clipboard): add ClipboardService with token+changeCount auto-clear",
+    "test(clipboard): add ClipboardService unit tests (FakeClipboard)",
+    "chore(ai): record step 7.1 completion"
   ],
   "production_code_changed": true,
   "xcodeproj_created": true,
@@ -23,10 +22,10 @@
   "xcode_instructions_path": ".ai/xcode_instructions.md",
   "build_log_path": ".ai/build-log.md",
   "tests": {
-    "total": 168,
-    "passed": 168,
+    "total": 173,
+    "passed": 173,
     "failed": 0,
-    "added_in_step": 2,
+    "added_in_step": 5,
     "rewritten_in_step": 0
   }
 }

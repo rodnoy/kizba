@@ -792,3 +792,58 @@ deterministic tests:
 `Kizba.xcodeproj/project.pbxproj` not modified
 (PBXFileSystemSynchronizedRootGroup picks up the new test file
 automatically).
+
+## 2026-05-07 — Step 7.1 (ClipboardService)
+
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' \
+  -only-testing:KizbaTests/ClipboardServiceTests test
+=> ** TEST SUCCEEDED **
+   Executed 5 tests, with 0 failures (0 unexpected) in 1.341s
+
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' test
+=> ** TEST SUCCEEDED **
+   Executed 173 tests, with 0 failures (0 unexpected) in 4.999s
+```
+
+Added production `ClipboardService` actor at
+`Kizba/Infrastructure/Clipboard/ClipboardService.swift` conforming to
+the existing `ClipboardServicing` protocol. Each `copy` mints a fresh
+opaque token (`UUID().uuidString`), writes the value verbatim through
+a narrow `PasteboardAdapter`, captures the post-write `changeCount`,
+and schedules a detached clear-task whose work is gated on both the
+generation token AND the live `changeCount` matching their snapshots.
+Newer copies cancel the previous pending clear-task as a courtesy;
+correctness already follows from the token gate.
+
+Production wiring uses `SystemPasteboardAdapter`, an internal
+`NSPasteboard.general` shim guarded by `#if canImport(AppKit)` and
+hopping to the main actor for every read/write/clear.
+
+Logging via `Log.clipboard` records only sanctioned shape-only
+metadata (copy occurred, clear performed, clear skipped: token
+superseded / changeCount diverged). The copied value is never logged
+in any form.
+
+Added 5 deterministic XCTest cases in
+`KizbaTests/ClipboardServiceTests.swift` exercising the full timeline
+through a file-private `FakeClipboard` `PasteboardAdapter` double:
+
+- `testCopyWritesVerbatim` — asserts `lastValue == "secret-value"`
+  with a single `changeCount` bump and no `"key: value"` composition.
+- `testAutoClear_whenUnchanged` — 80 ms delay, awaits 300 ms, asserts
+  the pasteboard was wiped and `changeCount` bumped exactly once.
+- `testNoClear_whenChangeCountDiffers` — simulates an external writer
+  via `simulateExternalWrite`, awaits past the deadline, asserts the
+  external value survives.
+- `testMultipleCopies_onlyLatestClears` — two copies in succession;
+  asserts only the second copy's clear runs.
+- `testCancellation_ofClearTask_onNewCopy` — newer copy with a 60 s
+  delay supersedes a pending 80 ms clear; asserts the older
+  clear-task does not wipe the newer value.
+
+`Kizba.xcodeproj/project.pbxproj` not modified
+(`PBXFileSystemSynchronizedRootGroup` picks up the new files
+automatically).
