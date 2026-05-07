@@ -2,139 +2,127 @@
 
 ## Last completed action
 
-Step **4.5 — DONE** (`PassCLI` — composes `pass show <entry>`, runs
-through `ShellCommandRunning`, parses with `PassShowParser`, maps
-errors via `PassErrorMapper`).
+Step **5.1 — DONE** (`BinaryDiscoveryService` — actor-isolated
+implementation of `BinaryLocating`).
 
-Step **4.4** was treated as a no-op as flagged in the previous
-handoff: its DoD ("PassErrorMapperTests — every signature; sanitizer
-cases; idempotent.") was already satisfied by the 14 tests committed
-in Phase 4.3.
+`Kizba/Infrastructure/Discovery/BinaryDiscoveryService.swift` is a
+new, `Sendable` (actor), cache-backed service that:
 
-`Kizba/Infrastructure/Pass/PassCLI.swift` is a new, `Sendable`,
-side-effect-free-except-for-logging composer that:
+- conforms to the pre-existing `BinaryLocating` protocol (already
+  declared in Phase 1 with `BinaryName` enum and
+  `locate(_:)` / `reDetect()` async methods);
+- accepts an optional `[BinaryName: URL]` override map, an optional
+  `pathOverride` string, an injected `@Sendable () -> [String: String]`
+  environment reader, and an injected `FileExistenceChecking`
+  (defaults to `DefaultFileExistenceChecker` wrapping
+  `FileManager.default.isExecutableFile(atPath:)`);
+- resolves in the documented order:
+  1. explicit `overridePaths[name]` if it passes the executability
+     check (a configured-but-missing override returns `nil` rather
+     than silently falling back — by design, so the UI can show a
+     Settings nudge);
+  2. `/opt/homebrew/bin` → `/usr/local/bin` → `/usr/bin`;
+  3. sanitised PATH walk — empty entries, relative paths, any
+     entry containing a `..` component and duplicates are dropped;
+     well-known directories already probed in step 2 are skipped;
+  4. `nil`.
+- caches results in `[BinaryName: URL?]`; `reDetect()` clears it;
+- logs only sanctioned metadata via `Log.discovery`:
+  * `name` `.public` (raw enum value),
+  * resolved `path` `.private`,
+  * `found` / cache-hit booleans `.public`;
+- never logs raw PATH strings or environment values;
+- no direct `Logger(subsystem:` instantiation; no `print(`; no
+  reference to standard output (verified by `SourceGrepTests`).
 
-- takes a pre-resolved absolute `executable: URL` (PATH lookup is
-  the job of `BinaryDiscoveryService`, Phase 5);
-- accepts explicit overrides for `PASSWORD_STORE_DIR`, `GNUPGHOME`,
-  `PATH`, `HOME`;
-- forwards the parent's `HOME` when no override is supplied (needed
-  by `gpg`/`pinentry-mac`); never forwards any other parent env;
-- exports a sanitised default `PATH`
-  (`/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin`) when no override
-  is supplied — `ShellCommandRunning` does not inherit parent env;
-- routes failures through `PassErrorMapper.map(stderr:exitCode:)`
-  and re-throws domain `PassError`s from the runner verbatim
-  (`.timedOut` / `.cancelled` / spawn-time `.shellFailure`);
-- logs only sanctioned metadata via `Log.pass`
-  (executable `.private`, argc `.public`, status `.public`,
-  stderrBytes `.public`, sanitised excerpt `.private`);
-- never logs decrypted stdout (enforced statically by
-  `SourceGrepTests` and reviewed in this step).
-
-### Behaviour
-
-Per `.ai/plan.md` Phase 4.5 / 4.6 and `.ai/decisions.md`:
-
-1. `show(entryPath:timeout:)` builds `argv = ["show", entryPath]`,
-   composes the env (PATH + optional STORE / GNUPGHOME / HOME), and
-   delegates to `shellRunner.run(...)`.
-2. Default timeout = `.seconds(120)` (constant
-   `kizbaPassShowDefaultTimeout`) per the decision log.
-3. On exit code `0`: stdout is decoded as strict UTF-8 and parsed
-   by `PassShowParser`. UTF-8 decode failure surfaces as
-   `PassError.parsingFailed`.
-4. On non-zero exit: `PassErrorMapper` produces a sanitised
-   excerpt and a domain `PassError`; the excerpt is included in the
-   log record under `.private` privacy and the mapped error is
-   thrown.
-5. `Foundation.Process` is not touched in this file — every spawn
-   goes through the injected `ShellCommandRunning` so tests use a
-   `FakeShellRunner` and the production binary uses
-   `ProcessShellRunner`.
+A new public protocol `FileExistenceChecking` lives alongside the
+service in the same file (it is implementation-detail of the
+discovery subsystem; not in `Domain/Protocols/`).
 
 ### Applied changes
 
-- `Kizba/Infrastructure/Pass/PassCLI.swift` — **new**.
-- `KizbaTests/PassCLITests.swift` — **new** (6 tests + an embedded
-  `FakeShellRunner` test double satisfying `ShellCommandRunning`).
-- `.ai/build-log.md` — appended step 4.5 verification block.
-- `.ai/step.md` — bumped to `4.6` (4.4 collapsed; 4.5 is the just-
-  completed step).
+- `Kizba/Infrastructure/Discovery/BinaryDiscoveryService.swift` —
+  **new**.
+- `KizbaTests/BinaryDiscoveryServiceTests.swift` — **new** (6 tests
+  + an embedded `FakeFileExistenceChecker` test double).
+- `.ai/build-log.md` — appended step 5.1 verification block.
+- `.ai/step.md` — bumped to `5.2`.
 - `.ai/handoff.md` — this file.
 - `.ai/last-run.json` — refreshed.
-- `Kizba.xcodeproj/project.pbxproj` — **not modified**; the new files
-  are picked up by the existing `PBXFileSystemSynchronizedRootGroup`
-  entries for `Kizba/` and `KizbaTests/`.
+- `Kizba.xcodeproj/project.pbxproj` — **not modified**; the new
+  `Infrastructure/Discovery/` directory is picked up by the existing
+  `PBXFileSystemSynchronizedRootGroup` entries.
 
 ### Verification (executed on this host)
 
 ```
 xcodebuild -scheme Kizba -project Kizba.xcodeproj \
   -destination 'platform=macOS' \
-  -only-testing:KizbaTests/PassCLITests test
+  -only-testing:KizbaTests/BinaryDiscoveryServiceTests test
 # => ** TEST SUCCEEDED **
-#    Executed 6 tests, with 0 failures (0 unexpected) in 0.074s
+#    Executed 6 tests, with 0 failures (0 unexpected) in 0.009s
 
 xcodebuild -scheme Kizba -project Kizba.xcodeproj \
   -destination 'platform=macOS' test
 # => ** TEST SUCCEEDED **
-#    Executed 135 tests, with 0 failures (0 unexpected) in 7.197s
+#    Executed 141 tests, with 0 failures (0 unexpected) in 2.733s
 ```
 
 Build log: `.ai/build-log.md`.
 
+### Test coverage
+
+`BinaryDiscoveryServiceTests`:
+
+1. `testOverrideWins` — explicit override beats every system path.
+2. `testHomebrewPreferredOverUsrLocal` — Apple-silicon Homebrew is
+   probed before `/usr/bin`.
+3. `testPathFallbackUsesSanitizedPathOrder` — relative entries,
+   `..` components, empty entries and duplicates are dropped;
+   sanitised order is preserved.
+4. `testCachingAndReDetect` — first lookup caches; cache shields
+   subsequent lookups from disk; `reDetect()` invalidates.
+5. `testNoFalsePositives` — names whose probes all return false
+   resolve to `nil`.
+6. `testOverrideMisconfigurationDoesNotFallBack` — an override
+   pointing at a non-existent file yields `nil` (no silent
+   fallback).
+
+### Step 4.6 disposition
+
+As noted in the previous handoff, plan step 4.6
+("FakeShellRunner + PassCLITests — success, decryption failure,
+timeout, cancellation, arg/env composition") was already covered
+inline by the 6 `PassCLITests` + embedded `FakeShellRunner`
+committed in step 4.5. No separate 4.6 commit was made; the
+orchestrator confirmed jumping straight to 5.1.
+
 ### Commits
 
-- `feat(pass): add PassCLI (show via ProcessShellRunner, parse+map errors)`
-- `test(pass): add PassCLITests (success, decryption, timeout, cancellation, env)`
-- (pending) `chore(ai): record step 4.5 completion`
+- `feat(discovery): add BinaryDiscoveryService with caching and override support`
+- `test(discovery): add BinaryDiscoveryService unit tests`
+- (pending) `chore(ai): record step 5.1 completion`
 
 ### Repo state at completion
 
-- HEAD will be the handoff bump commit once recorded.
 - `xcodeproj_created = true`,
   `xcodeproj_modified = false`,
-  `xcode_instructions_path = .ai/xcode_instructions.md` (no new UI
-  steps required).
+  `xcode_instructions_path = .ai/xcode_instructions.md`
+  (no new UI steps required).
 - `build_log_path = .ai/build-log.md`.
-
-### API note for downstream phases
-
-`PassCLI.init` does **not** take a `SettingsStoring` parameter. The
-plan calls for that wiring to land in Phase 8.1 (where the concrete
-`SettingsKey<…>` constants for `passBinaryOverride` /
-`storePathOverride` / etc. are first declared) and to be assembled in
-`AppEnvironment.live()` (Phase 5.3). For 4.5 we kept the constructor
-to explicit URL/string overrides — the only contract the runner's
-absolute-URL requirement and the empty-env-no-inheritance contract
-permit at this stage. Downstream callers compose:
-
-```swift
-PassCLI(
-    executable: try await locator.locate(.pass),
-    shellRunner: ProcessShellRunner(),
-    passwordStoreDir: settings.value(for: .storePathOverride).map(URL.init(fileURLWithPath:)),
-    gnupgHome: nil,
-    pathOverride: nil,   // production uses defaultPATH
-    homeOverride: nil
-)
-```
-
-Adapter conforming `PassCLI` to `PassManaging` (combining a
-`PasswordStoreScanner` for `listEntries()` with `PassCLI.show(...)`)
-is Phase 6.5; not in scope for 4.5.
 
 ## Next action
 
-Proceed to **step 4.6** per `.ai/plan.md`. Plan step 4.6 reads
-*"FakeShellRunner + PassCLITests — success, decryption failure,
-timeout, cancellation, arg/env composition."* That spec is largely
-satisfied in-line by the 6 tests + embedded `FakeShellRunner`
-committed in this step. Confirm with the user whether to mark 4.6 as
-a no-op and jump to **5.1 — `BinaryDiscoveryService`**.
+Proceed to **step 5.2** per `.ai/plan.md`. Plan step 5.2 reads
+*"FakeFileExistenceChecker + BinaryDiscoveryServiceTests —
+override wins; arm64 Homebrew first; fallback order; sanitized
+PATH; cache; re-detect."* That spec is already satisfied inline
+by the 6 tests + embedded `FakeFileExistenceChecker` committed
+in this step. Confirm with the user whether to mark 5.2 as a
+no-op and jump to **5.3 — wire `PassCLI` into
+`AppEnvironment.live()`**.
 
-`.ai/step.md` is set to `4.6`.
+`.ai/step.md` is set to `5.2`.
 
 ## Constraints (must hold from day one)
 

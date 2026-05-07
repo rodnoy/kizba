@@ -538,3 +538,42 @@ no direct `Logger`/`OSLog` instantiation introduced; `PassSecret`
 remains non-Codable. PassCLI logs only sanitised metadata
 (executable .private, argc .public, status .public, stderrBytes
 .public, sanitised excerpt .private).
+
+## 2026-05-07 — Step 5.1 (BinaryDiscoveryService)
+
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' \
+  -only-testing:KizbaTests/BinaryDiscoveryServiceTests test
+=> ** TEST SUCCEEDED **
+   Executed 6 tests, with 0 failures (0 unexpected) in 0.009s
+
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' test
+=> ** TEST SUCCEEDED **
+   Executed 141 tests, with 0 failures (0 unexpected) in 2.733s
+```
+
+Test suites added in this step:
+
+- BinaryDiscoveryServiceTests: 6 passed
+  - testOverrideWins
+  - testHomebrewPreferredOverUsrLocal
+  - testPathFallbackUsesSanitizedPathOrder
+  - testCachingAndReDetect
+  - testNoFalsePositives
+  - testOverrideMisconfigurationDoesNotFallBack
+
+Production source: `Kizba/Infrastructure/Discovery/BinaryDiscoveryService.swift`
+(actor; conforms to existing `BinaryLocating` protocol; injected
+`FileExistenceChecking`; sanitised hard-coded discovery order;
+PATH walk drops empty / relative / `..` / duplicate entries;
+caches `[BinaryName: URL?]`; `reDetect()` invalidates).
+
+Logging via `Log.discovery` only — name `.public`, resolved path
+`.private`, cache-hit / found booleans `.public`. SourceGrepTests
+still green (no raw `print(`, no stdout, no direct `Logger`/`OSLog`
+instantiation outside `Log.swift`).
+
+`Kizba.xcodeproj/project.pbxproj` not modified — the new file is
+auto-picked up by the existing `PBXFileSystemSynchronizedRootGroup`.

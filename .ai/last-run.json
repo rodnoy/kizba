@@ -1,20 +1,20 @@
 {
   "status": "ok",
-  "step_completed": "4.5",
-  "next_step": "4.6",
-  "notes": "Step 4.4 collapsed to a no-op (DoD already covered by the 14 PassErrorMapperTests committed in 4.3). Orchestrator confirmed jump to 4.5.",
+  "step_completed": "5.1",
+  "next_step": "5.2",
+  "notes": "BinaryDiscoveryService implemented as actor conforming to existing BinaryLocating protocol. FileExistenceChecking dependency injected for testability. Sanitised PATH walk drops empty, relative, '..' and duplicate entries. Cache invalidated by reDetect(). Logs only sanctioned metadata via Log.discovery (name .public, resolved path .private). 6 unit tests added; full suite green (141 passed).",
   "changed_files": [
-    "Kizba/Infrastructure/Pass/PassCLI.swift",
-    "KizbaTests/PassCLITests.swift",
+    "Kizba/Infrastructure/Discovery/BinaryDiscoveryService.swift",
+    "KizbaTests/BinaryDiscoveryServiceTests.swift",
     ".ai/build-log.md",
     ".ai/step.md",
     ".ai/handoff.md",
     ".ai/last-run.json"
   ],
   "commits": [
-    "feat(pass): add PassCLI (show via ProcessShellRunner, parse+map errors)",
-    "test(pass): add PassCLITests (success, decryption, timeout, cancellation, env)",
-    "chore(ai): record step 4.5 completion"
+    "feat(discovery): add BinaryDiscoveryService with caching and override support",
+    "test(discovery): add BinaryDiscoveryService unit tests",
+    "chore(ai): record step 5.1 completion"
   ],
   "production_code_changed": true,
   "xcodeproj_created": true,
@@ -22,8 +22,8 @@
   "xcode_instructions_path": ".ai/xcode_instructions.md",
   "build_log_path": ".ai/build-log.md",
   "tests": {
-    "total": 135,
-    "passed": 135,
+    "total": 141,
+    "passed": 141,
     "failed": 0,
     "added_in_step": 6
   }
