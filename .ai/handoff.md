@@ -2,73 +2,41 @@
 
 ## Last completed action
 
-Step **5.3 — DONE** (Wire `PassCLI` into `AppEnvironment.live()`).
+Step **6.1 — DONE** (`EntryPathConverter` — pure URL → entry path string).
 
-`AppEnvironment.live()` now constructs the real production
-collaborators that already exist:
+Added `Kizba/Infrastructure/Store/EntryPathConverter.swift`: a
+`nonisolated` `Sendable` struct exposing one static method,
 
-- `ProcessShellRunner()` — Phase 3 production shell runner.
-- `BinaryDiscoveryService()` — Phase 5.1 binary locator.
-- `LivePassCLI(discovery:shellRunner:)` — new thin actor wrapper
-  (this step) that lazily resolves the absolute path of `pass`
-  through `BinaryLocating` at the first `show(entryPath:)` call
-  rather than at composition-root construction time. This keeps
-  `live()` synchronous.
+```swift
+public static func entryPath(from fileURL: URL, storeRoot: URL) -> String?
+```
 
-`AppEnvironment` gained an optional `passCLI: LivePassCLI?` field.
-`live()` always populates it; `preview()` leaves it `nil` so
-SwiftUI previews and unit tests never reach for the real binary.
-The remaining services (`passManager`, `clipboard`, `settings`)
-keep their existing behaviour: in DEBUG they continue to use
-`MockPassManager.preview()` / `NoopClipboard` / `InMemorySettingsStore`;
-in RELEASE the deterministic-failing placeholders remain in place.
-Phase 6.5 will replace `passManager` with a real wiring that uses
-`passCLI` end-to-end.
+The converter is strictly IO-free (no `FileManager`, no shell, no
+logging) per the durable "no secrets in logs" decision and the
+"pure logic" pattern already established by `PassShowParser`. It:
 
-### Why `LivePassCLI` exists
-
-`PassCLI` requires an absolute executable URL at construction time,
-and `BinaryDiscoveryService.locate(_:)` is `async`. Rather than
-making `AppEnvironment.live()` itself `async` (which would propagate
-through `KizbaApp` startup and break SwiftUI scene wiring), we wrap
-`PassCLI` in a small `actor` that performs discovery on first use
-and caches the resolved instance. `invalidate()` is exposed for the
-Settings "Re-detect binaries" action scheduled in Phase 8.3.
-
-### Minor `nonisolated` annotations on the pass-stack
-
-The project compiles under `default-isolation=MainActor`, so by
-default every type without an explicit isolation attribute is
-treated as `@MainActor`. `LivePassCLI` is an `actor` and therefore
-nonisolated; constructing and invoking `PassCLI` from inside it
-required the following pure value-types to be marked `nonisolated`:
-
-- `PassCLI` (struct)
-- `PassErrorMapper` (struct)
-- `PassShowParser` (struct)
-- `PassShowResult` (struct)
-- `kizbaPassShowDefaultTimeout` (top-level let)
-
-These types are pure logic with no UI/AppKit dependencies, so the
-annotation is semantically correct and matches the existing
-`Sendable` conformance. No public API surface changed; existing
-MainActor-isolated callers (e.g. `PassCLITests`) can still invoke
-them transparently.
+- Rejects URLs whose `pathExtension` (case-insensitive) is not `gpg`.
+- Rejects URLs that are not strict descendants of `storeRoot` (compared
+  via standardized `pathComponents`, so trailing slashes / `.` segments
+  do not produce false negatives).
+- Strips only the **final** `.gpg` extension from the basename; earlier
+  dots in the filename (e.g. `foo.bar.baz.gpg` → `foo.bar.baz`) are
+  preserved verbatim.
+- Preserves Unicode and whitespace exactly (spaces, `☃`, CJK, etc.).
+- Joins relative path components with `/`.
+- Returns `nil` for the store root itself and for bare `.gpg` (empty
+  basename).
 
 ### Applied changes
 
-- `Kizba/App/AppEnvironment.swift` — added optional `passCLI`
-  field; `live()` constructs and threads through
-  `ProcessShellRunner` + `BinaryDiscoveryService` + `LivePassCLI`.
-- `Kizba/Infrastructure/Pass/LivePassCLI.swift` — **new**.
-- `Kizba/Infrastructure/Pass/PassCLI.swift` — `nonisolated struct`
-  + `nonisolated let kizbaPassShowDefaultTimeout`.
-- `Kizba/Infrastructure/Pass/PassErrorMapper.swift` — `nonisolated`.
-- `Kizba/Infrastructure/Pass/PassShowParser.swift` — `nonisolated`
-  on both `PassShowResult` and `PassShowParser`.
-- `KizbaTests/AppEnvironmentPassCLITests.swift` — **new** (4 tests).
-- `.ai/build-log.md` — appended step 5.3 verification block.
-- `.ai/step.md` — bumped to `5.4`.
+- `Kizba/Infrastructure/Store/EntryPathConverter.swift` — **new**.
+- `KizbaTests/EntryPathConverterTests.swift` — **new** (8 tests:
+  nested path, top-level, Unicode + spaces, multi-dot basename,
+  non-gpg → nil, outside root → nil, store root itself → nil,
+  bare `.gpg` → nil).
+- `.ai/build-log.md` — appended step 6.1 verification block.
+- `.ai/plan.md` — 6.1 ticked.
+- `.ai/step.md` — bumped to `6.2`.
 - `.ai/handoff.md` — this file.
 - `.ai/last-run.json` — refreshed.
 - `Kizba.xcodeproj/project.pbxproj` — **not modified** (new files
@@ -79,59 +47,33 @@ them transparently.
 ```
 xcodebuild -scheme Kizba -project Kizba.xcodeproj \
   -destination 'platform=macOS' \
-  -only-testing:KizbaTests/AppEnvironmentPassCLITests test
+  -only-testing:KizbaTests/EntryPathConverterTests test
 => ** TEST SUCCEEDED **
-   Executed 4 tests, with 0 failures (0 unexpected) in 0.005s
+   Executed 8 tests, with 0 failures (0 unexpected) in 0.006s
 
 xcodebuild -scheme Kizba -project Kizba.xcodeproj \
   -destination 'platform=macOS' test
 => ** TEST SUCCEEDED **
-   Executed 145 tests, with 0 failures (0 unexpected) in 2.964s
-
-xcodebuild -scheme Kizba -project Kizba.xcodeproj \
-  -destination 'platform=macOS' -configuration Release build
-=> ** BUILD SUCCEEDED **
+   Executed 153 tests, with 0 failures (0 unexpected) in 6.575s
 ```
 
 Build log: `.ai/build-log.md`.
 
-### New test coverage
+### Note on plan.md tick for 6.2
 
-`AppEnvironmentPassCLITests`:
-
-1. `testLive_includesPassCLI` — `live().passCLI` is non-nil.
-2. `testPreview_doesNotIncludePassCLI` — `preview().passCLI` is nil.
-3. `testLive_passCLIWiresBinaryDiscoveryService` — the wired
-   discovery is a `BinaryDiscoveryService` instance.
-4. `testLivePassCLI_throwsBinaryNotFoundWhenDiscoveryReturnsNil` —
-   when discovery resolves to `nil`, `show(...)` throws
-   `PassError.binaryNotFound("pass")` and the shell runner is
-   never invoked.
-
-### Manual end-to-end decrypt
-
-Per the plan, real-decrypt verification on a host with `pass` +
-`pinentry-mac` is part of step 5.3 DoD but cannot be executed in
-the CI/sandbox environment. To exercise it manually on a developer
-machine:
-
-```
-# AppEnvironment.live() is wired to real ProcessShellRunner +
-# BinaryDiscoveryService + LivePassCLI. The DEBUG passManager is
-# still MockPassManager; reach LivePassCLI directly:
-let env = AppEnvironment.live()
-let result = try await env.passCLI!.show(entryPath: "your/entry")
-```
-
-(Phase 6.5 will replace `passManager` with a real conformer that
-calls into `passCLI` end-to-end so the UI exercises decrypt
-through normal selection events.)
+The new `EntryPathConverterTests.swift` already covers everything plan
+item **6.2** asks for (nested, top-level, non-gpg, outside root,
+Unicode, spaces — plus a couple of extra edge cases). The current
+work order, however, instructed completion of **6.1 only** and a step
+bump to `6.2`, so plan item 6.2 is left unchecked for the orchestrator
+to tick once it has reviewed the tests. No additional test work is
+expected at step 6.2.
 
 ### Commits
 
-- `feat(app): wire PassCLI into AppEnvironment.live()`
-- `test(app): add AppEnvironment passCLI wiring tests`
-- (pending) `chore(ai): record step 5.3 completion`
+- `feat(store): add EntryPathConverter (pure URL -> entry path)`
+- `test(store): add EntryPathConverter unit tests`
+- `chore(ai): record step 6.1 completion`
 
 ### Repo state at completion
 
@@ -143,12 +85,12 @@ through normal selection events.)
 
 ## Next action
 
-Proceed to **step 5.4 / Phase 6.1** per `.ai/plan.md`.
-Plan Phase 5 has no further numbered substeps after 5.3, so the
-natural continuation is **6.1 — `EntryPathConverter` (pure URL →
-entry path string)**.
+Proceed to **step 6.2** per `.ai/plan.md` (`EntryPathConverterTests`).
+The tests have already been authored as part of step 6.1; the
+orchestrator only needs to confirm coverage and tick the box, then
+move on to **6.3 — `PasswordStoreScanner`**.
 
-`.ai/step.md` is set to `5.4`.
+`.ai/step.md` is set to `6.2`.
 
 ## Constraints (must hold from day one)
 

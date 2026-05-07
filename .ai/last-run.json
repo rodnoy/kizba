@@ -1,24 +1,21 @@
 {
   "status": "ok",
-  "step_completed": "5.3",
-  "next_step": "5.4",
-  "notes": "Wired PassCLI into AppEnvironment.live() via a new LivePassCLI actor wrapper that lazily resolves the `pass` binary through BinaryLocating at first call (keeps live() synchronous). preview() leaves passCLI nil so SwiftUI previews and unit tests never reach for the real binary. Pure pass-stack value types (PassCLI, PassErrorMapper, PassShowParser, PassShowResult, kizbaPassShowDefaultTimeout) marked `nonisolated` so the actor wrapper can construct/invoke them under default-isolation=MainActor. 4 new unit tests; full suite green (145 passed). Release build succeeds.",
+  "step_completed": "6.1",
+  "next_step": "6.2",
+  "notes": "Added pure EntryPathConverter (Kizba/Infrastructure/Store/EntryPathConverter.swift): static func entryPath(from:storeRoot:) -> String?. Strictly IO-free (no FileManager, no logging) per durable decisions. Returns nil for non-.gpg files, files outside the store root, the store root itself, and bare `.gpg` filenames. Strips only the final `.gpg` extension; preserves Unicode, whitespace, and earlier dots in basenames verbatim. 8 deterministic XCTests added; full suite green (153 passed, 8 new). Xcodeproj uses PBXFileSystemSynchronizedRootGroup so project.pbxproj was not modified.",
   "changed_files": [
-    "Kizba/App/AppEnvironment.swift",
-    "Kizba/Infrastructure/Pass/LivePassCLI.swift",
-    "Kizba/Infrastructure/Pass/PassCLI.swift",
-    "Kizba/Infrastructure/Pass/PassErrorMapper.swift",
-    "Kizba/Infrastructure/Pass/PassShowParser.swift",
-    "KizbaTests/AppEnvironmentPassCLITests.swift",
+    "Kizba/Infrastructure/Store/EntryPathConverter.swift",
+    "KizbaTests/EntryPathConverterTests.swift",
     ".ai/build-log.md",
+    ".ai/plan.md",
     ".ai/step.md",
     ".ai/handoff.md",
     ".ai/last-run.json"
   ],
   "commits": [
-    "feat(app): wire PassCLI into AppEnvironment.live()",
-    "test(app): add AppEnvironment passCLI wiring tests",
-    "chore(ai): record step 5.3 completion"
+    "feat(store): add EntryPathConverter (pure URL -> entry path)",
+    "test(store): add EntryPathConverter unit tests",
+    "chore(ai): record step 6.1 completion"
   ],
   "production_code_changed": true,
   "xcodeproj_created": true,
@@ -26,9 +23,9 @@
   "xcode_instructions_path": ".ai/xcode_instructions.md",
   "build_log_path": ".ai/build-log.md",
   "tests": {
-    "total": 145,
-    "passed": 145,
+    "total": 153,
+    "passed": 153,
     "failed": 0,
-    "added_in_step": 4
+    "added_in_step": 8
   }
 }

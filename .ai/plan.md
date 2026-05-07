@@ -104,7 +104,7 @@ Each step is sized for a single focused implementation session. Verification com
 **DoD:** Real decrypt works end-to-end.
 
 ### Phase 6 — `PasswordStoreScanner` + `EntryPathConverter`
-- [ ] 6.1 `EntryPathConverter` — pure URL → entry path string.
+- [x] 6.1 `EntryPathConverter` — pure URL → entry path string.
 - [ ] 6.2 `EntryPathConverterTests` — nested, top-level, non-gpg, outside root, Unicode, spaces.
 - [ ] 6.3 `PasswordStoreScanner` — `FileManager.enumerator` with `[.skipsHiddenFiles]`; ignores `.git`, `.gpg-id`; only `.gpg`; sorted result.
 - [ ] 6.4 `TempStoreFixture` + `PasswordStoreScannerTests` — nested with `.git` ignored; `.gpg-id` ignored; non-gpg ignored; empty store; missing root throws; deterministic sort.

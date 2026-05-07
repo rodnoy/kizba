@@ -616,3 +616,30 @@ Modified files:
 
 `Kizba.xcodeproj/project.pbxproj` not modified (PBXFileSystemSynchronizedRootGroup
 picks up the new file automatically).
+
+## 2026-05-07 — Step 6.1 (EntryPathConverter)
+
+```
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' \
+  -only-testing:KizbaTests/EntryPathConverterTests test
+=> ** TEST SUCCEEDED **
+   Executed 8 tests, with 0 failures (0 unexpected) in 0.006s
+
+xcodebuild -scheme Kizba -project Kizba.xcodeproj \
+  -destination 'platform=macOS' test
+=> ** TEST SUCCEEDED **
+   Executed 153 tests, with 0 failures (0 unexpected) in 6.575s
+```
+
+New files:
+
+- `Kizba/Infrastructure/Store/EntryPathConverter.swift` — pure
+  `URL` → entry-path-string converter (no FileManager, no logging).
+- `KizbaTests/EntryPathConverterTests.swift` — 8 deterministic tests
+  (nested, top-level, non-gpg, outside root, Unicode + spaces,
+  multi-dot basename, store root itself, bare `.gpg`).
+
+`Kizba.xcodeproj/project.pbxproj` not modified
+(PBXFileSystemSynchronizedRootGroup picks up the new files
+automatically).
