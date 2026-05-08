@@ -15,5 +15,12 @@ struct KizbaApp: App {
         WindowGroup {
             RootSplitView(environment: environment, state: state)
         }
+        // Standard macOS Settings scene. Wire the existing SettingsView
+        // using the current AppEnvironment's settings store and a
+        // BinaryDiscoveryService instance for discovery.
+        Settings {
+            SettingsView(model: SettingsModel(settings: environment.settings,
+                                             discovery: BinaryDiscoveryService()))
+        }
     }
 }
