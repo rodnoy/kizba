@@ -26,7 +26,7 @@ public struct SettingsView: View {
         Form {
             Section("General") {
                 HStack {
-                    TextField("Password store path override", text: bindingForOptional(&model.storePathOverride))
+                    TextField("Password store path override", text: bindingForOptional(\.storePathOverride))
                         .textFieldStyle(.roundedBorder)
                     pickerButton(allowsDirectories: true) { url in
                         model.storePathOverride = url.path
@@ -36,7 +36,7 @@ public struct SettingsView: View {
 
             Section("Binaries") {
                 HStack {
-                    TextField("pass binary override", text: bindingForOptional(&model.passBinaryOverride))
+                    TextField("pass binary override", text: bindingForOptional(\.passBinaryOverride))
                         .textFieldStyle(.roundedBorder)
                     pickerButton(allowsDirectories: false) { url in
                         model.passBinaryOverride = url.path
@@ -44,7 +44,7 @@ public struct SettingsView: View {
                 }
 
                 HStack {
-                    TextField("gpg binary override", text: bindingForOptional(&model.gpgBinaryOverride))
+                    TextField("gpg binary override", text: bindingForOptional(\.gpgBinaryOverride))
                         .textFieldStyle(.roundedBorder)
                     pickerButton(allowsDirectories: false) { url in
                         model.gpgBinaryOverride = url.path
@@ -52,7 +52,7 @@ public struct SettingsView: View {
                 }
 
                 HStack {
-                    TextField("pinentry binary override", text: bindingForOptional(&model.pinentryBinaryOverride))
+                    TextField("pinentry binary override", text: bindingForOptional(\.pinentryBinaryOverride))
                         .textFieldStyle(.roundedBorder)
                     pickerButton(allowsDirectories: false) { url in
                         model.pinentryBinaryOverride = url.path
