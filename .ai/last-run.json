@@ -1,43 +1,6 @@
 {
   "status": "success",
-  "step_completed": "8.1",
-  "next_step": "8.2",
-  "notes": "Phase 8.4 — Diagnostics in-memory ring buffer + presentation surface. Added Invocation (Sendable value type, stdout intentionally excluded) and InvocationLog actor (bounded, default 200, newest-first reads). Added InvocationLogging protocol so ProcessShellRunner can take an optional sink without a hard dependency on the concrete actor. Added a new ProcessShellRunner.init(invocationLog:) overload — zero-arg init() preserved so existing call sites are untouched. Each run publishes one sanitised Invocation: args + stderr go through PassErrorMapper.sanitize; sentinel exit codes -1/-2/-3 mark spawn-failure/cancellation/timeout; the record is delivered via Task.detached so the actor's mailbox never blocks the runner. Log.shell emits a shape-only debug line per invocation (executable .private, status/excerptLen .public). Added DiagnosticsModel (@MainActor @Observable) and a minimal DiagnosticsView (List rows: timestamp, basename, args, exitCode, stderr excerpt). View is intentionally NOT mounted in KizbaApp yet — Phase 8 wires it. Tests: InvocationLogTests (5), DiagnosticsModelTests (2), ProcessShellRunnerInvocationTests (3). Full suite 188 passed (was 178; +10). project.pbxproj unchanged (PBXFileSystemSynchronizedRootGroup auto-picks new files). SourceGrepTests still green: no raw print, no stdout references, no direct Logger instantiation in Infrastructure outside Log.swift, PassSecret stays non-Codable. Note: project default isolation is MainActor, so Invocation.init is explicitly nonisolated.",
-  "changed_files": [
-    "Kizba/Infrastructure/Diagnostics/Invocation.swift",
-    "Kizba/Infrastructure/Diagnostics/InvocationLog.swift",
-    "Kizba/Infrastructure/Shell/ProcessShellRunner.swift",
-    "Kizba/Presentation/Features/Diagnostics/DiagnosticsModel.swift",
-    "Kizba/Presentation/Features/Diagnostics/DiagnosticsView.swift",
-    "KizbaTests/InvocationLogTests.swift",
-    "KizbaTests/DiagnosticsModelTests.swift",
-    "KizbaTests/ProcessShellRunnerInvocationTests.swift",
-    "Kizba/Infrastructure/Settings/UserDefaultsSettingsStore.swift",
-    "KizbaTests/UserDefaultsSettingsStoreTests.swift",
-    ".ai/build-log.md",
-    ".ai/step.md",
-    ".ai/handoff.md",
-    ".ai/last-run.json"
-  ],
-  "commits": [
-    "feat(diagnostics): add InvocationLog and DiagnosticsModel/View",
-    "chore(shell): publish invocation records from ProcessShellRunner",
-    "test(diagnostics): add InvocationLog and DiagnosticsModel tests",
-    "chore(ai): record step 7.4 completion",
-    "feat(settings): add UserDefaultsSettingsStore",
-    "test(settings): add UserDefaultsSettingsStore unit tests",
-    "chore(ai): record step 8.1 completion"
-  ],
-  "production_code_changed": true,
-  "xcodeproj_created": true,
-  "xcodeproj_modified": false,
-  "xcode_instructions_path": ".ai/xcode_instructions.md",
+  "step_completed": "8.3",
   "build_log_path": ".ai/build-log.md",
-  "tests": {
-    "total": 195,
-    "passed": 195,
-    "failed": 0,
-    "added_in_step": 7,
-    "rewritten_in_step": 0
-  }
+  "timestamp": "2026-05-08T15:36:15+02:00"
 }
