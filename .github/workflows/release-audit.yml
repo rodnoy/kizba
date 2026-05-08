@@ -1,0 +1,43 @@
+# CI gate to prevent shipping fixture secrets in Release binaries.
+# Best-effort strings-based audit. Runs on macOS runner with Xcode available.
+name: "Release audit (strings check)"
+
+on:
+  workflow_dispatch: {}
+  push:
+    tags: ["v*"]
+
+jobs:
+  release-audit:
+    runs-on: macos-latest
+    name: Build Release and run strings audit
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Release
+        run: |
+          set -euo pipefail
+          xcodebuild -scheme Kizba -project Kizba.xcodeproj -configuration Release -derivedDataPath ./build -destination 'platform=macOS' clean build
+
+      - name: Locate app and binary
+        run: |
+          set -euo pipefail
+          APP=$(find ./build -name "Kizba.app" -type d | head -n 1 || true)
+          if [ -z "$APP" ]; then echo "Kizba.app not found"; exit 2; fi
+          BINARY="$APP/Contents/MacOS/Kizba"
+          if [ ! -f "$BINARY" ]; then echo "Binary not found at $BINARY"; exit 2; fi
+          echo "Binary: $BINARY"
+          # Export path for subsequent step
+          echo "BINARY=$BINARY" >> $GITHUB_ENV
+
+      - name: strings-based audit for fixture tokens
+        run: |
+          set -euo pipefail
+          # tokens to detect: p4ss-|correct horse|fixture|ghp_|DO-NOT-SHARE
+          if strings "$BINARY" | egrep -i 'p4ss-|correct horse|fixture|ghp_|DO-NOT-SHARE'; then
+            echo "Fixture tokens found in release binary"
+            exit 1
+          else
+            echo "No fixture tokens found"
+          fi
