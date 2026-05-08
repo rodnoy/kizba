@@ -24,6 +24,7 @@
 
 import Foundation
 import XCTest
+@testable import Kizba
 
 final class SourceGrepTests: XCTestCase {
 
@@ -149,6 +150,94 @@ final class SourceGrepTests: XCTestCase {
                 + hits.joined(separator: "\n")
             )
         }
+    }
+
+    /// (5) `PassSecret` must not be `CustomStringConvertible` or
+    /// `CustomDebugStringConvertible`. This runtime check complements
+    /// the regex-based Codable check and prevents accidental string
+    /// interpolation leaks.
+    func testPassSecretIsNotStringConvertible() throws {
+        XCTAssertFalse((PassSecret.self as Any) is CustomStringConvertible.Type)
+        XCTAssertFalse((PassSecret.self as Any) is CustomDebugStringConvertible.Type)
+    }
+
+    /// (6) Broad scan of the whole `Kizba/` source tree for raw
+    /// `print(` / `NSLog(` / `debugPrint(` calls. Pragmatic heuristics:
+    /// - Skip lines whose trimmed prefix starts with `//` or `/*`.
+    /// - Skip files inside any `.ai` folder and test sources.
+    /// False positives are acceptable but should be rare.
+    func testNoRawPrintInKizbaSource() throws {
+        let kizbaRoot = Self.repoRoot.appendingPathComponent("Kizba", isDirectory: true)
+
+        let patterns = [
+            #"(?<![A-Za-z0-9_.])print\("#, // raw Swift print(
+            #"(?<![A-Za-z0-9_.])NSLog\("#,
+            #"(?<![A-Za-z0-9_.])debugPrint\("#,
+        ]
+        let regexes = try patterns.map { try NSRegularExpression(pattern: $0, options: []) }
+
+        var hits: [String] = []
+        let files = try Self.swiftFiles(under: kizbaRoot)
+        for url in files {
+            // Skip any tooling/state files under `.ai` and test sources.
+            if url.pathComponents.contains(".ai") { continue }
+            if url.pathComponents.contains("KizbaTests") { continue }
+
+            let contents = try String(contentsOf: url, encoding: .utf8)
+            let lines = contents.split(separator: "\n", omittingEmptySubsequences: false)
+            for (idx, raw) in lines.enumerated() {
+                let lineText = String(raw)
+                let trimmed = lineText.trimmingCharacters(in: .whitespaces)
+                if trimmed.isEmpty { continue }
+                if trimmed.hasPrefix("//") { continue }
+                if trimmed.hasPrefix("/*") { continue }
+
+                let range = NSRange(lineText.startIndex..., in: lineText)
+                for regex in regexes {
+                    if regex.firstMatch(in: lineText, options: [], range: range) != nil {
+                        hits.append("\(url.path):\(idx + 1): " + trimmed)
+                    }
+                }
+            }
+        }
+
+        if !hits.isEmpty {
+            XCTFail("Found raw print/NSLog/debugPrint calls in Kizba source:\n" + hits.joined(separator: "\n"))
+        }
+    }
+
+    /// (7) `MockPassManager` must be fully gated behind `#if DEBUG` so
+    /// release binaries do not contain fixture passwords or the mock
+    /// implementation. The test reads the file and asserts the first
+    /// non-empty, non-comment line is `#if DEBUG` and the last such line
+    /// is `#endif`.
+    func testMockPassManagerIsDebugOnly() throws {
+        let url = Self.repoRoot
+            .appendingPathComponent("Kizba/Infrastructure/Pass/MockPassManager.swift")
+        let contents = try String(contentsOf: url, encoding: .utf8)
+        let lines = contents.split(separator: "\n", omittingEmptySubsequences: false)
+
+        func isSkippable(_ s: Substring) -> Bool {
+            let t = s.trimmingCharacters(in: .whitespaces)
+            if t.isEmpty { return true }
+            if t.hasPrefix("//") { return true }
+            if t.hasPrefix("/*") { return true }
+            return false
+        }
+
+        // First non-skippable line
+        guard let first = lines.first(where: { !isSkippable($0) })?.trimmingCharacters(in: .whitespaces) else {
+            XCTFail("MockPassManager.swift is empty or only comments")
+            return
+        }
+        XCTAssertEqual(first, "#if DEBUG", "MockPassManager.swift must start with #if DEBUG")
+
+        // Last non-skippable line
+        guard let last = lines.reversed().first(where: { !isSkippable($0) })?.trimmingCharacters(in: .whitespaces) else {
+            XCTFail("MockPassManager.swift is empty or only comments")
+            return
+        }
+        XCTAssertEqual(last, "#endif", "MockPassManager.swift must end with #endif")
     }
 
     // MARK: - Engine
