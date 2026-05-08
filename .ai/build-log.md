@@ -3,6 +3,6 @@ Command line invocation:
 
 ** TEST SUCCEEDED **
 
-Executed 201 tests, with 0 failures (0 unexpected) in 9.585 (9.884) seconds
+Executed 203 tests, with 0 failures (0 unexpected) in 7.340 (7.741) seconds
 
 Full xcodebuild output captured during the run is available in the CI artifacts.
