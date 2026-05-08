@@ -34,6 +34,10 @@ struct AppEnvironment: Sendable {
     /// wirings that have no real binaries to talk to.
     let discovery: (any BinaryLocating)?
 
+    /// Optional diagnostics invocation log. `nil` in preview / test
+    /// wirings that do not publish invocations.
+    let invocationLog: InvocationLog?
+
     /// Lazily-discovered `pass` CLI wrapper. `nil` in preview / unit-
     /// test wirings that have no real binary to talk to. Populated by
     /// ``live()`` once Phase 5.3 wiring is complete.
@@ -46,13 +50,15 @@ struct AppEnvironment: Sendable {
         clipboard: any ClipboardServicing,
         settings: any SettingsStoring,
         passCLI: LivePassCLI? = nil,
-        discovery: (any BinaryLocating)? = nil
+        discovery: (any BinaryLocating)? = nil,
+        invocationLog: InvocationLog? = nil
     ) {
         self.passManager = passManager
         self.clipboard = clipboard
         self.settings = settings
         self.passCLI = passCLI
         self.discovery = discovery
+        self.invocationLog = invocationLog
     }
 }
 
@@ -73,7 +79,8 @@ extension AppEnvironment {
     /// placeholders. `passCLI` itself is always populated so
     /// downstream phases can flip the read path entry-by-entry.
     static func live() -> AppEnvironment {
-        let shellRunner = ProcessShellRunner()
+        let invocationLog = InvocationLog()
+        let shellRunner = ProcessShellRunner(invocationLog: invocationLog)
         let discovery = BinaryDiscoveryService()
         let passCLI = LivePassCLI(
             discovery: discovery,
@@ -109,7 +116,8 @@ extension AppEnvironment {
             clipboard: clipboard,
             settings: UserDefaultsSettingsStore(),
             passCLI: passCLI,
-            discovery: discovery
+            discovery: discovery,
+            invocationLog: invocationLog
         )
     }
 
@@ -131,7 +139,8 @@ extension AppEnvironment {
             clipboard: NoopClipboard(),
             settings: InMemorySettingsStore(),
             passCLI: nil,
-            discovery: nil
+            discovery: nil,
+            invocationLog: nil
         )
         #else
         return AppEnvironment(

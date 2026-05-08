@@ -25,9 +25,11 @@ struct EntryDetailView: View {
     @Bindable var state: AppState
 
     @State private var model: EntryDetailModel
+    private let environment: AppEnvironment
 
     init(environment: AppEnvironment, state: AppState) {
         self.state = state
+        self.environment = environment
         self._model = State(
             initialValue: EntryDetailModel(environment: environment, state: state)
         )
@@ -49,7 +51,7 @@ struct EntryDetailView: View {
                     onCopyField: { value in Task { await model.copy(value) } }
                 )
             case .failed(let error):
-                FailedView(error: error)
+                FailedView(error: error, environment: environment)
             }
         }
         .navigationTitle(state.selectedEntryID ?? "Detail")
@@ -147,52 +149,67 @@ private struct LoadedSecretView: View {
 
 private struct FailedView: View {
     let error: PassError
+    let environment: AppEnvironment
+
+    @State private var showingDiagnostics = false
+    @State private var diagnosticsModel: DiagnosticsModel? = nil
 
     var body: some View {
+        let presentation = ErrorPresentation.present(for: error)
         VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.headline)
-            Text(message)
-                .foregroundStyle(.secondary)
-            // Diagnostics screen lands in Phase 8; stub the affordance.
-            Button("View details") {}
-                .disabled(true)
+            switch presentation {
+            case .emptyState(let nudge):
+                Text(nudge.title)
+                    .font(.headline)
+                Text("Configure the missing tool in Settings to continue.")
+                    .foregroundStyle(.secondary)
+                #if canImport(AppKit)
+                Button(nudge.actionTitle) {
+                    NSApp.sendAction(Selector("showSettingsWindow:"), to: nil, from: nil)
+                }
+                #endif
+
+            case .banner(let message, let helpURL):
+                Text(message)
+                    .padding(8)
+                    .background(Color.secondary.opacity(0.08))
+                    .cornerRadius(6)
+                if let url = helpURL {
+                    Link("Help", destination: url)
+                }
+
+            case .inlineWithDiagnostics(let message), .toastWithDiagnostics(let message):
+                Text(message)
+                    .foregroundStyle(.secondary)
+                Button("View details") {
+                    diagnosticsModel = DiagnosticsModel(invocationLog: environment.invocationLog ?? InvocationLog())
+                    showingDiagnostics = true
+                }
+
+            case .onboarding(let message):
+                Text(message)
+                    .foregroundStyle(.secondary)
+                #if canImport(AppKit)
+                Button("Open Settings") {
+                    NSApp.sendAction(Selector("showSettingsWindow:"), to: nil, from: nil)
+                }
+                #endif
+
+            case .silent:
+                EmptyView()
+            }
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-
-    private var title: String {
-        switch error {
-        case .binaryNotFound:        return "Required binary not found"
-        case .pinentryNotConfigured: return "pinentry is not configured"
-        case .decryptionFailed:      return "Decryption failed"
-        case .storeNotFound:         return "Password store not found"
-        case .timedOut:              return "The operation timed out"
-        case .shellFailure:          return "Shell command failed"
-        case .parsingFailed:         return "Could not parse decrypted body"
-        case .cancelled:             return "Cancelled"
-        }
-    }
-
-    private var message: String {
-        switch error {
-        case .binaryNotFound(let name):
-            return "Could not find “\(name)” on PATH. Configure an override in Settings."
-        case .pinentryNotConfigured:
-            return "Install and configure pinentry-mac to decrypt entries."
-        case .decryptionFailed:
-            return "GPG could not decrypt this entry."
-        case .storeNotFound(let path):
-            return "Configured store path does not exist: \(path)"
-        case .timedOut:
-            return "The decrypt invocation exceeded its deadline."
-        case .shellFailure(let code, _):
-            return "Underlying command exited with code \(code)."
-        case .parsingFailed(let reason):
-            return reason
-        case .cancelled:
-            return "Operation was cancelled."
+        .sheet(isPresented: $showingDiagnostics) {
+            if let model = diagnosticsModel {
+                DiagnosticsView(model: model)
+                    .task {
+                        await model.refresh()
+                    }
+            } else {
+                Text("Loading…")
+            }
         }
     }
 }
