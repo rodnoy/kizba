@@ -1,142 +1,26 @@
-# Xcode UI Setup Instructions — Step 0.1
+Release binary audit
 
-This document describes the **exact** procedure for creating `Kizba.xcodeproj` via Xcode UI, as required by the project's user policy ("create .xcodeproj via Xcode UI — simpler and more reliable").
+This section documents a simple CI-friendly audit to ensure that no
+debug-only fixture secrets or text tokens (used by MockPassManager
+fixtures) are present in the Release binary. It is intended to be run
+against a Release build artifact in your CI pipeline. The repository
+also contains a small compile-time test (KizbaTests/ReleaseBinaryTests.swift)
+which asserts that MockPassManager.swift is guarded by #if DEBUG;
+the `strings` audit below provides a runtime verification on the built
+product.
 
-This step **must be performed manually by the user** on a macOS host with Xcode 15.4+ (Xcode 26.x verified). The agent has staged placeholder source files (`Kizba/App/KizbaApp.swift`, `Kizba/Resources/Assets.xcassets/`, `KizbaTests/KizbaTests.swift`) so the project can be wired to them after creation.
+# Build Release
+xcodebuild -scheme Kizba -configuration Release -derivedDataPath ./build -destination 'platform=macOS' clean build
 
----
+# Locate built app and binary
+APP=$(find ./build -name "Kizba.app" -type d | head -n 1)
+BINARY="$APP/Contents/MacOS/Kizba"
 
-## 1. Create the project
-
-1. Open **Xcode → File → New → Project…**
-2. Choose **macOS → App**, click **Next**.
-3. Fill in the template:
-   - **Product Name:** `Kizba`
-   - **Team:** your Developer ID team (or `None` for now).
-   - **Organization Identifier:** `app.kizba` (so bundle id becomes `app.kizba.Kizba`).
-   - **Bundle Identifier:** confirm `app.kizba.Kizba`.
-   - **Interface:** `SwiftUI`
-   - **Language:** `Swift`
-   - **Testing System:** `XCTest` (NOT Swift Testing — plan uses `XCTest`).
-   - **Storage:** `None` (no Core Data, no CloudKit).
-   - **Include Tests:** ☑ checked.
-4. Click **Next**.
-5. **Save location:** the repository root `/Users/kirillsimagin/dev/my/worldproject/kizba`.
-   - **Uncheck** "Create Git repository on my Mac" (this repo is initialized separately).
-6. Click **Create**.
-
-Xcode will create:
-
-```
-Kizba.xcodeproj/
-Kizba/
-  KizbaApp.swift             ← will be replaced
-  ContentView.swift          ← delete
-  Assets.xcassets/           ← will be replaced/merged
-  Kizba.entitlements         ← keep (Hardened Runtime later)
-  Preview Content/
-KizbaTests/
-  KizbaTests.swift           ← will be replaced
-KizbaUITests/                ← DELETE the entire target+folder
-```
-
-## 2. Reorganize files to match planned layout
-
-Goal layout for step 0.1:
-
-```
-Kizba/
-  App/
-    KizbaApp.swift
-  Resources/
-    Assets.xcassets/
-KizbaTests/
-  KizbaTests.swift
-```
-
-Steps:
-
-1. In Finder, the agent has already created `Kizba/App/`, `Kizba/Resources/Assets.xcassets/`, and stub source files. Decide which copy to keep:
-   - **Recommended:** delete Xcode-generated `Kizba/KizbaApp.swift`, `Kizba/ContentView.swift`, `Kizba/Assets.xcassets/`, `Kizba/Preview Content/`, `KizbaTests/KizbaTests.swift` and re-add the agent-staged files from `Kizba/App/`, `Kizba/Resources/Assets.xcassets/`, `KizbaTests/` via **right-click group → Add Files to "Kizba"…** with **"Create groups"** selected. Add the test file to the `KizbaTests` target only.
-2. Inside Xcode's Project Navigator, create groups (folder-backed): `App` under `Kizba`, `Resources` under `Kizba`. Drag the corresponding files into them.
-3. Delete the `Preview Content` group and remove `DEVELOPMENT_ASSET_PATHS` from build settings (Targets → Kizba → Build Settings → search "Development Assets").
-4. Delete the `KizbaUITests` target: **Targets list → KizbaUITests → right-click → Delete**, then delete its folder from Finder.
-
-## 3. Build settings (Kizba target)
-
-Targets → **Kizba** → Build Settings (All / Combined):
-
-- **Swift Language Version:** `Swift 5` (effective 5.10 with current toolchain).
-- **macOS Deployment Target:** `14.0`.
-- **Strict Concurrency Checking** (`SWIFT_STRICT_CONCURRENCY`): `Complete`.
-- **Treat Warnings as Errors** (`SWIFT_TREAT_WARNINGS_AS_ERRORS`): `Yes`.
-- **Other Swift Flags:** leave default.
-
-## 4. Build settings (KizbaTests target)
-
-Same Swift version + deployment target. Strict concurrency `Complete` is fine; warnings-as-errors **off** for tests is acceptable (plan only mandates it for the app target).
-
-## 5. Scheme
-
-- Product → Scheme → Manage Schemes — confirm a single scheme named `Kizba` exists, **Shared** ☑ checked (so `xcodebuild -scheme Kizba` works from CLI and CI).
-
-## 6. Verify
-
-From repo root:
-
-```sh
-xcodebuild -scheme Kizba -destination 'platform=macOS' build
-xcodebuild test -scheme Kizba -destination 'platform=macOS'
-```
-
-Both must succeed. Running the app should show a window containing the text "Kizba".
-
-## 7. Commit
-
-```sh
-git add Kizba.xcodeproj Kizba KizbaTests
-git commit -m "Add Kizba.xcodeproj created via Xcode UI (step 0.1)"
-```
-
-The shared scheme file at `Kizba.xcodeproj/xcshareddata/xcschemes/Kizba.xcscheme` **must** be committed. The `xcuserdata/` directory is gitignored.
-
----
-
-## Files already staged by the agent (pre-Xcode)
-
-- `Kizba/App/KizbaApp.swift` — empty `WindowGroup { Text("Kizba") }`.
-- `Kizba/Resources/Assets.xcassets/` with `AccentColor` and `AppIcon` placeholders.
-- `KizbaTests/KizbaTests.swift` — single `XCTAssertTrue(true)`.
-- `.gitignore` — Xcode + DerivedData + xcuserdata.
-
-After project creation in Xcode, these files should be referenced from the Xcode project (or replaced/regenerated by Xcode and the agent-staged copies removed — pick one source of truth).
-
-## Post-creation hand back to the agent
-
-When the project builds and tests pass locally, push the commit (or notify the agent) so the agent can:
-
-1. Verify `xcodebuild` from CLI.
-2. Increment `.ai/step.md` to `1`.
-3. Update `.ai/handoff.md` to point to step 0.2 (`.gitignore` already in place — only `README.md` stub remains) and 0.3 (folder scaffolding).
-
----
-
-## Hardened Runtime & Entitlements
-
-When preparing a Developer ID / notarized build you must enable the Hardened Runtime and point the target to an entitlements file. Do this using Xcode's Signing & Capabilities UI — do NOT edit `project.pbxproj` manually in source control.
-
-1. Select the Kizba target in Xcode, open the "Signing & Capabilities" tab.
-2. Click the "+ Capability" button and add "Hardened Runtime". In the Hardened Runtime options enable the checkboxes you need; commonly you will enable "Disable Library Validation" to allow interaction with certain helper tools (this maps to the entitlement key below).
-3. Add an Entitlements file: choose "+ Capability" → "App Sandbox" is NOT required and must NOT be enabled for Developer ID distribution for this project — leave App Sandbox disabled. Instead, add a plain entitlements file to the project (we have committed Kizba/Kizba.entitlements) and set the target's "Signing & Capabilities" to use it by selecting the entitlements file in the UI.
-
-Entitlements file (committed at Kizba/Kizba.entitlements) contains the key required for Disable Library Validation:
-
-  com.apple.security.cs.disable-library-validation = true
-
-Verification (build Release):
-
-  xcodebuild build -scheme Kizba -configuration Release -destination 'platform=macOS'
+# Search for fixture tokens (fail if any found)
+strings "$BINARY" | egrep -i 'p4ss-|correct horse|fixture|ghp_' && { echo "Fixture tokens found in release binary"; exit 1; } || echo "No fixture tokens found"
 
 Notes:
-- Do NOT enable App Sandbox for the Kizba app target.
-- Do NOT edit `project.pbxproj` manually in source control to wire entitlements — use Xcode's UI or CI-time build overrides. Manual edits to project files in source control may be rejected by the project's workflow.
+- Run this check in CI after building the Release configuration.
+- The compile-time test added to KizbaTests ensures MockPassManager
+  stays behind #if DEBUG; the strings check validates that no fixture
+  tokens leaked into the final binary artifact.
