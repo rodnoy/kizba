@@ -191,49 +191,55 @@ private struct NoopClipboard: ClipboardServicing {
     func copy(_ value: String, clearAfter: Duration) async {}
 }
 
-/// In-memory `SettingsStoring` for previews. Phase 8 introduces the
-/// real `UserDefaultsSettingsStore`.
-private final class InMemorySettingsStore: SettingsStoring, @unchecked Sendable {
-    private let lock = NSLock()
-    private var storage: [String: any SettingsValue] = [:]
+#endif
 
-    func value<Value: SettingsValue>(for key: SettingsKey<Value>) -> Value? {
-        lock.lock(); defer { lock.unlock() }
-        return storage[key.name] as? Value
-    }
+// MARK: - DEBUG nested test doubles
 
-    func set<Value: SettingsValue>(_ value: Value?, for key: SettingsKey<Value>) {
-        lock.lock(); defer { lock.unlock() }
-        if let value {
-            storage[key.name] = value
-        } else {
-            storage.removeValue(forKey: key.name)
+#if DEBUG
+extension AppEnvironment {
+    /// In-memory `SettingsStoring` for previews and unit tests.
+    /// Phase 8 introduces the real `UserDefaultsSettingsStore`.
+    final class InMemorySettingsStore: SettingsStoring, @unchecked Sendable {
+        private let lock = NSLock()
+        private var storage: [String: any SettingsValue] = [:]
+
+        func value<Value: SettingsValue>(for key: SettingsKey<Value>) -> Value? {
+            lock.lock(); defer { lock.unlock() }
+            return storage[key.name] as? Value
         }
-    }
 
-    func removeValue(forKey key: String) {
-        lock.lock(); defer { lock.unlock() }
-        storage.removeValue(forKey: key)
-    }
+        func set<Value: SettingsValue>(_ value: Value?, for key: SettingsKey<Value>) {
+            lock.lock(); defer { lock.unlock() }
+            if let value {
+                storage[key.name] = value
+            } else {
+                storage.removeValue(forKey: key.name)
+            }
+        }
 
-    func resetAll() {
-        lock.lock(); defer { lock.unlock() }
-        storage.removeAll()
-    }
+        func removeValue(forKey key: String) {
+            lock.lock(); defer { lock.unlock() }
+            storage.removeValue(forKey: key)
+        }
 
-    func registerDefaults(_ defaults: [String : Any]) {
-        // Convert only known types from defaults into storage if absent.
-        lock.lock(); defer { lock.unlock() }
-        for (k, v) in defaults {
-            if storage[k] == nil {
-                if let s = v as? String { storage[k] = s }
-                else if let i = v as? Int { storage[k] = i }
-                else if let d = v as? Double { storage[k] = d }
-                else if let b = v as? Bool { storage[k] = b }
-                else if let s = v as? NSString, let str = s as String? { storage[k] = str }
+        func resetAll() {
+            lock.lock(); defer { lock.unlock() }
+            storage.removeAll()
+        }
+
+        func registerDefaults(_ defaults: [String : Any]) {
+            // Convert only known types from defaults into storage if absent.
+            lock.lock(); defer { lock.unlock() }
+            for (k, v) in defaults {
+                if storage[k] == nil {
+                    if let s = v as? String { storage[k] = s }
+                    else if let i = v as? Int { storage[k] = i }
+                    else if let d = v as? Double { storage[k] = d }
+                    else if let b = v as? Bool { storage[k] = b }
+                    else if let s = v as? NSString, let str = s as String? { storage[k] = str }
+                }
             }
         }
     }
 }
-
 #endif

@@ -1,7 +1,15 @@
 import XCTest
 @testable import Kizba
 
+@MainActor
 final class SettingsModelTests: XCTestCase {
+
+    // Stub locator local to this test file.
+    private struct TestBinaryLocator: BinaryLocating {
+        var paths: [BinaryName: URL] = [:]
+        func locate(_ binary: BinaryName) async -> URL? { paths[binary] }
+        func reDetect() async {}
+    }
 
     func makeInMemoryStore() -> AppEnvironment.InMemorySettingsStore {
         // Access the DEBUG-only in-memory class via AppEnvironment source.
@@ -23,7 +31,7 @@ final class SettingsModelTests: XCTestCase {
         // Ensure no explicit value present
         store.removeValue(forKey: "clipboardClearDelaySeconds")
 
-        let discovery = StubBinaryLocator(paths: [:])
+        let discovery = TestBinaryLocator(paths: [:])
         let model = SettingsModel(settings: store, discovery: discovery)
 
         XCTAssertEqual(model.clipboardClearDelaySeconds, 30)
@@ -31,7 +39,7 @@ final class SettingsModelTests: XCTestCase {
 
     func testSetAndGetOverrides() {
         let store = makeInMemoryStore()
-        let discovery = StubBinaryLocator(paths: [:])
+        let discovery = TestBinaryLocator(paths: [:])
 
         var model = SettingsModel(settings: store, discovery: discovery)
         model.storePathOverride = "/tmp/store"
@@ -53,7 +61,7 @@ final class SettingsModelTests: XCTestCase {
 
     func testResetToDefaults() {
         let store = makeInMemoryStore()
-        let discovery = StubBinaryLocator(paths: [:])
+        let discovery = TestBinaryLocator(paths: [:])
 
         var model = SettingsModel(settings: store, discovery: discovery)
         model.storePathOverride = "x"
