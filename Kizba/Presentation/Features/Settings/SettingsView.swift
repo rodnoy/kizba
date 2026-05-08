@@ -108,7 +108,7 @@ public struct SettingsView: View {
             Text("This will clear all overrides and restore the clipboard delay to the default value.")
         }
         // Footer with app version/build metadata
-        .toolbarBackground(.visible, for: .window)
+        // Removed .toolbarBackground(.visible, for: .window) — ToolbarPlacement.window is unavailable in the current SDK
         .safeAreaInset(edge: .bottom) {
             HStack {
                 Spacer()
