@@ -249,6 +249,8 @@ final class EntryDetailModelRefinementTests: XCTestCase {
             passManager: passManager,
             clipboard: clipboard,
             settings: EphemeralSettingsStore()
+            ,
+            discovery: nil
         )
     }
 

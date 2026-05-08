@@ -64,6 +64,8 @@ final class EntryDetailModelCopyTests: XCTestCase {
             passManager: passManager,
             clipboard: clipboard,
             settings: NullSettingsStore()
+            ,
+            discovery: nil
         )
         return EntryDetailModel(environment: env, state: AppState())
     }

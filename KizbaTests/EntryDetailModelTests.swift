@@ -83,7 +83,8 @@ final class EntryDetailModelTests: XCTestCase {
         AppEnvironment(
             passManager: passManager,
             clipboard: clipboard,
-            settings: InMemorySettingsStoreForTests()
+            settings: InMemorySettingsStoreForTests(),
+            discovery: nil
         )
     }
 

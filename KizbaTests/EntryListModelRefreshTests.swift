@@ -75,7 +75,8 @@ final class EntryListModelRefreshTests: XCTestCase {
             passManager: passManager,
             clipboard: NullClipboard(),
             settings: NullSettings(),
-            passCLI: nil
+            passCLI: nil,
+            discovery: nil
         )
     }
 
