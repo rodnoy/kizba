@@ -30,6 +30,10 @@ struct AppEnvironment: Sendable {
     /// Persistent user preferences.
     let settings: any SettingsStoring
 
+    /// Binary discovery / locator service. `nil` in preview / unit-test
+    /// wirings that have no real binaries to talk to.
+    let discovery: (any BinaryLocating)?
+
     /// Lazily-discovered `pass` CLI wrapper. `nil` in preview / unit-
     /// test wirings that have no real binary to talk to. Populated by
     /// ``live()`` once Phase 5.3 wiring is complete.
@@ -41,12 +45,14 @@ struct AppEnvironment: Sendable {
         passManager: any PassManaging,
         clipboard: any ClipboardServicing,
         settings: any SettingsStoring,
-        passCLI: LivePassCLI? = nil
+        passCLI: LivePassCLI? = nil,
+        discovery: (any BinaryLocating)? = nil
     ) {
         self.passManager = passManager
         self.clipboard = clipboard
         self.settings = settings
         self.passCLI = passCLI
+        self.discovery = discovery
     }
 }
 
@@ -95,21 +101,16 @@ extension AppEnvironment {
         let clipboard: any ClipboardServicing = UnavailableClipboard()
         #endif
 
-        #if DEBUG
+        // Use UserDefaults-backed settings store in the live wiring for
+        // both DEBUG and RELEASE. The preview wiring below keeps the
+        // in-memory store for SwiftUI previews and unit tests.
         return AppEnvironment(
             passManager: passManager,
             clipboard: clipboard,
-            settings: InMemorySettingsStore(),
-            passCLI: passCLI
+            settings: UserDefaultsSettingsStore(),
+            passCLI: passCLI,
+            discovery: discovery
         )
-        #else
-        return AppEnvironment(
-            passManager: passManager,
-            clipboard: clipboard,
-            settings: UnavailableSettingsStore(),
-            passCLI: passCLI
-        )
-        #endif
     }
 
     /// Preview / SwiftUI / unit-test wiring.
@@ -129,14 +130,16 @@ extension AppEnvironment {
             passManager: MockPassManager.preview(),
             clipboard: NoopClipboard(),
             settings: InMemorySettingsStore(),
-            passCLI: nil
+            passCLI: nil,
+            discovery: nil
         )
         #else
         return AppEnvironment(
             passManager: UnavailablePassManager(),
             clipboard: UnavailableClipboard(),
             settings: UnavailableSettingsStore(),
-            passCLI: nil
+            passCLI: nil,
+            discovery: nil
         )
         #endif
     }
