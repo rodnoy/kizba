@@ -149,16 +149,18 @@ public struct SettingsView: View {
 
 // MARK: - Previews
 #if DEBUG
-import PlaygroundSupport
 
 struct SettingsView_Previews: PreviewProvider {
+    /// Lightweight stub that always returns `nil` — no real binary lookup
+    /// needed for SwiftUI previews.
+    private struct PreviewDiscovery: BinaryLocating {
+        func locate(_ binary: BinaryName) async -> URL? { nil }
+        func reDetect() async {}
+    }
+
     static var previews: some View {
-        // Since SettingsModel depends on protocols, provide a lightweight
-        // fake for previewing in Xcode. We reuse an in-memory store when
-        // available in tests; for now create a simple ephemeral store.
-        let store = InMemorySettingsStore()
-        let discovery = FakeBinaryLocating()
-        let model = SettingsModel(settings: store, discovery: discovery)
+        let env = AppEnvironment.preview()
+        let model = SettingsModel(settings: env.settings, discovery: PreviewDiscovery())
         SettingsView(model: model)
     }
 }
