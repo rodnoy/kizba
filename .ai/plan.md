@@ -1,198 +1,104 @@
-#!/usr/bin/env text
-# Kizba — MVP 1 Implementation Plan
+# Phase 8.5 — Wire PassError cases to UI
 
-Native macOS SwiftUI GUI for the Unix `pass` password manager. Read-only first.
+## Goal
 
-## Goal & Non-goals
+Map every `PassError` case to its designated UI affordance per the architecture table in `PassError.swift` doc comments. Replace the current generic `FailedView` stub with case-specific views, wire navigation to Settings and Diagnostics, and add toast/banner infrastructure.
 
-**Goal (MVP 1)**
-- Native macOS SwiftUI read-only client for `pass`.
-- Three-column UI (folder sidebar / entry list / detail) with lazy decrypt via `pass show`.
-- Per-field copy with token-checked auto-clear (default 30s).
-- Settings + Diagnostics for missing `pass` / `gpg` / `pinentry-mac` and non-default store path.
-- Strict concurrency, zero third-party deps, no secrets in logs/state beyond active detail view.
+## Constraints
 
-**Non-goals (MVP 1)**
-- Writes (`insert`/`generate`/`edit`/`rm`/`mv`), `pass git ...`, menu-bar, global hotkey, quick-search panel.
-- Touch ID/Keychain, TOTP, FSEvents auto-refresh, multi-store.
-- App Sandbox, i18n beyond English, UI/snapshot tests.
+- Do not edit `project.pbxproj`.
+- Injected dependencies for testability; `@MainActor` on UI models.
+- No third-party packages.
+- `PassSecret` never leaves `EntryDetailModel`.
+- Commit messages in English.
+- Minimal scoped changes; prefer small new files + targeted edits.
 
-## Baseline
+## Tasks
 
-- Swift 5.10, Xcode 15.4+, macOS deployment target 14.0.
-- `SWIFT_STRICT_CONCURRENCY=complete` from day one.
-- `.xcodeproj` committed (not SwiftPM-only).
-- Zero third-party dependencies.
-- Non-sandboxed for MVP 1 (Developer ID + notarization).
+### Task 1 — ErrorPresentation helper enum + PassError UI mapping
+- **Priority:** 1 (foundation for all other tasks)
+- **Complexity:** Small
+- **Objective:** Create a pure helper that maps each `PassError` case to a presentation descriptor (title, message, style enum: `emptyState | banner | inline | toast | silent`, action enum: `openSettings | openDiagnostics | openHelp | none`).
+- **Files to add:**
+  - `Kizba/Presentation/DesignSystem/ErrorPresentation.swift` — `struct ErrorPresentation` with `static func from(_ error: PassError) -> ErrorPresentation`. Style/action enums nested inside.
+- **Files to modify:** None.
+- **Commit:** `feat(ui): add ErrorPresentation mapping for PassError cases`
+- **Tests to add:**
+  - `KizbaTests/ErrorPresentationTests.swift` — one test per `PassError` case verifying correct style + action (8 tests: `testBinaryNotFound`, `testPinentryNotConfigured`, `testDecryptionFailed`, `testStoreNotFound`, `testTimedOut`, `testShellFailure`, `testParsingFailed`, `testCancelled`).
+- **Verification:** `xcodebuild test -scheme Kizba -destination 'platform=macOS' -only-testing:KizbaTests/ErrorPresentationTests`
 
-## Folder layout
+### Task 2 — Replace FailedView with case-specific error rendering
+- **Priority:** 2
+- **Complexity:** Medium
+- **Objective:** Rewrite the private `FailedView` in `EntryDetailView.swift` to use `ErrorPresentation` and render case-specific UI: empty-state with "Open Settings" button for `binaryNotFound`; banner with help link for `pinentryNotConfigured`; inline error with working "View details" button for `decryptionFailed`/`parsingFailed`; toast-style for `timedOut`/`shellFailure`; nothing for `cancelled`.
+- **Files to modify:**
+  - `Kizba/Presentation/Features/EntryDetail/EntryDetailView.swift` — replace `FailedView` body with switch on `ErrorPresentation.style`; add `openSettings`/`openDiagnostics` action callbacks.
+  - `Kizba/Presentation/Features/EntryDetail/EntryDetailModel.swift` — add `var showDiagnostics: Bool` observable property toggled by "View details" action. Suppress `.cancelled` from reaching `.failed` state (set `.idle` instead).
+- **Commit:** `feat(ui): render case-specific error views in EntryDetailView`
+- **Tests to add:**
+  - `KizbaTests/EntryDetailModelErrorTests.swift` — `testCancelledDoesNotSetFailed`, `testDecryptionFailedSetsFailedState`, `testShowDiagnosticsToggle`.
+- **Verification:** `xcodebuild test -scheme Kizba -destination 'platform=macOS' -only-testing:KizbaTests/EntryDetailModelErrorTests`
 
-```
-Kizba/
-├── Kizba.xcodeproj/
-├── Kizba/
-│   ├── App/                 KizbaApp.swift, AppEnvironment.swift, AppState.swift
-│   ├── Domain/
-│   │   ├── Models/          PassEntry, PassSecret, PassMetadata, PassError
-│   │   └── Protocols/       PassManaging, ShellCommandRunning, ClipboardServicing, BinaryLocating, SettingsStoring
-│   ├── Infrastructure/
-│   │   ├── Shell/           ProcessShellRunner, ShellResult
-│   │   ├── Pass/            PassCLI, PassShowParser, PassErrorMapper, MockPassManager (DEBUG)
-│   │   ├── Store/           PasswordStoreScanner, EntryPathConverter
-│   │   ├── Clipboard/       ClipboardService
-│   │   ├── Discovery/       BinaryDiscoveryService
-│   │   ├── Settings/        UserDefaultsSettingsStore
-│   │   └── Logging/         Log.swift
-│   ├── Presentation/
-│   │   ├── Root/            RootSplitView
-│   │   ├── Features/        Sidebar, EntryList, EntryDetail, Search, Settings, Diagnostics
-│   │   └── DesignSystem/    Theme + Components
-│   └── Resources/           Assets.xcassets, Localizable.strings (en)
-└── KizbaTests/              Domain/, Infrastructure/, Presentation/, Support/, Fixtures/
-```
+### Task 3 — SidebarModel error state for storeNotFound / binaryNotFound
+- **Priority:** 3
+- **Complexity:** Small
+- **Objective:** Surface `PassError.storeNotFound` and `binaryNotFound` at the sidebar level (list-load failure) so the user sees an empty state with guidance instead of a blank sidebar.
+- **Files to modify:**
+  - `Kizba/Presentation/Features/Sidebar/SidebarModel.swift` — add `private(set) var loadError: PassError?` observable property; set it in the `catch` block of `load()` (cast to `PassError`, else wrap as `.shellFailure`); clear on successful load.
+  - `Kizba/Presentation/Features/Sidebar/SidebarView.swift` — when `model.loadError != nil`, show `ContentUnavailableView` with case-appropriate message and "Open Settings" button for `binaryNotFound` / `storeNotFound`.
+- **Commit:** `feat(ui): surface load errors in SidebarView with guidance`
+- **Tests to add:**
+  - `KizbaTests/SidebarModelErrorTests.swift` — `testLoadErrorSetOnStoreNotFound`, `testLoadErrorSetOnBinaryNotFound`, `testLoadErrorClearedOnSuccess`.
+- **Verification:** `xcodebuild test -scheme Kizba -destination 'platform=macOS' -only-testing:KizbaTests/SidebarModelErrorTests`
 
-## Phases
+### Task 4 — Toast overlay infrastructure + wiring for timedOut/shellFailure
+- **Priority:** 4
+- **Complexity:** Medium
+- **Objective:** Add a lightweight toast overlay to `RootSplitView` driven by `AppState` so transient errors (timedOut, shellFailure) show a dismissible banner at the top with a "Diagnostics" button.
+- **Files to modify:**
+  - `Kizba/App/AppState.swift` — add `var toastError: PassError?` observable property (auto-dismissed after 5s or on tap).
+  - `Kizba/Presentation/DesignSystem/ToastView.swift` — **new file**. Small overlay view: icon + message + optional action button + auto-dismiss timer.
+  - `Kizba/Presentation/Root/RootSplitView.swift` — add `.overlay` with `ToastView` bound to `state.toastError`.
+  - `Kizba/Presentation/Features/EntryDetail/EntryDetailModel.swift` — for `timedOut`/`shellFailure`, set `appState.toastError` in addition to (or instead of) `.failed`.
+- **Commit:** `feat(ui): add toast overlay for transient PassError cases`
+- **Tests to add:**
+  - `KizbaTests/ToastIntegrationTests.swift` — `testToastSetOnTimeout`, `testToastSetOnShellFailure`, `testToastNotSetOnDecryptionFailed`.
+- **Verification:** `xcodebuild test -scheme Kizba -destination 'platform=macOS' -only-testing:KizbaTests/ToastIntegrationTests`
 
-Each step is sized for a single focused implementation session. Verification commands assume macOS host with Xcode 15.4+.
+### Task 5 — Diagnostics navigation from error views
+- **Priority:** 5
+- **Complexity:** Small
+- **Objective:** Wire the "View details" / "Diagnostics" buttons to actually open the Diagnostics view. Use `NSApp.sendAction` to open Settings window + switch to Diagnostics tab, or use `@Environment(\.openWindow)` if Diagnostics is a separate window scene.
+- **Files to modify:**
+  - `Kizba/App/KizbaApp.swift` — add Diagnostics as a tab in Settings scene (or a separate `Window` scene with id `"diagnostics"`).
+  - `Kizba/Presentation/Features/EntryDetail/EntryDetailView.swift` — wire "View details" button to open diagnostics.
+  - `Kizba/Presentation/DesignSystem/ToastView.swift` — wire "Diagnostics" action button.
+- **Commit:** `feat(ui): wire Diagnostics navigation from error views`
+- **Tests to add:** None (navigation is UI-only; manual verification).
+- **Verification:** Manual: trigger `decryptionFailed` → click "View details" → Diagnostics opens. Trigger `timedOut` → toast "Diagnostics" button → Diagnostics opens. Build: `xcodebuild build -scheme Kizba -destination 'platform=macOS'`
 
-### Phase 0 — Repo & project skeleton
-- [ ] 0.1 Create `Kizba.xcodeproj` (Swift 5.10, macOS 14, strict concurrency complete, warnings-as-errors). Files: `Kizba.xcodeproj/`, `Kizba/App/KizbaApp.swift` (empty `WindowGroup { Text("Kizba") }`), `Kizba/Resources/Assets.xcassets/`, `KizbaTests/KizbaTests.swift`. Verify: `xcodebuild -scheme Kizba -destination 'platform=macOS' build` and `xcodebuild test -scheme Kizba -destination 'platform=macOS'`.
-- [ ] 0.2 Add `.gitignore` (Xcode + DerivedData + xcuserdata), `README.md` stub.
-- [ ] 0.3 Folder scaffolding (empty groups with `.keep` files) matching layout above. Verify: build still succeeds.
+### Task 6 — Settings nudge + help link actions
+- **Priority:** 6
+- **Complexity:** Small
+- **Objective:** Wire "Open Settings" buttons (from `binaryNotFound` empty state and `storeNotFound` onboarding) to open the macOS Settings window. Wire `pinentryNotConfigured` help link to open the pinentry-mac install guide URL.
+- **Files to modify:**
+  - `Kizba/Presentation/Features/EntryDetail/EntryDetailView.swift` — "Open Settings" button calls `NSApp.sendAction(Selector("showSettingsWindow:"), to: nil, from: nil)` (or `showPreferencesWindow:` for macOS 14).
+  - `Kizba/Presentation/Features/Sidebar/SidebarView.swift` — same for sidebar empty state.
+- **Commit:** `feat(ui): wire Settings nudge and pinentry help link actions`
+- **Tests to add:** None (system actions; manual verification).
+- **Verification:** Manual: remove `pass` from PATH → launch → sidebar shows "Open Settings"; click opens Settings. Build: `xcodebuild build -scheme Kizba -destination 'platform=macOS'`
 
-**DoD:** `xcodebuild build` and `xcodebuild test` pass; empty window launches; folders match architecture.
+## Acceptance Criteria
 
-### Phase 1 — Domain types & protocols
-- [ ] 1.1 Value types: `PassEntry`, `PassMetadata`, `PassSecret`, `PassError`. PassSecret is Sendable, NOT Codable, NOT CustomStringConvertible.
-- [ ] 1.2 Protocols (MVP 1 surface only): `PassManaging` (`listEntries`, `show`, `storeLocation`), `ShellCommandRunning`, `ClipboardServicing`, `BinaryLocating`, `SettingsStoring`.
-- [ ] 1.3 Domain unit tests: `PassEntryTests`, `PassMetadataTests`, `PassSecretSecurityTests`. Verify: `xcodebuild test -only-testing:KizbaTests/Domain`.
+1. Every `PassError` case has a defined, tested UI mapping (`ErrorPresentationTests` green).
+2. `cancelled` never shows any UI — model stays `.idle`.
+3. `binaryNotFound` / `storeNotFound` show empty state with "Open Settings" button in both sidebar and detail.
+4. `pinentryNotConfigured` shows banner with clickable help link.
+5. `decryptionFailed` / `parsingFailed` show inline error with working "View details" → Diagnostics.
+6. `timedOut` / `shellFailure` show dismissible toast with "Diagnostics" button.
+7. All new and existing tests pass: `xcodebuild test -scheme Kizba -destination 'platform=macOS'`.
+8. No `project.pbxproj` edits.
 
-**DoD:** Domain compiles; domain tests green.
+## Suggested current step
 
-### Phase 2 — Mock `PassManaging` + vertical UI slice
-- [ ] 2.1 `MockPassManager` with ~20 fixture entries across 3 folders (one with metadata + notes, one password-only).
-- [ ] 2.2 `AppEnvironment` (`live()` and `preview()` factories) and `AppState` (`@Observable`, `@MainActor`).
-- [ ] 2.3 `RootSplitView` + `SidebarView`/`SidebarModel`. Sidebar derives folders from `pass.listEntries()`.
-- [ ] 2.4 `EntryListView`/`EntryListModel` with `.searchable` (⌘F focus, substring case-insensitive over full path).
-- [ ] 2.5 `EntryDetailView`/`EntryDetailModel` with states `idle | loading | loaded(PassSecret) | failed(PassError)`. Cancel previous task on selection change. Copy buttons stubbed (placeholder logging).
-- [ ] 2.6 `EntryDetailModelTests` — selection-change cancellation + final-state correctness.
-
-**DoD:** App launches, three columns, mock data navigable; ⌘F filters; cancellation test green.
-
-### Phase 3 — Real `ShellCommandRunning`
-- [ ] 3.1 `ProcessShellRunner` — concurrent stdout/stderr drain via Pipe handlers; timeout via `Task.sleep` race + `terminate()`; cancellation via `withTaskCancellationHandler`. Logs only executable + arg shape + exit code + stderr length. Never logs stdout.
-- [ ] 3.2 `Log.swift` — `os.Logger` wrappers; subsystem `app.kizba`; categories `shell`, `pass`, `clipboard`, `discovery`, `ui`. Paths/stderr always `.private`.
-- [ ] 3.3 `ProcessShellRunnerTests` — echo success; non-zero exit; timeout on `/bin/sleep`; cancellation propagation; large stdout drain.
-- [ ] 3.4 `SourceGrepTests` — assert no stdout-logging in `Shell/` and `Pass/`; no raw `print` in those dirs.
-
-**DoD:** Real shell verified; cancellation/timeout proven; static log discipline test in place.
-
-### Phase 4 — Real `PassCLI` + parser + error mapper
-- [ ] 4.1 `PassShowParser` (pure). Line 1 = password (only trim trailing `\n`). Lines matching `^[A-Za-z0-9_.-]+:\s*` = metadata (preserve order, allow dups). First non-matching line + remainder = notes. Empty → `parsingFailed`.
-- [ ] 4.2 `PassShowParserTests` — password-only; with metadata; with notes; duplicate keys; colon-in-value (`url: https://x.test:8443/path`); notes containing key:-like lines; empty throws.
-- [ ] 4.3 `PassErrorMapper` — map known stderr signatures to `PassError`; sanitizer strips emails (`\S+@\S+`), hex IDs (`[A-F0-9]{8,}`), caps excerpt length.
-- [ ] 4.4 `PassErrorMapperTests` — every signature; sanitizer cases; idempotent.
-- [ ] 4.5 `PassCLI` — composes `pass show <entry>` with 120s timeout; builds env (PATH prepend, optional `PASSWORD_STORE_DIR`/`GNUPGHOME`); maps errors.
-- [ ] 4.6 `FakeShellRunner` + `PassCLITests` — success, decryption failure, timeout, cancellation, arg/env composition.
-
-**DoD:** `PassCLI` covered against fake shell; parser/mapper exhaustive.
-
-### Phase 5 — `BinaryDiscoveryService` + wire real `PassCLI`
-- [ ] 5.1 `BinaryDiscoveryService` — order: override → `/opt/homebrew/bin` → `/usr/local/bin` → `/usr/bin` → sanitized PATH walk. Cached; `reDetect()` invalidates.
-- [ ] 5.2 `FakeFileExistenceChecker` + `BinaryDiscoveryServiceTests` — override wins; arm64 Homebrew first; fallback order; sanitized PATH; cache; re-detect.
-- [ ] 5.3 Wire `PassCLI` into `AppEnvironment.live()`. Manual: real decrypt on a host with `pass` + `pinentry-mac`.
-
-**DoD:** Real decrypt works end-to-end.
-
-### Phase 6 — `PasswordStoreScanner` + `EntryPathConverter`
-- [ ] 6.1 `EntryPathConverter` — pure URL → entry path string.
-- [ ] 6.2 `EntryPathConverterTests` — nested, top-level, non-gpg, outside root, Unicode, spaces.
-- [ ] 6.3 `PasswordStoreScanner` — `FileManager.enumerator` with `[.skipsHiddenFiles]`; ignores `.git`, `.gpg-id`; only `.gpg`; sorted result.
-- [ ] 6.4 `TempStoreFixture` + `PasswordStoreScannerTests` — nested with `.git` ignored; `.gpg-id` ignored; non-gpg ignored; empty store; missing root throws; deterministic sort.
-- [ ] 6.5 Wire scanner into `PassCLI.listEntries`; ⌘R refresh action in toolbar.
-
-**DoD:** Real list + real decrypt; ⌘R refreshes after adding new `.gpg` via terminal.
-
-### Phase 7 — Clipboard service
-- [ ] 7.1 `ClipboardService` — write verbatim; capture token + `changeCount`; clear after delay only if both still match.
-- [ ] 7.2 `FakeClipboard` + `ClipboardServiceTests` — clears on changeCount match; no clear on diverge; no clear on token supersede; verbatim write (no `"key: value"`); concurrent copy convergence.
-- [ ] 7.3 Wire Copy buttons in `EntryDetailView` to `env.clipboard.copy(field, clearAfter:)`.
-
-**DoD:** Clipboard auto-clear works; verbatim write enforced.
-
-### Phase 8 — Settings + Diagnostics
-- [ ] 8.1 `UserDefaultsSettingsStore` — namespaced keys (`app.kizba.settings.*`); allow-list types `String, URL, Int, Double, Bool`; settings: `storePathOverride`, `passBinaryOverride`, `gpgBinaryOverride`, `pinentryBinaryOverride`, `clipboardClearDelaySeconds` (default 30).
-- [ ] 8.2 `UserDefaultsSettingsStoreTests` — round-trip per type; defaults; clearing; namespacing isolation.
-- [ ] 8.3 `SettingsView`/`SettingsModel` — wired into `Settings { ... }` scene; pickers for paths; clipboard delay stepper; "Re-detect binaries" button.
-- [ ] 8.4 `DiagnosticsView`/`DiagnosticsModel` + `InvocationLog` (in-memory ring buffer of last N invocations: executable, sanitized args, exitCode, sanitized stderr — never stdout). Hook `ProcessShellRunner` to publish via injected sink.
-- [ ] 8.5 Wire all `PassError` cases to UI per architecture mapping (binaryNotFound → empty state + Settings nudge; pinentryNotConfigured → banner + help link; decryptionFailed → inline + "View details" → Diagnostics; storeNotFound → onboarding; timedOut/shellFailure → toast + Diagnostics; cancelled → silent).
-
-**DoD:** All error states have UI surface; Diagnostics shows sanitized log; Settings persists.
-
-### Phase 9 — Polish, security audit, release hygiene
-- [ ] 9.1 Gate `MockPassManager` behind `#if DEBUG`; release binary contains no fixture passwords (`strings` grep test).
-- [ ] 9.2 `SecurityChecklistTests` — no `print(` in `Kizba/`; no Codable on `PassSecret`; no CustomStringConvertible on `PassSecret`; no `"\(key): \(value)"` in `Clipboard/`; SettingsStoring allow-list enforced.
-- [ ] 9.3 `Kizba.entitlements` — Hardened Runtime; document `cs.disable-library-validation` if needed for pinentry. Document local sign + notarize commands in README.
-- [ ] 9.4 Final manual QA pass against verification matrix.
-
-**DoD:** Security checklist green; release build excludes mock data; signed local build runs; verification matrix passes.
-
-## Cross-cutting workstreams
-
-- **Logging discipline:** only sanctioned `Log.swift` helpers; grep tests enforce no stdout-logging in `Shell/`/`Pass/` and no raw `print`.
-- **Error fixture corpus:** `KizbaTests/Fixtures/stderr/*.txt` — real-world sanitized samples; `PassErrorMapperTests` iterates.
-- **Security checklist:** codified in `SecurityChecklistTests`; any failure is a release blocker.
-- **CI prep:** `scripts/test.sh` wrapping `xcodebuild test ...` by Phase 3; actual GitHub Actions workflow deferred.
-- **Concurrency hygiene:** strict-concurrency complete from P0; adding later forces churn.
-- **Docs:** each phase appends to `README.md`; each public protocol gets `///` doc comment with threading contract.
-
-## Verification matrix
-
-Manual scenarios (host with `pass` + `pinentry-mac` + real `~/.password-store`):
-1. Cold launch — three columns, sidebar populated.
-2. ⌘F filter narrows list; clear restores.
-3. Select entry — loading → masked password + metadata + notes.
-4. Reveal/hide password.
-5. Copy password; paste in another app; wait 30s → clipboard empty.
-6. Copy field A then B before 30s — only B's clear is active.
-7. Copy field, then copy externally — external value preserved past delay.
-8. ⌘R refreshes after adding new `.gpg` via terminal.
-9. With `pass` not in PATH — empty state with Settings nudge.
-10. Change store path in Settings to empty dir → list empties; revert → list returns.
-11. Decrypt failure → inline error → "View details" → Diagnostics shows sanitized record (no stdout, no email/key id).
-12. Cancel slow decrypt by switching selection → silent.
-13. Quit & relaunch → settings persisted.
-
-Automated targets:
-- All test files green via `xcodebuild test -scheme Kizba -destination 'platform=macOS'`.
-- `SourceGrepTests` + `SecurityChecklistTests` zero exceptions.
-- `xcodebuild -configuration Release build` succeeds; release binary contains no fixture strings.
-
-## Sequencing dependencies
-
-- Domain (P1) precedes everything.
-- `MockPassManager` (P2) unblocks UI vertical slice.
-- `ShellCommandRunning` (P3) precedes `PassCLI` (P4); `Log.swift` precedes first logging.
-- `FakeShellRunner` precedes `PassCLITests`.
-- `BinaryDiscoveryService` (P5) precedes wiring real `PassCLI` into `live()`.
-- `EntryPathConverter` precedes `PasswordStoreScanner`.
-- `TempStoreFixture` precedes scanner + opt-in E2E tests.
-- `FakeClipboard` precedes clipboard tests; clipboard precedes Copy button wiring.
-- `UserDefaultsSettingsStore` precedes Settings UI; discovery before Settings is acceptable (no override = nil).
-- Static grep tests need stable source path convention — pick in P0 (env var or relative path from test bundle).
-- Strict concurrency from P0 — adding later forces churn.
-
-## Out of scope (do NOT implement in MVP 1)
-
-- Writes (`pass insert`/`generate`/`edit`/`rm`/`mv`).
-- `pass git ...` integration.
-- Menu bar, global hotkey, quick-search panel.
-- Touch ID, Keychain, passphrase caching.
-- FSEvents auto-refresh.
-- TOTP/OTP rendering.
-- Multi-store, sub-store, per-dir `.gpg-id`, pass extensions.
-- i18n beyond English.
-- App Sandbox.
-- UI/snapshot tests.
-- Any third-party Swift package.
-- Reading QtPass or any GPL pass-client source while implementing.
+**Start with Task 1** (ErrorPresentation helper + tests). It is pure logic with no UI dependencies, provides the foundation for all subsequent tasks, and can be committed and verified independently.
