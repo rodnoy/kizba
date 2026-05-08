@@ -165,7 +165,7 @@ private struct FailedView: View {
                     .foregroundStyle(.secondary)
                 #if canImport(AppKit)
                 Button(nudge.actionTitle) {
-                    NSApp.sendAction(Selector("showSettingsWindow:"), to: nil, from: nil)
+                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
                 }
                 #endif
 
@@ -191,7 +191,7 @@ private struct FailedView: View {
                     .foregroundStyle(.secondary)
                 #if canImport(AppKit)
                 Button("Open Settings") {
-                    NSApp.sendAction(Selector("showSettingsWindow:"), to: nil, from: nil)
+                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
                 }
                 #endif
 
