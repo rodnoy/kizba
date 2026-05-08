@@ -107,6 +107,10 @@ performed and committed (see commits below):
 - test(settings): add UserDefaultsSettingsStore unit tests
 - chore(ai): record step 8.1 completion
 
+### Authorization record
+
+The user explicitly authorised running step 8.1 (UserDefaultsSettingsStore) at their request during this session. Settings-related commits created for this work include: `b76ad7d` (feat/settings), `50a7700` (test/settings), and `72c17a8` (chore: record step 8.1 completion).
+
 Note: `.ai/plan.md` numbers Diagnostics under Phase 8 (8.4) but
 `.ai/step.md` follows the working step counter (7.4 just completed,
 next 7.5). The orchestrator approved running 7.4 against the Phase 8.4
