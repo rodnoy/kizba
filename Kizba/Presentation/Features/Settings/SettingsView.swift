@@ -107,6 +107,18 @@ public struct SettingsView: View {
         } message: {
             Text("This will clear all overrides and restore the clipboard delay to the default value.")
         }
+        // Footer with app version/build metadata
+        .toolbarBackground(.visible, for: .window)
+        .safeAreaInset(edge: .bottom) {
+            HStack {
+                Spacer()
+                Text("Version \(AppInfo.version) (\(AppInfo.build))")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+            .padding(.vertical, 8)
+        }
     }
 
     // MARK: - Helpers
