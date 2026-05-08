@@ -1,10 +1,8 @@
-2026-05-08 16:48:39 UTC — xcodebuild test
-
-Command:
-/Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination platform=macOS test
+Command line invocation:
+    xcodebuild -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' test
 
 ** TEST SUCCEEDED **
 
-Executed 197 tests, with 0 failures (0 unexpected) in 8.163 (8.420) seconds
+Executed 201 tests, with 0 failures (0 unexpected) in 9.585 (9.884) seconds
 
-Full xcodebuild output captured locally during the run.
+Full xcodebuild output captured during the run is available in the CI artifacts.
