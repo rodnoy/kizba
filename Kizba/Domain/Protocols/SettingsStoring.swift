@@ -74,3 +74,17 @@ extension SettingsStoring {
     public func resetAll() {}
     public func registerDefaults(_ defaults: [String: Any]) {}
 }
+
+/// Well-known persisted settings key constants.
+///
+/// These are the single source of truth for keys used by the
+/// settings store. Keys are fully namespaced to avoid collisions in
+/// shared `UserDefaults` suites.
+public struct SettingsKeys {
+    public static let storePathOverride = "app.kizba.settings.storePathOverride"
+    public static let passBinaryOverride = "app.kizba.settings.passBinaryOverride"
+    public static let gpgBinaryOverride = "app.kizba.settings.gpgBinaryOverride"
+    public static let pinentryBinaryOverride = "app.kizba.settings.pinentryBinaryOverride"
+    public static let clipboardClearDelaySeconds = "app.kizba.settings.clipboardClearDelaySeconds"
+    private init() {}
+}
