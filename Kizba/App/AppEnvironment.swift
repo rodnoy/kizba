@@ -30,6 +30,14 @@ struct AppEnvironment: Sendable {
     /// Persistent user preferences.
     let settings: any SettingsStoring
 
+    /// Pure password generator used by the New Entry / Move flows to
+    /// preview a candidate password before it is committed to the
+    /// store. In-place regeneration of an existing entry uses
+    /// `pass generate --in-place` instead (see Phase G) and does NOT
+    /// route through this collaborator. Always populated — there is
+    /// no environment in which generation is unsupported.
+    let passwordGenerator: any PasswordGenerating
+
     /// Binary discovery / locator service. `nil` in preview / unit-test
     /// wirings that have no real binaries to talk to.
     let discovery: (any BinaryLocating)?
@@ -49,6 +57,7 @@ struct AppEnvironment: Sendable {
         passManager: any PassManaging,
         clipboard: any ClipboardServicing,
         settings: any SettingsStoring,
+        passwordGenerator: any PasswordGenerating,
         passCLI: LivePassCLI? = nil,
         discovery: (any BinaryLocating)? = nil,
         invocationLog: InvocationLog? = nil
@@ -56,6 +65,7 @@ struct AppEnvironment: Sendable {
         self.passManager = passManager
         self.clipboard = clipboard
         self.settings = settings
+        self.passwordGenerator = passwordGenerator
         self.passCLI = passCLI
         self.discovery = discovery
         self.invocationLog = invocationLog
@@ -130,6 +140,7 @@ extension AppEnvironment {
             passManager: passManager,
             clipboard: clipboard,
             settings: settings,
+            passwordGenerator: LivePasswordGenerator(),
             passCLI: passCLI,
             discovery: discovery,
             invocationLog: invocationLog
@@ -198,6 +209,7 @@ extension AppEnvironment {
             passManager: MockPassManager.preview(),
             clipboard: NoopClipboard(),
             settings: InMemorySettingsStore(),
+            passwordGenerator: LivePasswordGenerator(),
             passCLI: nil,
             discovery: nil,
             invocationLog: nil
@@ -207,6 +219,7 @@ extension AppEnvironment {
             passManager: UnavailablePassManager(),
             clipboard: UnavailableClipboard(),
             settings: UnavailableSettingsStore(),
+            passwordGenerator: LivePasswordGenerator(),
             passCLI: nil,
             discovery: nil
         )

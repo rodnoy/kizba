@@ -237,3 +237,62 @@ All cells exceed thresholds with margin. Body AAA, action-fill AA, and color-ide
 ### `Suite` size at end of Phase E
 
 - 538 tests total; 8 skipped (1 from D.3 notes-look-like-metadata + 7 from PassWriteIntegrationTests when KIZBA_E2E off); 0 failures. With `KIZBA_E2E=1`: all 538 pass.
+
+## 2026-05-09 — MVP 2 Phase F (resolution)
+
+### `ToastCenter` ownership and lifecycle
+
+- **`Toast` value type relocated** from `Kizba/Presentation/DesignSystem/Components/ToastOverlay.swift` to `Kizba/Presentation/Toast/Toast.swift`. Foundation only. The `Toast.swift` and `ToastCenter.swift` files are OUTSIDE `DesignSystem/` so the C.6 grep bans apply — both are pure observable code, naturally clean.
+- **`ToastCenter` is `@Observable @MainActor final class`** owned by `AppState` (NOT a global singleton). `init()` takes no arguments. Mounted ONCE at `RootSplitView` body via `.overlay(alignment: .bottomTrailing) { ToastOverlay(toast: state.toastCenter.visible) }`.
+- **Dedup window**: 1 second on `(severity, title, message)` triple. Duplicate `post(_:)` within the window is silently dropped. The first toast retains visibility.
+- **Default durations**: 4s for non-actionable toasts, 10s for toasts with an action. Computed in `Toast.init` from `action == nil`.
+- **At-most-one visible**: a new `post(_:)` pre-empts the currently-visible toast (cancels its dismiss task); no stacking.
+- **`accessibilityNotification(.announcement(...))` on appear** in `ToastOverlay` for VoiceOver.
+- **Real-clock waits in tests**: no clock injection (deferred — keeps API minimal). Test waits use generous windows (250ms for 50ms duration; 1200ms for 1s dedup expiry).
+
+### `EntryFormModel` (.create mode)
+
+- **`@Observable @MainActor final class`** owning a `SecretDraft` (reference) + `path` String + `forceOverwrite` Bool. State machine: `idle | loadingExisting | editing | saving | saved(path:) | failed(PassError)`. `.create` starts in `.editing`. `.edit(originalPath:)` (loadingExisting) deferred to G.2.
+- **Validation is computed**: `pathError` (via `EntryPathValidator`), `metadataError` (via `MetadataValidator`), `passwordError` (non-empty). `canSave` ANDs all three plus `state != .saving`.
+- **Generation-counter pattern**: `private var generation: UInt64`. Each `save()` bumps and captures locally; only the latest task can mutate state on completion. Stale completions silently dropped.
+- **`save()`**: runs validators (gates without changing state), bumps counter, transitions `.editing → .saving`, cancels prior save task, spawns new task that calls `passManager.insert(entry, secret: draft.snapshot(), force: forceOverwrite)`. On success: post success toast (`Toast(severity: .success, title: "Entry created", message: entry.path)`), set `appState.selectedEntryID = entry.path` IMPERATIVELY (before the `pass.changes` event ripples to the list — both are MainActor; ordering invariant documented inline). Reset `forceOverwrite = false` on success (defensive). On `entryAlreadyExists`: state `.failed(error)`, NO toast (the form's inline banner handles it). On other errors: state `.failed(error)`, error toast posted.
+- **`cancel()`**: cancels in-flight save, returns to `.editing`, clears `forceOverwrite`. Does NOT clear `path`/`draft` (user might be cancelling network only).
+- **`handleDismissal()`**: cancels save, replaces `draft` with a fresh empty `SecretDraft` (ARC drops the old reference), resets path/forceOverwrite. Called from view's `.onDisappear`.
+- **`MutableSettingsStore` test fixture not in shared Fixtures/**: each test that needs a `SettingsStoring` fake declares its own (private). `EntryFormModel` itself doesn't take `SettingsStoring` — clipboard/clear-delay is `EntryDetailModel`'s concern.
+
+### `NewEntrySheet` view
+
+- **Layout**: `VStack { header, ScrollView { FormSection × 4 }, collisionBanner, footerActions }` with `theme.spacing.lg` padding and `theme.colors.surface` background. Frame `minWidth: 480, minHeight: 540`.
+- **Sections**: Path (`FormSection` + `FormFieldRow` + `FolderPathPicker`), Password (`FormFieldRow` + `SecretRevealField` + "Generate password…" Button), Metadata (`KeyValueEditor` + inline metadata error text), Notes (`TextEditor` with `theme.colors.surfaceSunken` background + `theme.radius.sm` corner).
+- **`KeyValueEditor` ↔ `MetadataPair` bridging**: a proxy `Binding<[KeyValueEditor.Pair]>` translates between the design-system `Pair` type and the domain `MetadataPair` type. Same UUID identity preserved.
+- **`@Bindable var model: EntryFormModel`** — uses Observation framework's binding for SwiftUI 5+ models.
+- **`draft.password` and `draft.notes` bindings**: explicit proxy `Binding`s because `model.draft` is `private(set)`. Preserves the invariant "draft is replaced wholesale on dismissal" — direct `$model.draft.password` would expose the reference and break that.
+- **`TextEditor` background**: `.scrollContentBackground(.hidden)` + token-styled background — necessary on macOS 14+ to suppress system fill.
+- **`isNewEntrySheetPresented: Bool`** lives on `AppState`. Both toolbar `+` button (in `EntryListView`) AND the `Entry > New Entry…` menu item (in `KizbaApp`'s `EntryMenuCommands`) toggle it. Sheet hosted in `EntryListView`.
+- **⌘N**: wired through `EntryMenuCommands` (Commands path); no hidden Buttons in views.
+- **Reactive auto-dismiss**: `.onChange(of: model.state)` (via a derived stable id) calls `dismiss()` when state becomes `.saved(_)`.
+
+### `GeneratePasswordSheet` sub-sheet
+
+- **`PasswordGenerating` injected via `AppEnvironment`**: `let passwordGenerator: any PasswordGenerating`. `live()` and `preview()` both use `LivePasswordGenerator()` (it's pure-stateless and release-safe). Tests use `FakePasswordGenerator` directly.
+- **`GeneratePasswordModel`** (separate `@Observable @MainActor` model from `EntryFormModel` — bounded to sub-sheet's lifetime): `length: Int = 25` (bounds 8...128), `includeSymbols: Bool = true`, `state: idle | ready(password:) | error(_)`. `init` runs `regenerate()` immediately so the user always sees a preview.
+- **No auto-regenerate**: contract is "view's `.onChange` calls `regenerate()` after a stepper/toggle commit". This is documented in the model and tested explicitly.
+- **`onApply` callback**: sub-sheet doesn't mutate `EntryFormModel.draft.password` directly; the parent (`NewEntrySheet`) provides an `onApply: (String) -> Void` closure that does the assignment. Decoupling.
+
+### `EntryListModel` ↔ `pass.changes` subscription (F.5)
+
+- **F.5 contract**: ANY `StoreChange` event triggers `await refresh()`. Full per-event reconciliation (`.removed` clears selection, `.moved` follows selection, `.updated` re-fetches detail) is Phase H's responsibility.
+- **Per-view subscription**: `EntryListModel.observeChanges() async` is started by `EntryListView`'s `.task { ... }` (separate from the existing refresh-task). Auto-cancels on `.onDisappear`.
+- **Re-entrancy guard**: a second call to `observeChanges()` short-circuits if a subscription is already running (idempotent for tests + view re-attachments).
+- **`stop()`**: explicit cancellation seam for tests.
+- **`MockPassManager.changes` registration race**: `MockPassManager` is an actor; `observeChanges` returns the stream synchronously, but the actual continuation registration happens via a detached `Task` and may not be in the subscriber map by the time a tight `manager.insert(...)` runs. In production this race is impossible (user takes ≥ms to click Save after the view appears). In tests, a `startObservation` helper does 5× `Task.yield()` + 20ms sleep before mutations. The end-to-end test (which spawns its own Task chain via `EntryFormModel.save`) doesn't need the helper. Documented as a test-only concern.
+
+### `AppEnvironment` extended
+
+- **New parameters in `AppEnvironment.init`**: `passwordGenerator: any PasswordGenerating`. Backward-compatible default `LivePasswordGenerator()` so existing test constructions work; production `live()` always supplies it explicitly.
+- **5 test files updated** (`EntryDetailModelTests`, `EntryDetailModelCopyTests`, `EntryDetailModelRefinementTests`, `EntryListModelRefreshTests`, `ErrorPresentationIntegrationTests`) with the new parameter — no behavior change.
+
+### Suite size at end of Phase F
+
+- **583 tests total**; 8 skipped (1 D.3 known limitation + 7 PassWriteIntegrationTests when `KIZBA_E2E` off); 0 failures.
+- Phase F net delta: +45 tests (566 from end of E + 14 ToastCenter + 14 EntryFormModelCreate + 0 NewEntrySheet (view) + 10 GeneratePasswordModel + 7 EntryListReconciliation = exactly +45).

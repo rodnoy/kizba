@@ -41,7 +41,7 @@ final class ErrorPresentationIntegrationTests: XCTestCase {
         let manager = ScriptedPassManager(entries: [entry], outcomes: [entry.path: .failure(expected)])
         let clipboard = SilentClipboard()
         let settings = EphemeralSettingsStore()
-        let env = AppEnvironment(passManager: manager, clipboard: clipboard, settings: settings, passCLI: nil, discovery: nil, invocationLog: nil)
+        let env = AppEnvironment(passManager: manager, clipboard: clipboard, settings: settings, passwordGenerator: LivePasswordGenerator(), passCLI: nil, discovery: nil, invocationLog: nil)
 
         let appState = AppState()
         let model = EntryDetailModel(environment: env, state: appState)

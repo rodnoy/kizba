@@ -85,6 +85,7 @@ final class EntryDetailModelTests: XCTestCase {
             passManager: passManager,
             clipboard: clipboard,
             settings: settings,
+            passwordGenerator: LivePasswordGenerator(),
             discovery: nil
         )
     }

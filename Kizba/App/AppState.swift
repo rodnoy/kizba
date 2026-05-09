@@ -46,6 +46,21 @@ final class AppState {
     /// list) column.
     var selectedFolder: String?
 
+    /// App-wide toast coordinator. Owned (not optional) so view
+    /// models can post toasts via `appState.toastCenter.post(...)`
+    /// without nil-checking. Per `.ai/decisions.md`, NOT a global
+    /// singleton — every `AppState` instance gets its own.
+    let toastCenter: ToastCenter
+
+    /// Whether the `NewEntrySheet` is presented. Owned by `AppState`
+    /// so any surface in the main window can request the sheet —
+    /// the toolbar `+` button on `EntryListView`, the `Entry > New
+    /// Entry…` menu item (⌘N), or any future affordance — without
+    /// each one threading its own `@State` Bool. The sheet is
+    /// hosted by `EntryListView` (the natural anchor for a
+    /// "create" affordance in the entry list column).
+    var isNewEntrySheetPresented: Bool
+
     /// Designated initialiser. All parameters default to empty / unset
     /// state so a fresh `AppState()` is meaningful at app launch.
     init(
@@ -53,12 +68,16 @@ final class AppState {
         searchQuery: String = "",
         isSidebarCollapsed: Bool = false,
         currentEntries: [PassEntry] = [],
-        selectedFolder: String? = nil
+        selectedFolder: String? = nil,
+        toastCenter: ToastCenter = ToastCenter(),
+        isNewEntrySheetPresented: Bool = false
     ) {
         self.selectedEntryID = selectedEntryID
         self.searchQuery = searchQuery
         self.isSidebarCollapsed = isSidebarCollapsed
         self.currentEntries = currentEntries
         self.selectedFolder = selectedFolder
+        self.toastCenter = toastCenter
+        self.isNewEntrySheetPresented = isNewEntrySheetPresented
     }
 }

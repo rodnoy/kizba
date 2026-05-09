@@ -37,5 +37,13 @@ struct RootSplitView: View {
         } detail: {
             EntryDetailView(environment: environment, state: state)
         }
+        // Phase F.1: a single `ToastOverlay` mounted at the root,
+        // bottom-trailing aligned, observing the live `ToastCenter`
+        // owned by `AppState`. View models post toasts via
+        // `state.toastCenter.post(...)`; the overlay re-renders
+        // automatically via `@Observable`.
+        .overlay(alignment: .bottomTrailing) {
+            ToastOverlay(toast: state.toastCenter.visible)
+        }
     }
 }

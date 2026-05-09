@@ -22,7 +22,7 @@ struct KizbaApp: App {
         }
         .commands {
             DiagnosticsCommands()
-            EntryMenuCommands()
+            EntryMenuCommands(state: state)
         }
         // Standard macOS Settings scene. Reuses the SHARED
         // `BinaryDiscoveryService` from `AppEnvironment.live()` so that
@@ -80,25 +80,34 @@ private struct DiagnosticsCommands: Commands {
     }
 }
 
-/// Top-level "Entry" menu placeholder shipped in Phase C.5. The actions
-/// here are intentionally **disabled** — the underlying write features
-/// (create / edit / regenerate / move / delete) land in Phases F and G.
-/// Declaring the menu and its keyboard shortcuts now keeps the
-/// shortcut surface stable for users and lets the wiring in F/G
-/// flip `.disabled` to a real `@FocusedValue`-driven binding without
-/// reshuffling the menu structure.
+/// Top-level "Entry" menu. Phase C.5 introduced the menu with all
+/// actions disabled; Phase F.3 enables "New Entry…" (⌘N) by
+/// flipping `AppState.isNewEntrySheetPresented` — `EntryListView`
+/// hosts the sheet via `.sheet(isPresented:)` and is therefore the
+/// single rendering site regardless of which surface (toolbar,
+/// menu, shortcut) triggered the present.
+///
+/// The remaining four items (Edit / Regenerate / Move / Delete)
+/// stay disabled — they belong to Phase G.
 ///
 /// `CommandMenu` (vs. `CommandGroup`) creates a brand-new top-level
 /// menu after the system menus (typically between "View" and
 /// "Window"), which is the documented placement for app-specific
 /// verbs.
 private struct EntryMenuCommands: Commands {
+
+    /// Captured by `KizbaApp.body` so the menu can mutate the
+    /// presentation flag from outside `EntryListView`. Marked
+    /// `@Bindable` is unnecessary here — we never bind a property
+    /// to a SwiftUI control inside the menu, only mutate the flag
+    /// from a button action.
+    let state: AppState
+
     var body: some Commands {
         CommandMenu("Entry") {
             Button("New Entry…") {
-                // TODO: Phase F — present `NewEntrySheet`.
+                state.isNewEntrySheetPresented = true
             }
-            .disabled(true)
             .keyboardShortcut("n", modifiers: .command)
 
             Button("Edit Entry…") {
