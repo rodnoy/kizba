@@ -232,6 +232,32 @@ private struct UnavailablePassManager: PassManaging {
     func storeLocation() -> URL {
         URL(fileURLWithPath: "/var/empty")
     }
+
+    // Phase E.5 write surface — placeholder fatals mirror the read
+    // methods above; release-config preview wirings never invoke them.
+    func insert(_ entry: PassEntry, secret: PassSecret, force: Bool) async throws -> PassEntry {
+        fatalError("AppEnvironment: PassManaging not yet wired in this build configuration.")
+    }
+    func generate(
+        _ entry: PassEntry,
+        length: Int,
+        includeSymbols: Bool,
+        force: Bool
+    ) async throws -> PassSecret {
+        fatalError("AppEnvironment: PassManaging not yet wired in this build configuration.")
+    }
+    func remove(_ entry: PassEntry) async throws {
+        fatalError("AppEnvironment: PassManaging not yet wired in this build configuration.")
+    }
+    func move(from: PassEntry, to newPath: String, force: Bool) async throws -> PassEntry {
+        fatalError("AppEnvironment: PassManaging not yet wired in this build configuration.")
+    }
+
+    /// Empty stream that never emits — release-config preview wirings
+    /// don't emit store changes (no real store is wired).
+    var changes: AsyncStream<StoreChange> {
+        AsyncStream { _ in }
+    }
 }
 
 private struct UnavailableClipboard: ClipboardServicing {

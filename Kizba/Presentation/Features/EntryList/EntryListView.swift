@@ -30,25 +30,26 @@ struct EntryListView: View {
     }
 
     var body: some View {
-        List(selection: selectionBinding) {
+        List {
             ForEach(model.entries) { entry in
                 EntryRowView(
                     title: entry.name,
                     subtitle: entry.folder.isEmpty ? nil : entry.path,
                     isSelected: state.selectedEntryID == entry.id
                 )
-                .tag(entry.id as PassEntry.ID?)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    model.select(entryID: entry.id)
+                }
+                .listRowBackground(Color.clear)
             }
         }
-        // Phase C.5 — suppress `List`'s default per-row selection chrome
-        // (system accent fill) so the row's own `surfaceSelected`
-        // background from `EntryRowView` is the sole selection
-        // indicator. `.plain` was chosen over `.sidebar` (which is
-        // semantically reserved for the leftmost split-view column)
-        // and over a custom `ScrollView { LazyVStack { … } }`
-        // (which would lose `List(selection:)`'s built-in arrow-key
-        // navigation + accessibility wiring).
+        // Use a plain `List` without SwiftUI's `List(selection:)` chrome so
+        // `EntryRowView` remains the only visible selection indicator.
         .listStyle(.plain)
+        // Hide the default list container background for a cleaner custom
+        // entries surface.
+        .scrollContentBackground(.hidden)
         .navigationTitle(state.selectedFolder ?? "Entries")
         .searchable(text: $state.searchQuery, placement: .toolbar)
         .toolbar {
@@ -65,14 +66,5 @@ struct EntryListView: View {
         .task {
             await model.refresh()
         }
-    }
-
-    /// Bridges SwiftUI `List` selection to the model's `select` helper
-    /// so `AppState.selectedEntryID` stays the single source of truth.
-    private var selectionBinding: Binding<PassEntry.ID?> {
-        Binding(
-            get: { state.selectedEntryID },
-            set: { model.select(entryID: $0) }
-        )
     }
 }

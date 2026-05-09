@@ -3,12 +3,11 @@
 //  KizbaTests
 //
 //  Canonical `ShellCommandRunning` test double for MVP 2 write-side
-//  tests. Captures every invocation (executable, arguments,
-//  environment, timeout) and replays a programmed sequence of
-//  responses. Honours Task cancellation by translating it into
-//  ``PassError/cancelled`` — mirroring the production
-//  ``ProcessShellRunner`` contract so `PassCLI` exercises the same
-//  code path.
+//  tests. Captures every ``ShellInvocation`` (including stdin payload
+//  bytes) and replays a programmed sequence of responses. Honours Task
+//  cancellation by translating it into ``PassError/cancelled`` —
+//  mirroring the production ``ProcessShellRunner`` contract so
+//  `PassCLI` exercises the same code path.
 //
 //  ## Concurrency
 //
@@ -27,6 +26,16 @@
 //  last response indefinitely; this matches the documented
 //  "happy path = succeed once" promise.
 //
+//  ## Phase E.3
+//
+//  Storage was migrated to ``ShellInvocation`` so write-side tests can
+//  assert exact stdin bytes. The historical computed accessors
+//  (``lastInvocation`` / ``allInvocations``) keep the same names and
+//  the surface stays source-compatible: every field exposed by the
+//  pre-Phase-E inner ``Invocation`` struct (`executable`, `arguments`,
+//  `environment`, `timeout`) is also a stored property on
+//  ``ShellInvocation``.
+//
 
 import Foundation
 @testable import Kizba
@@ -34,14 +43,6 @@ import Foundation
 /// Deterministic ``ShellCommandRunning`` test double. Records every
 /// call and replays scripted responses in FIFO order.
 final class FakeShellRunner: ShellCommandRunning, @unchecked Sendable {
-
-    /// Snapshot of one `run(...)` call as observed by the fake.
-    struct Invocation: Sendable, Equatable {
-        let executable: URL
-        let arguments: [String]
-        let environment: [String: String]
-        let timeout: Duration
-    }
 
     /// Programmed response for a single `run(...)` call.
     enum Response: Sendable {
@@ -52,7 +53,7 @@ final class FakeShellRunner: ShellCommandRunning, @unchecked Sendable {
     }
 
     private let lock = NSLock()
-    private var invocations: [Invocation] = []
+    private var invocations: [ShellInvocation] = []
     private var responses: [Response] = []
 
     // MARK: - Init
@@ -102,13 +103,13 @@ final class FakeShellRunner: ShellCommandRunning, @unchecked Sendable {
     // MARK: - Inspection
 
     /// All invocations recorded so far, in order.
-    var allInvocations: [Invocation] {
+    var allInvocations: [ShellInvocation] {
         lock.lock(); defer { lock.unlock() }
         return invocations
     }
 
     /// Most recent invocation, if any.
-    var lastInvocation: Invocation? {
+    var lastInvocation: ShellInvocation? {
         lock.lock(); defer { lock.unlock() }
         return invocations.last
     }
@@ -121,19 +122,7 @@ final class FakeShellRunner: ShellCommandRunning, @unchecked Sendable {
 
     // MARK: - ShellCommandRunning
 
-    func run(
-        executable: URL,
-        arguments: [String],
-        environment: [String: String],
-        timeout: Duration
-    ) async throws -> ShellResult {
-        let invocation = Invocation(
-            executable: executable,
-            arguments: arguments,
-            environment: environment,
-            timeout: timeout
-        )
-
+    func run(_ invocation: ShellInvocation) async throws -> ShellResult {
         // Pop the next response (or replay the last one if exhausted).
         let response: Response = {
             lock.lock(); defer { lock.unlock() }

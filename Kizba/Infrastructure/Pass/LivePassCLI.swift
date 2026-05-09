@@ -102,6 +102,83 @@ public actor LivePassCLI {
         resolved = nil
     }
 
+    // MARK: - Write surface (Phase E.6 wiring)
+    //
+    // Each write helper resolves the `pass` binary lazily through the
+    // same discovery path as ``show(entryPath:timeout:)`` and forwards
+    // the call to the matching ``PassCLI`` write method. The optional
+    // `passwordStoreDirOverride` keeps the env in sync with
+    // ``LivePassManager``'s live store-root provider on every call.
+
+    /// Run `pass insert -m [-f] <path>` against the lazily-resolved
+    /// `pass` binary. See ``PassCLI/insert(path:body:force:timeout:)``
+    /// for the body / force / timeout semantics.
+    public func insert(
+        path: String,
+        body: Data,
+        force: Bool,
+        passwordStoreDirOverride: URL? = nil
+    ) async throws {
+        let cli = try await resolveCLI(passwordStoreDirOverride: passwordStoreDirOverride)
+        try await cli.insert(path: path, body: body, force: force)
+    }
+
+    /// Run `pass generate [-f] [-n] <path> <length>`. See
+    /// ``PassCLI/generate(path:length:noSymbols:force:timeout:)`` for
+    /// the flag / parsing semantics.
+    public func generate(
+        path: String,
+        length: Int,
+        noSymbols: Bool,
+        force: Bool,
+        passwordStoreDirOverride: URL? = nil
+    ) async throws -> String {
+        let cli = try await resolveCLI(passwordStoreDirOverride: passwordStoreDirOverride)
+        return try await cli.generate(
+            path: path,
+            length: length,
+            noSymbols: noSymbols,
+            force: force
+        )
+    }
+
+    /// Run `pass generate [-n] --in-place <path> <length>`. See
+    /// ``PassCLI/generateInPlace(path:length:noSymbols:timeout:)``.
+    public func generateInPlace(
+        path: String,
+        length: Int,
+        noSymbols: Bool,
+        passwordStoreDirOverride: URL? = nil
+    ) async throws -> String {
+        let cli = try await resolveCLI(passwordStoreDirOverride: passwordStoreDirOverride)
+        return try await cli.generateInPlace(
+            path: path,
+            length: length,
+            noSymbols: noSymbols
+        )
+    }
+
+    /// Run `pass rm -f <path>`. See ``PassCLI/remove(path:timeout:)``.
+    public func remove(
+        path: String,
+        passwordStoreDirOverride: URL? = nil
+    ) async throws {
+        let cli = try await resolveCLI(passwordStoreDirOverride: passwordStoreDirOverride)
+        try await cli.remove(path: path)
+    }
+
+    /// Run `pass mv [-f] <from> <to>`. See
+    /// ``PassCLI/move(from:to:force:timeout:)``.
+    public func move(
+        from: String,
+        to newPath: String,
+        force: Bool,
+        passwordStoreDirOverride: URL? = nil
+    ) async throws {
+        let cli = try await resolveCLI(passwordStoreDirOverride: passwordStoreDirOverride)
+        try await cli.move(from: from, to: newPath, force: force)
+    }
+
     // MARK: - Private
 
     private func resolveCLI(passwordStoreDirOverride: URL? = nil) async throws -> PassCLI {

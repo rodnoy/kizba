@@ -68,12 +68,7 @@ private actor NilBinaryLocator: BinaryLocating {
 }
 
 private struct NeverCalledShellRunner: ShellCommandRunning {
-    func run(
-        executable: URL,
-        arguments: [String],
-        environment: [String: String],
-        timeout: Duration
-    ) async throws -> ShellResult {
+    func run(_ invocation: ShellInvocation) async throws -> ShellResult {
         XCTFail("Shell runner must not be invoked when discovery fails.")
         throw PassError.shellFailure(exitCode: -1, stderrExcerpt: "unreachable")
     }

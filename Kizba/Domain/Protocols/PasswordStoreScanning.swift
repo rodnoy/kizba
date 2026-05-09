@@ -44,4 +44,32 @@ public protocol PasswordStoreScanning: Sendable {
     /// Drop any cached enumeration result for `storeRoot`. The next
     /// ``listEntries(in:)`` call will re-walk the filesystem.
     func invalidate(storeRoot: URL) async
+
+    /// Cheap existence check for a single entry path, used by
+    /// ``LivePassManager`` (Phase E.6) to disambiguate
+    /// ``StoreChange/inserted(path:)`` from ``StoreChange/updated(path:)``
+    /// when wrapping a `pass insert` / `pass generate` call.
+    ///
+    /// Implementations should consult the cached listing when present
+    /// and fall back to a single ``FileManager/fileExists`` probe on
+    /// `storeRoot/<path>.gpg` otherwise. The check costs O(1) and
+    /// must not block on a full re-walk of the store.
+    ///
+    /// - Parameters:
+    ///   - path: Pass entry path (no `.gpg` suffix), as produced by
+    ///     ``EntryPathConverter``.
+    ///   - storeRoot: Absolute file URL of the password store root.
+    /// - Returns: `true` when the corresponding `.gpg` file exists.
+    func contains(path: String, in storeRoot: URL) async -> Bool
+}
+
+public extension PasswordStoreScanning {
+
+    /// Default implementation for legacy conformers (notably read-only
+    /// test fakes that pre-date Phase E.6). Returns `false`
+    /// unconditionally — production conformers and write-aware test
+    /// doubles must override.
+    func contains(path: String, in storeRoot: URL) async -> Bool {
+        false
+    }
 }

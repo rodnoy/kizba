@@ -154,3 +154,86 @@ All cells exceed thresholds with margin. Body AAA, action-fill AA, and color-ide
 ### `StoreChange` enum
 
 - **New `Kizba/Domain/Models/StoreChange.swift`**: `.inserted(path:)`, `.updated(path:)`, `.removed(path:)`, `.moved(from:, to:)`, `.bulk`. `Sendable, Equatable, Hashable`. Foundation only. Phase E will wire emission via `LivePassManager`'s `AsyncStream<StoreChange>`.
+
+## 2026-05-09 — MVP 2 Phase E.1 + E.2 + E.3 (resolution)
+
+### `ShellInvocation` value type
+
+- **New `Kizba/Domain/Protocols/ShellInvocation.swift`**: `executable: URL`, `arguments: [String] = []`, `environment: [String: String] = [:]`, `stdin: Stdin = .none`, `timeout: Duration` (no default). `Sendable, Equatable`. Computed `stdinByteCount: Int` reads the byte count for `.data(_)` and `0` for `.none` / `.closeImmediately` — safe to log.
+- **`Stdin` is a nested enum** (`Sendable, Equatable`): `.none` keeps the existing `/dev/null` behaviour; `.data(Data)` writes bytes then closes; `.closeImmediately` opens-then-closes the pipe without writing (some CLIs distinguish "no input" from "stdin closed").
+- **`environment` is non-optional `[String: String]`** — matches the existing protocol signature; empty dict ⇒ child gets an empty environment (callers compose explicitly via `PassCLI.composedEnvironment()`).
+- **Timeout type stays `Duration`** (NOT `TimeInterval`) — preserves the existing protocol contract; the upstream task brief suggested `TimeInterval` but that would have churned every read-side caller for no benefit.
+
+### `ShellCommandRunning` reshaped without churn
+
+- **New primary method**: `func run(_ invocation: ShellInvocation) async throws -> ShellResult`.
+- **Old parameter-list signature kept as a default-implemented compat extension** delegating with `stdin: .none`. Every existing read-side call site (`PassCLI.show`, scanner, discovery) compiles unchanged. Only test doubles that conformed to the protocol with the OLD method (two were found: `NeverCalledShellRunner`, `RecordingShellRunner`) had to be re-pointed at the new method — minimal mechanical edit.
+
+### `ProcessShellRunner` stdin pipe (E.2)
+
+- **Stdin is fed on a `Task.detached`** spawned *after* `process.run()` so it never contends with the stdout/stderr drain (the classic `Foundation.Process` deadlock when both ends of a pipe are saturated by one task). Verified by a 10 MB `cat` round-trip test.
+- **`pipe.fileHandleForWriting.close()` is unconditional via `defer { try? close() }`**; `try writer.write(contentsOf: data)` errors (broken pipe — child died early) are swallowed and logged at `.debug` with `bytesIn=N` only. Never crashes, never logs payload.
+- **`SIGPIPE` is globally ignored once on the first `ProcessShellRunner.init`** (via a small `OnceToken` + `signal(SIGPIPE, SIG_IGN)`). Without this, writing to a pipe whose reader has closed (timeout/cancel/early-exit child) terminates the host process before the `EPIPE` exception can be caught — fatal in tests and in the GUI. Ignoring `SIGPIPE` lets the kernel surface `EPIPE` via `write(2)` ⇒ caught by the `do/catch` around `FileHandle.write(contentsOf:)`. Standard practice for any code that writes to pipes; aligns with NSURLSession / Foundation defaults on macOS.
+- **`.closeImmediately` reuses the same path** with empty `data` — the writer skips `write` but still closes the pipe.
+- **Logging discipline**: `Log.shell.debug("... bytesIn=N ...")` instead of any string with the substring `stdin` near `Logger`/`print(`. The existing `SourceGrepTests.testNoStdinLogging_inKizbaSource` ban (`Logger.*stdin|print\(.*stdin`) still passes — `Log.shell` is not `Logger.*`, and the field name `stdinByteCount` is only used in code, not in log format strings.
+
+### `Invocation` diagnostic record gains `stdinByteCount: Int?`
+
+- **New optional field**, default `nil` (nil ⇒ "no stdin attached"; `0` ⇒ `.closeImmediately`; positive ⇒ `.data` byte count). Existing fixtures and tests stay green because the synthesised init defaults the parameter.
+- **Synthesised `Equatable` picks up the new field** automatically. `ErrorPresentationIntegrationTests` and `InvocationLogTests` that build `Invocation` directly omit `stdinByteCount` ⇒ all become `nil` ⇒ no behaviour change.
+
+### `FakeShellRunner` upgrade (E.3)
+
+- **Internal storage migrated from a bespoke `Invocation` struct to `[ShellInvocation]`**. Source-compatible because the field set the assertions used (`executable`, `arguments`, `environment`, `timeout`) is a strict subset of `ShellInvocation`'s stored properties. Every existing `PassCLITests` / `LivePassManagerTests` / `LivePassManagerStoreOverrideTests` assertion compiles and passes unchanged.
+- **`run(_:)` is now the only protocol-conforming method** the fake implements; the old parameter-list signature is satisfied automatically by the protocol extension and routes through the same capture path.
+- **No new behaviour surface added** — capture upgrade only.
+
+## 2026-05-09 — MVP 2 Phase E (resolution)
+
+### Subprocess stdin pipe + SIGPIPE handling (E.1+E.2+E.3)
+
+- **`ShellInvocation` value type** introduced in `Domain/Protocols/`. `Stdin` enum has three cases: `.none`, `.data(Data)`, `.closeImmediately`. Old `ShellCommandRunning.run(executable:arguments:environment:timeout:)` retained as a default extension method delegating with `stdin: .none` — every existing call site compiles unchanged.
+- **`ProcessShellRunner` ignores `SIGPIPE`** via a one-time `signal(SIGPIPE, SIG_IGN)` set in `init` (guarded by an `OnceToken`). This is critical for stdin-write reliability: when the host cancels or times out the child process, the detached writer would otherwise receive `SIGPIPE` (default action: kill the host process). Now `write(2)` returns `EPIPE`, caught by the existing `do/catch`. Standard practice for any code writing to pipes; documented inline.
+- **`Invocation` diagnostic record** gained a `stdinByteCount: Int?` field. NEVER stores stdin payload — only the byte count. Backed by `SourceGrepTests.testNoStdinLogging_inKizbaSource` (repo-wide ban: `Logger.*stdin|print\(.*stdin`).
+- **No manual `Data` zeroing in MVP 2** — same trust level as `PassSecret.password`; documented as known limitation.
+
+### Error mapping disambiguation (E.4)
+
+- **`PassErrorMapper.map(stderr:exitCode:)` extended with optional `commandContext: CommandContext?`** (`.show / .list / .insert / .generate / .remove / .move / .initStore`, all `Sendable, Equatable`). Disambiguates the ambiguous string `"is not in the password store"`:
+  - `.move` or `.remove` → `.sourceNotFound(path:)`
+  - other / nil → `.invalidGpgId` (preserves prior MVP1 behavior).
+- **All other write-time mappings**: `Cowardly refusing` / `mv: refusing to overwrite` / `already exists` → `.entryAlreadyExists(path:)`; `No public key` → `.recipientNotFound(emailOrKeyId:)`; `pass-length must be a positive integer` → `.invalidLength`; `password store is empty` / `You must run "pass init"` → `.invalidGpgId`. Path / email extraction extracts CONTEXTUAL data into the error case payload BEFORE the sanitizer runs; the user-facing `sanitizedExcerpt` (returned tuple element) keeps emails / hex IDs redacted.
+- **Backward compat**: existing call sites passing `commandContext: nil` get identical behavior to MVP1.
+
+### `PassCLI` write methods + `PassManaging` extension (E.5)
+
+- **`PassCLI` write methods** (extension in `PassCLI+Write.swift`):
+  - `insert(path:body:force:timeout:=15s)` — `["insert", "-m"] + (force ? ["-f"] : []) + [path]`, stdin = body bytes.
+  - `generate(path:length:noSymbols:force:timeout:=15s) -> String` — returns parsed password from stdout via `PassGenerateParser`.
+  - `generateInPlace(path:length:noSymbols:timeout:=15s) -> String` — adds `--in-place` flag.
+  - `remove(path:timeout:=10s)` — `["rm", "-f", path]`.
+  - `move(from:to:force:timeout:=15s)` — `["mv"] + (force ? ["-f"] : []) + [from, to]`.
+  - `body` parameter type is `Data` (not `String`) — caller (`LivePassManager`) encodes from `PassSecretSerializer.serialize(secret).data(using: .utf8)!`. Stdin content NEVER logged; `Invocation.stdinByteCount` carries the count only.
+- **`PassManaging` protocol extended** with the four user-facing methods + `var changes: AsyncStream<StoreChange>`. `MockPassManager` and `LivePassManager` implement; `UnavailablePassManager` (release-safe placeholder) traps with `fatalError`.
+- **`PassManagingTestDefaults.swift` fixture** in `KizbaTests/Fixtures/` provides default-implementation extensions (XCTFail-throwing write stubs + empty `changes` stream) so 8 pre-existing read-only test fakes compile without per-fake updates.
+- **Always `pass insert -m`, never two-prompt** — single read-until-EOF unifies the body format across all writes.
+- **`MockPassManager.listEntries()` preserves insertion order**, not lexicographic sort, to keep MVP1 fixture-pinned tests passing.
+
+### `LivePassManager` writes + `AsyncStream<StoreChange>` (E.6)
+
+- **`.inserted` vs `.updated` distinction** via pre-call existence check: `scanner.contains(path:in:)` (cache-hit O(1) `Set` lookup, cache-miss single `FileManager.fileExists`). Cost ≤ 1 syscall per write — worth the typed event payload for Phase H reconciliation. New `PasswordStoreScanning.contains(path:in:)` protocol method with default `false` for read-only test fakes.
+- **Multi-subscriber `AsyncStream<StoreChange>`** pattern: actor-stored `[UUID: AsyncStream<StoreChange>.Continuation]`; `nonisolated var changes` returns a fresh stream per call; `onTermination` actor-hops to unregister. `emit(_:)` iterates all live continuations. Mirrors the `MockPassManager` pattern from E.5.
+- **Ordering invariant**: `scanner.invalidate(storeRoot:)` runs BEFORE `emit(_:)` on every successful write, so any subscriber that re-lists in response to the event sees post-write FS state.
+- **`PassSecretSerializer.serialize(_:)` is MainActor-isolated** under default-isolation = MainActor (reads MainActor-initialized domain types). `LivePassManager.insert` wraps the call in `await MainActor.run { Data(serialize(...).utf8) }`; the body bytes (Data) cross actor boundaries, the String form does not. PassCLI logs only `stdinByteCount`.
+
+### Opt-in E2E (E.8)
+
+- **`PassWriteIntegrationTests.swift`** gated by env var `KIZBA_E2E=1` (when running via `xcodebuild`, prefix with `TEST_RUNNER_` so xcodebuild propagates it). Each method calls `XCTSkipUnless` first; without the env, the suite is silently skipped on CI.
+- **Per-test setup**: temp directory at `/tmp/kizba-e2e-<short-id>/` (NOT `~/Library/Caches/...` — Unix domain socket path limit `sun_path` 104 bytes, GPG agent fails on long paths). Configures `gpg-agent.conf` with `allow-loopback-pinentry`, `gpg.conf` with `pinentry-mode loopback`, `batch`, `trust-model always`. Generates ephemeral ECDSA primary + ECDH subkey via `gpg --batch --gen-key` recipe (`%no-protection`, `Expire-Date: 1d`). Both keys required — primary alone has only `[SC]` capabilities and `pass insert` fails with "Unusable public key".
+- **Tear-down**: `gpgconf --kill all` (best-effort) + `rm -rf` temp tree. Reliable even on test failure (`defer` blocks).
+- **`pass yesno()` quirk**: when stdin is a pipe (no TTY), `pass insert` SILENTLY OVERWRITES without prompting, regardless of `-f`. Confirmed against `pass` 1.7.4. The "collision throws without `-f`" test that the architecture imagined is therefore not reproducible at the E2E level — collision-throwing is verified at the unit level (`PassErrorMapperTests` against fixture stderr from 1.7.3 and 1.7.4 in Phase E.4). E2E's overwrite test was reformulated as `testInsert_forceOverwrite_replacesExistingContent`.
+- **7 E2E methods**: insert+show round-trip, force-overwrite replaces content, force overwrite doesn't block on pinentry, generate+show, remove+listEntries+`changes`, move+`changes`, multi-event AsyncStream ordering. All 7 pass locally with `pass 1.7.4` + `gpg 2.5.19` in 5.2s.
+
+### `Suite` size at end of Phase E
+
+- 538 tests total; 8 skipped (1 from D.3 notes-look-like-metadata + 7 from PassWriteIntegrationTests when KIZBA_E2E off); 0 failures. With `KIZBA_E2E=1`: all 538 pass.

@@ -97,6 +97,24 @@ public actor PasswordStoreScanner: PasswordStoreScanning {
         cache.removeValue(forKey: key)
     }
 
+    public func contains(path: String, in storeRoot: URL) async -> Bool {
+        // Fast path: when the cache is warm, a `Set` membership check
+        // is faster than a `FileManager` syscall and avoids the cost
+        // of a stat on a possibly-encrypted volume.
+        let key = storeRoot.standardizedFileURL.path
+        if let cached = cache[key] {
+            return cached.contains(path)
+        }
+        // Fallback: O(1) `fileExists` probe on the resolved `.gpg`
+        // URL. Used when the scanner has never been listed against
+        // this store root (e.g. straight after process start) and on
+        // any call that follows a cache invalidation.
+        let url = storeRoot
+            .standardizedFileURL
+            .appendingPathComponent(path + ".gpg")
+        return fileManager.fileExists(atPath: url.path)
+    }
+
     // MARK: - Internals
 
     private func walk(storeRoot: URL) throws -> [String] {

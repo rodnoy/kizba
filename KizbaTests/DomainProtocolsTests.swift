@@ -109,18 +109,13 @@ private final class RecordingShellRunner: ShellCommandRunning, @unchecked Sendab
         return _last
     }
 
-    func run(
-        executable: URL,
-        arguments: [String],
-        environment: [String: String],
-        timeout: Duration
-    ) async throws -> ShellResult {
+    func run(_ invocation: ShellInvocation) async throws -> ShellResult {
         lock.lock()
         _last = Invocation(
-            executable: executable,
-            arguments: arguments,
-            environment: environment,
-            timeout: timeout
+            executable: invocation.executable,
+            arguments: invocation.arguments,
+            environment: invocation.environment,
+            timeout: invocation.timeout
         )
         lock.unlock()
         return result

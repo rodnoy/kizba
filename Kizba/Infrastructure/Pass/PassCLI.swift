@@ -170,7 +170,8 @@ public nonisolated struct PassCLI: Sendable {
         if result.exitCode != 0 {
             let (mapped, excerpt) = PassErrorMapper.map(
                 stderr: stderrString,
-                exitCode: Int(result.exitCode)
+                exitCode: Int(result.exitCode),
+                commandContext: .show
             )
             Log.pass.error(
                 """
@@ -222,7 +223,11 @@ public nonisolated struct PassCLI: Sendable {
     /// `PATH` (always), plus `PASSWORD_STORE_DIR`, `GNUPGHOME`, `HOME`
     /// when configured / available. No other parent env vars are
     /// forwarded — keeps the failure surface predictable.
-    private func composedEnvironment() -> [String: String] {
+    ///
+    /// Exposed at `internal` visibility so the write-method extension
+    /// (`PassCLI+Write.swift`) can reuse the exact same env composition
+    /// as `show`. Still not part of the public API.
+    internal func composedEnvironment() -> [String: String] {
         var env: [String: String] = [
             "PATH": pathOverride ?? Self.defaultPATH,
         ]

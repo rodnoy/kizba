@@ -41,6 +41,7 @@ public final class ProcessShellRunner: ShellCommandRunning {
     private let invocationLog: (any InvocationLogging)?
 
     public nonisolated init() {
+        Self.installSIGPIPEHandlerIfNeeded()
         self.invocationLog = nil
     }
 
@@ -48,15 +49,31 @@ public final class ProcessShellRunner: ShellCommandRunning {
     /// The sink is invoked from a detached task per call so the
     /// runner's hot path is not blocked by the actor's mailbox.
     public nonisolated init(invocationLog: (any InvocationLogging)?) {
+        Self.installSIGPIPEHandlerIfNeeded()
         self.invocationLog = invocationLog
     }
 
-    public nonisolated func run(
-        executable: URL,
-        arguments: [String],
-        environment: [String: String],
-        timeout: Duration
-    ) async throws -> ShellResult {
+    /// Disable the default `SIGPIPE` action for the host process.
+    ///
+    /// When the runner feeds stdin to a child that exits before
+    /// consuming all the bytes (timeout, cancellation, error in the
+    /// child, etc.), the `write(2)` call into the pipe receives
+    /// `SIGPIPE`. The default action is to terminate the host process
+    /// — fatal in tests and unacceptable in the GUI. We instead get
+    /// `EPIPE` from `write(2)`, which is caught by the `do/catch`
+    /// around `FileHandle.write(contentsOf:)` and surfaced as a
+    /// sanitised debug log entry (no payload).
+    ///
+    /// Idempotent: only the first call wins; subsequent calls are
+    /// no-ops thanks to the once-token. Safe to invoke from any
+    /// thread.
+    private nonisolated static func installSIGPIPEHandlerIfNeeded() {
+        sigpipeOnce.perform {
+            signal(SIGPIPE, SIG_IGN)
+        }
+    }
+
+    public nonisolated func run(_ invocation: ShellInvocation) async throws -> ShellResult {
 
         let box = ProcessBox()
         let sink = self.invocationLog
@@ -64,10 +81,7 @@ public final class ProcessShellRunner: ShellCommandRunning {
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<ShellResult, Error>) in
                 Self.spawn(
-                    executable: executable,
-                    arguments: arguments,
-                    environment: environment,
-                    timeout: timeout,
+                    invocation: invocation,
                     box: box,
                     continuation: continuation,
                     invocationLog: sink
@@ -84,14 +98,16 @@ public final class ProcessShellRunner: ShellCommandRunning {
 
     /// Runs the child process and resolves `continuation` exactly once.
     private nonisolated static func spawn(
-        executable: URL,
-        arguments: [String],
-        environment: [String: String],
-        timeout: Duration,
+        invocation: ShellInvocation,
         box: ProcessBox,
         continuation: CheckedContinuation<ShellResult, Error>,
         invocationLog: (any InvocationLogging)?
     ) {
+        let executable = invocation.executable
+        let arguments = invocation.arguments
+        let environment = invocation.environment
+        let timeout = invocation.timeout
+
         let process = Process()
         process.executableURL = executable
         process.arguments = arguments
@@ -101,7 +117,30 @@ public final class ProcessShellRunner: ShellCommandRunning {
         let errPipe = Pipe()
         process.standardOutput = outPipe
         process.standardError = errPipe
-        process.standardInput = FileHandle.nullDevice
+
+        // Stdin wiring. `.none` keeps the historical behaviour (child
+        // sees an immediate EOF via `/dev/null`). The two pipe-backed
+        // modes attach a `Pipe`; the bytes (if any) are written from a
+        // detached task once the process is running, so the write does
+        // not block the stdout/stderr drain.
+        let stdinPipe: Pipe?
+        switch invocation.stdin {
+        case .none:
+            process.standardInput = FileHandle.nullDevice
+            stdinPipe = nil
+        case .data, .closeImmediately:
+            let pipe = Pipe()
+            process.standardInput = pipe
+            stdinPipe = pipe
+        }
+        // Captured stdin byte count for sanitised logging / Diagnostics.
+        // Content is NEVER captured anywhere.
+        let recordedStdinByteCount: Int?
+        switch invocation.stdin {
+        case .none:                  recordedStdinByteCount = nil
+        case .closeImmediately:      recordedStdinByteCount = 0
+        case .data(let data):        recordedStdinByteCount = data.count
+        }
 
         let drain = DrainState()
         let startedAt = Date()
@@ -160,7 +199,8 @@ public final class ProcessShellRunner: ShellCommandRunning {
                     exitCode: -1,
                     stderr: "spawn failed",
                     startedAt: startedAt,
-                    finishedAt: Date()
+                    finishedAt: Date(),
+                    stdinByteCount: recordedStdinByteCount
                 )
                 Task.detached { await sink.record(invocation) }
             }
@@ -180,6 +220,33 @@ public final class ProcessShellRunner: ShellCommandRunning {
         // `.cancelled` because the box was pre-marked.
         if box.isCancelled {
             process.terminate()
+        }
+
+        // Stdin feed: write the payload (if any) on a detached task so
+        // the write does not contend with the stdout/stderr drain. The
+        // pipe's write end is closed unconditionally to signal EOF
+        // (both `.data` and `.closeImmediately` need this). A broken
+        // pipe (the child exited before consuming the bytes) is
+        // logged as a sanitised debug-level event — never crashes,
+        // never logs the payload content.
+        if let pipe = stdinPipe {
+            let stdinKind = invocation.stdin
+            let exePathForStdin = executable.path
+            Task.detached {
+                let writer = pipe.fileHandleForWriting
+                defer { try? writer.close() }
+                if case .data(let data) = stdinKind, !data.isEmpty {
+                    do {
+                        try writer.write(contentsOf: data)
+                    } catch {
+                        // Broken pipe / child died early. Log shape
+                        // only — `bytesIn` count, never content.
+                        Log.shell.debug(
+                            "shell stdin feed interrupted: exe=\(exePathForStdin, privacy: .private) bytesIn=\(data.count, privacy: .public) error=\(String(describing: type(of: error)), privacy: .public)"
+                        )
+                    }
+                }
+            }
         }
 
         // Timeout race: a detached task fires after `timeout` and asks
@@ -230,11 +297,12 @@ public final class ProcessShellRunner: ShellCommandRunning {
                     exitCode: recordedExit,
                     stderr: stderrString,
                     startedAt: startedAt,
-                    finishedAt: finishedAt
+                    finishedAt: finishedAt,
+                    stdinByteCount: recordedStdinByteCount
                 )
                 let excerptLength = invocation.stderrExcerpt.count
                 Log.shell.debug(
-                    "invocation recorded: exe=\(exePath, privacy: .private) status=\(recordedExit, privacy: .public) excerptLen=\(excerptLength, privacy: .public)"
+                    "invocation recorded: exe=\(exePath, privacy: .private) status=\(recordedExit, privacy: .public) excerptLen=\(excerptLength, privacy: .public) bytesIn=\(recordedStdinByteCount ?? 0, privacy: .public)"
                 )
                 Task.detached { await sink.record(invocation) }
             }
@@ -242,7 +310,7 @@ public final class ProcessShellRunner: ShellCommandRunning {
             switch outcome {
             case .exited(let exitCode, let stdout, let stderr):
                 Log.shell.info(
-                    "shell exit: exe=\(exePath, privacy: .private) argc=\(argc, privacy: .public) status=\(exitCode, privacy: .public) stderrBytes=\(stderr.count, privacy: .public)"
+                    "shell exit: exe=\(exePath, privacy: .private) argc=\(argc, privacy: .public) status=\(exitCode, privacy: .public) stderrBytes=\(stderr.count, privacy: .public) bytesIn=\(recordedStdinByteCount ?? 0, privacy: .public)"
                 )
                 continuation.resume(returning: ShellResult(
                     exitCode: exitCode,
@@ -277,7 +345,8 @@ public final class ProcessShellRunner: ShellCommandRunning {
         exitCode: Int32,
         stderr: String,
         startedAt: Date,
-        finishedAt: Date
+        finishedAt: Date,
+        stdinByteCount: Int?
     ) -> Invocation {
         let safeArgs = arguments.map { PassErrorMapper.sanitize($0, maxLength: 256) }
         let safeStderr = PassErrorMapper.sanitize(stderr, maxLength: Log.maxStderrExcerpt)
@@ -287,10 +356,31 @@ public final class ProcessShellRunner: ShellCommandRunning {
             exitCode: exitCode,
             stderrExcerpt: safeStderr,
             startedAt: startedAt,
-            duration: finishedAt.timeIntervalSince(startedAt)
+            duration: finishedAt.timeIntervalSince(startedAt),
+            stdinByteCount: stdinByteCount
         )
     }
 }
+
+// MARK: - Once-token
+
+/// Trivial once-only execution helper used to install the SIGPIPE
+/// handler exactly once, regardless of how many `ProcessShellRunner`
+/// instances are constructed.
+private final class OnceToken: @unchecked Sendable {
+    private let lock = NSLock()
+    nonisolated(unsafe) private var done = false
+    nonisolated init() {}
+    nonisolated func perform(_ block: () -> Void) {
+        lock.lock()
+        let alreadyDone = done
+        if !alreadyDone { done = true }
+        lock.unlock()
+        if !alreadyDone { block() }
+    }
+}
+
+nonisolated private let sigpipeOnce = OnceToken()
 
 // MARK: - DrainState
 

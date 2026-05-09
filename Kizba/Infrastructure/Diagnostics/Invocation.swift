@@ -54,6 +54,16 @@ public struct Invocation: Sendable, Identifiable, Equatable {
     /// Wall-clock duration between spawn and termination.
     public let duration: TimeInterval
 
+    /// Number of bytes written to the child's stdin, when the
+    /// invocation supplied a stdin payload. `nil` means "no stdin
+    /// attached" (the read-side default). The runner records this so
+    /// the Diagnostics view can surface payload size **without** the
+    /// payload content — see Phase E.2 in `.ai/plan.md`.
+    ///
+    /// Hard rule: stdin **content** is never stored anywhere; only the
+    /// byte count.
+    public let stdinByteCount: Int?
+
     public nonisolated init(
         id: UUID = UUID(),
         executable: String,
@@ -61,7 +71,8 @@ public struct Invocation: Sendable, Identifiable, Equatable {
         exitCode: Int32,
         stderrExcerpt: String,
         startedAt: Date,
-        duration: TimeInterval
+        duration: TimeInterval,
+        stdinByteCount: Int? = nil
     ) {
         self.id = id
         self.executable = executable
@@ -70,5 +81,6 @@ public struct Invocation: Sendable, Identifiable, Equatable {
         self.stderrExcerpt = stderrExcerpt
         self.startedAt = startedAt
         self.duration = duration
+        self.stdinByteCount = stdinByteCount
     }
 }

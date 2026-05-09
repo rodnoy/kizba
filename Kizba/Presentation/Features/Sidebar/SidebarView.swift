@@ -28,7 +28,7 @@ struct SidebarView: View {
     }
 
     var body: some View {
-        List(selection: $selection) {
+        List {
             Section("Folders") {
                 ForEach(model.folders) { folder in
                     EntryRowView(
@@ -36,18 +36,20 @@ struct SidebarView: View {
                         title: folder.name,
                         isSelected: selection == folder.name
                     )
-                    .tag(folder.name as String?)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        selection = folder.name
+                    }
+                    .listRowBackground(Color.clear)
                 }
             }
         }
-        // Phase C.6 — match `EntryListView`: suppress `List`'s default
-        // per-row selection chrome (system accent fill) so the row's
-        // own `surfaceSelected` background from `EntryRowView` is the
-        // sole selection indicator. `.plain` is used (rather than
-        // `.sidebar`) for visual consistency with the middle column —
-        // the goal of this phase is a single themed selection language
-        // across the split view, not a macOS-native sidebar look.
+        // Use a plain `List` without SwiftUI's `List(selection:)` chrome so
+        // `EntryRowView` remains the only visible selection indicator.
         .listStyle(.plain)
+        // Hide the default list container background for a cleaner custom
+        // sidebar surface.
+        .scrollContentBackground(.hidden)
         .navigationTitle("Kizba")
         .task {
             await model.load()
