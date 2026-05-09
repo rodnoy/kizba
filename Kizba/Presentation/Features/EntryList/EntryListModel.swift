@@ -107,32 +107,38 @@ final class EntryListModel {
 
     /// Filtered, sorted list driving the entry-list UI.
     ///
-    /// Combines two filters:
-    /// 1. Folder filter — when `AppState.selectedFolder` is set, only
-    ///    entries whose top-level path component matches are kept.
-    /// 2. Search filter — when `AppState.searchQuery` is non-empty,
-    ///    keep entries whose full path contains the query (case
-    ///    insensitive).
+    /// Two filtering modes, mutually exclusive:
+    /// 1. **Search active** (`AppState.searchQuery` non-empty after
+    ///    trim) — search spans the WHOLE store. The folder filter is
+    ///    bypassed so users can find an entry without first having to
+    ///    navigate to its folder. Match is a case-insensitive
+    ///    substring over the full entry path.
+    /// 2. **No search** — folder filter applies: when
+    ///    `AppState.selectedFolder` is non-empty, only entries whose
+    ///    top-level path component matches are kept; otherwise every
+    ///    entry is returned.
+    ///
+    /// The folder scope is restored automatically when the search
+    /// query is cleared.
     var entries: [PassEntry] {
-        let folder = state.selectedFolder
         let query = state.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        if !query.isEmpty {
+            return allEntries.filter { entry in
+                entry.path.range(of: query, options: .caseInsensitive) != nil
+            }
+        }
+
+        let folder = state.selectedFolder
         return allEntries.filter { entry in
-            if let folder, !folder.isEmpty {
-                let head: String
-                if let slash = entry.path.firstIndex(of: "/") {
-                    head = String(entry.path[..<slash])
-                } else {
-                    head = entry.path
-                }
-                guard head == folder else { return false }
+            guard let folder, !folder.isEmpty else { return true }
+            let head: String
+            if let slash = entry.path.firstIndex(of: "/") {
+                head = String(entry.path[..<slash])
+            } else {
+                head = entry.path
             }
-            if !query.isEmpty {
-                guard entry.path.range(of: query, options: .caseInsensitive) != nil else {
-                    return false
-                }
-            }
-            return true
+            return head == folder
         }
     }
 

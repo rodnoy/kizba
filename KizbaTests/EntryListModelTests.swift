@@ -78,6 +78,46 @@ final class EntryListModelTests: XCTestCase {
         XCTAssertEqual(model.entries.count, 7)
     }
 
+    // MARK: - Global search (folder filter bypass)
+    //
+    // When a search query is active the folder filter is bypassed so
+    // matches from outside the currently-selected folder appear.
+    // The folder scope is restored as soon as the query is cleared.
+
+    func test_entries_withQuery_ignoresSelectedFolder_andReturnsGlobalMatches() async {
+        let env = AppEnvironment.preview()
+        let state = AppState()
+        let model = EntryListModel(environment: env, state: state)
+        await model.refresh()
+
+        // Sit in `work` (8 entries). The query "personal" matches the
+        // 7 personal/* entries AND `work/github/personal-token` — 8
+        // total. A folder-scoped search would return just 1.
+        state.selectedFolder = "work"
+        state.searchQuery = "personal"
+
+        let results = model.entries
+        XCTAssertEqual(results.count, 8)
+        // Must contain at least one match from outside the selected
+        // folder — proves the folder filter is bypassed.
+        XCTAssertTrue(results.contains { $0.path == "personal/email/gmail" })
+        XCTAssertTrue(results.contains { $0.path == "work/github/personal-token" })
+    }
+
+    func test_entries_withoutQuery_respectsFolderSelection() async {
+        let env = AppEnvironment.preview()
+        let state = AppState()
+        let model = EntryListModel(environment: env, state: state)
+        await model.refresh()
+
+        state.selectedFolder = "personal"
+        state.searchQuery = ""
+
+        let results = model.entries
+        XCTAssertEqual(results.count, 7)
+        XCTAssertTrue(results.allSatisfy { $0.path.hasPrefix("personal/") })
+    }
+
     func testSelect_updatesAppStateSelectedEntryID() async {
         let env = AppEnvironment.preview()
         let state = AppState()

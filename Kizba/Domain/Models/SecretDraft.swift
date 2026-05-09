@@ -14,6 +14,7 @@
 //
 
 import Foundation
+import Observation
 
 /// In-progress, mutable representation of a `PassSecret`. The form
 /// edits the draft's `password`, `metadata` and `notes` directly; on
@@ -22,6 +23,14 @@ import Foundation
 ///
 /// Reference semantics intentional: SwiftUI views bind to the same
 /// instance the model owns, avoiding per-keystroke struct copies.
+///
+/// `@Observable` so SwiftUI tracks mutations of `password` /
+/// `metadata` / `notes`. Without observation, proxy `Binding`s
+/// reading `draft.<x>` would not invalidate the view on writes,
+/// causing stale renders (e.g. typed text overwritten by the
+/// previous binding read on the next forced re-render, or
+/// "Add field" buttons appearing only on an unrelated redraw).
+@Observable
 public final class SecretDraft {
 
     public var password: String

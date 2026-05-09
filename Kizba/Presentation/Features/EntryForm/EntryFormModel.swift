@@ -15,8 +15,11 @@
 //
 //    1. SwiftUI constructs the model when the sheet appears.
 //    2. The view binds to `path`, `draft.password`, `draft.metadata`,
-//       `draft.notes` directly (`SecretDraft` is a class so SwiftUI
-//       sees mutations without per-keystroke struct copies).
+//       `draft.notes` directly. `SecretDraft` is `@Observable` so
+//       SwiftUI tracks mutations of password / metadata / notes
+//       (without observation, proxy bindings reading `draft.<x>`
+//       would not invalidate the view on writes — typed text would
+//       be overwritten by the stale binding on the next re-render).
 //    3. The view reads `pathError`, `metadataError`, `passwordError`
 //       and `canSave` to drive inline errors and the Save button's
 //       disabled state.

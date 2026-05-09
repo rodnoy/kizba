@@ -128,30 +128,41 @@ struct GeneratePasswordSheet: View {
                     .font(theme.typography.body)
                     .foregroundStyle(theme.colors.onSurface)
                 Spacer()
+                // Render the current length as a separate Text so it
+                // stays visible — `.labelsHidden()` on the Stepper
+                // hides its label content (which would otherwise be
+                // the value display).
+                Text("\(model.length)")
+                    .font(theme.typography.bodyEmphasized)
+                    .foregroundStyle(theme.colors.onSurface)
+                    .monospacedDigit()
+                // Use a proxy Binding so the regenerate side effect
+                // fires on every commit. `.onChange(of:)` against an
+                // Observation-tracked property may not fire if the
+                // body never reads the property — the proxy makes
+                // the write path explicit.
                 Stepper(
-                    value: $model.length,
+                    "Length",
+                    value: Binding(
+                        get: { model.length },
+                        set: { model.length = $0; model.regenerate() }
+                    ),
                     in: GeneratePasswordModel.lengthBounds,
                     step: 1
-                ) {
-                    Text("\(model.length)")
-                        .font(theme.typography.bodyEmphasized)
-                        .foregroundStyle(theme.colors.onSurface)
-                        .monospacedDigit()
-                }
+                )
                 .labelsHidden()
-                .onChange(of: model.length) { _, _ in
-                    model.regenerate()
-                }
             }
-            Toggle(isOn: $model.includeSymbols) {
+            // Same proxy-Binding pattern as the Stepper above —
+            // ensures `regenerate()` runs on every toggle commit.
+            Toggle(isOn: Binding(
+                get: { model.includeSymbols },
+                set: { model.includeSymbols = $0; model.regenerate() }
+            )) {
                 Text("Include symbols")
                     .font(theme.typography.body)
                     .foregroundStyle(theme.colors.onSurface)
             }
             .toggleStyle(.switch)
-            .onChange(of: model.includeSymbols) { _, _ in
-                model.regenerate()
-            }
         }
     }
 

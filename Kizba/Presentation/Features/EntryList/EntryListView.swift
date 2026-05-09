@@ -189,8 +189,21 @@ struct EntryListView: View {
             mode: .create,
             passManager: environment.passManager,
             toastCenter: state.toastCenter,
-            appState: state
+            appState: state,
+            initialPath: Self.initialPath(for: state.selectedFolder)
         )
+    }
+
+    /// Compute the prefilled `initialPath` for the New Entry form
+    /// from the currently selected sidebar folder. A non-empty
+    /// folder produces `"<folder>/"` so the user can immediately
+    /// type the entry name. A nil or empty folder produces `""` so
+    /// the field starts blank (root-level new entry).
+    static func initialPath(for selectedFolder: String?) -> String {
+        guard let folder = selectedFolder, !folder.isEmpty else {
+            return ""
+        }
+        return "\(folder)/"
     }
 
     /// Build a fresh `MoveEntryModel` for each presentation of the

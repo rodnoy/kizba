@@ -152,4 +152,50 @@ final class SecretDraftTests: XCTestCase {
         let described = String(describing: draft)
         XCTAssertFalse(described.contains("topsecret-do-not-leak"))
     }
+
+    // MARK: - Observation tracking
+    //
+    // `SecretDraft` is `@Observable` so SwiftUI re-renders on
+    // mutations of `password` / `metadata` / `notes`. The contract is
+    // pinned via `withObservationTracking`: reading a property inside
+    // the apply closure registers the access, and any subsequent
+    // write to that property triggers the `onChange` callback exactly
+    // once (the next read re-arms tracking). Without `@Observable`
+    // these callbacks would never fire.
+
+    func test_secretDraft_mutationOfPassword_triggersObservation() {
+        let draft = SecretDraft(password: "before")
+        let expectation = self.expectation(description: "password change observed")
+        withObservationTracking {
+            _ = draft.password
+        } onChange: {
+            expectation.fulfill()
+        }
+        draft.password = "after"
+        wait(for: [expectation], timeout: 1.0)
+    }
+
+    func test_secretDraft_mutationOfMetadata_triggersObservation() {
+        let draft = SecretDraft()
+        let expectation = self.expectation(description: "metadata change observed")
+        withObservationTracking {
+            _ = draft.metadata
+        } onChange: {
+            expectation.fulfill()
+        }
+        draft.metadata.append(MetadataPair(key: "user", value: "alice"))
+        wait(for: [expectation], timeout: 1.0)
+    }
+
+    func test_secretDraft_mutationOfNotes_triggersObservation() {
+        let draft = SecretDraft(notes: "first")
+        let expectation = self.expectation(description: "notes change observed")
+        withObservationTracking {
+            _ = draft.notes
+        } onChange: {
+            expectation.fulfill()
+        }
+        draft.notes = "second"
+        wait(for: [expectation], timeout: 1.0)
+    }
 }
