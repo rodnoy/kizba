@@ -41,6 +41,14 @@ struct SidebarView: View {
                         selection = folder.name
                     }
                     .listRowBackground(Color.clear)
+                    // I.3 a11y — VoiceOver row label includes the
+                    // semantic role ("folder") so users navigating by
+                    // ear can distinguish folder rows from entry rows
+                    // (which carry no role suffix). The leading icon
+                    // is `.accessibilityHidden(true)` inside
+                    // `EntryRowView`, so this is the only carrier of
+                    // the "folder" semantic.
+                    .accessibilityLabel("\(folder.name), folder")
                 }
             }
         }

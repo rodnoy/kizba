@@ -388,3 +388,34 @@ All cells exceed thresholds with margin. Body AAA, action-fill AA, and color-ide
 ### What's left in MVP 2
 
 Phase I — polish, a11y, Sequoia smoke, README, opt-in E2E green, final regression sweep.
+
+## 2026-05-09 — MVP 2 Phase I (resolution)
+
+### Release-readiness audit complete
+
+- **Phase I.1 — Shortcut + menu audit**: every documented MVP 2 surface has the right shortcut, the right disable condition (selection × `anyWriteInFlight`), and a `.help(...)` tooltip on toolbar buttons. Two missing tooltips fixed in `DiagnosticsView` (Refresh / Clear). All 13 audited surfaces pass.
+- **Phase I.2 — `SemanticIconographyTests`** (5 methods): locks the per-severity SF Symbol mapping (`info.circle.fill`, `checkmark.circle.fill`, `exclamationmark.triangle.fill`, `xmark.octagon.fill`); asserts uniqueness + non-empty + ToastView's reuse of BannerView's source-of-truth helpers; asserts icon color != background color in every theme variant. WCAG SC 1.4.11 (3:1 graphical objects) and SC 1.4.3 (4.5:1 body text) contrast assertions stay in `BannerViewTests` (E.4 era).
+- **Phase I.3 — `.ai/a11y-audit.md`** (375 lines, exhaustive): documents the code-side accessibility surface AND a manual checklist (VoiceOver, Increase Contrast, Dynamic Type, Reduce Motion, Color filters, Keyboard-only, Read-only without `pass`/`gpg`). 5 medium-priority gaps + 4 low-priority gaps documented for MVP 3 review. One trivial fix applied: `SidebarView` rows now carry `accessibilityLabel("\(folder.name), folder")` so VoiceOver announces the role.
+- **Phase I.4 — `.ai/sequoia-smoke.md`** (109 lines): manual checklist for macOS 15 Sequoia compatibility. Hypothesis: clipboard auto-clear is unaffected (write-only pattern); Process spawn is unaffected (non-sandboxed Developer ID). Verification table left for the user to fill on first Sequoia smoke.
+- **Phase I.5 — `pass` 1.7.3/1.7.4 fixture parity**: verified `PassErrorMapperTests` (E.4) covers both versions for every write-time stderr signature; `PassGenerateParserTests` (D.5) covers both versions for plain + colored + `--in-place` stdout shapes. No fixtures missing; no test additions needed.
+- **Phase I.6 — `README.md`** rewritten (63 → 187 lines): MVP 2 feature list, requirements, build/test instructions, security model (what we do / what we don't), known limitations (in-memory secrets as plain `String`/`Data`, no FSEvents, `pass yesno()` quirk, notes-look-like-metadata limitation, single store), MVP 3 deferrals, project structure overview, links to `.ai/` docs. License preserved as TBD.
+- **Phase I.7 — Opt-in E2E**: 7 / 7 pass locally (or 7 / 7 skipped if `pass`+`gpg` not installed on the test runner — the `XCTSkipUnless` gate is exercised either way).
+- **Phase I.8 — Final regression sweep**: 681 / 8 skipped / 0 failures (default); SourceGrepTests 16/16; release build green; all repo-wide grep bans clean; warnings-as-errors clean.
+
+### MVP 2 ships
+
+- **Test count progression**: MVP 1 baseline 209 → A 216 → B 276 → C 330 → D 462 → E 538 → F 583 → G 660 → H 676 → **I 681**. Phase I net: +5 tests (`SemanticIconographyTests`).
+- **Commits to date**: A+B+C+D (`ddcce10`), E (`db61d41`), F (`e569e7e`), G (`49b6c51`), H (`d9535a4`); Phase I to be committed in the same final pass.
+- **Architectural ledger length**: `.ai/decisions.md` ~430 lines — 8 dated subsections (MVP 1 + MVP 2 Phases B/E/F/G/H/I).
+
+### What's next
+
+Phase I closes MVP 2. The next milestone is MVP 3 — see the "What's deferred" sections in `README.md` and `.ai/handoff.md`. Notable MVP 3 candidates:
+- `pass git` integration (status / push / pull / conflicts).
+- System `UndoManager` integration.
+- Touch ID / LocalAuthentication unlock-before-reveal.
+- Menu-bar (status item) app surface.
+- FSEvents external-change detection.
+- App Sandbox + helper tool.
+- `ScrubbingString` secure-string buffer.
+- Snapshot tests.

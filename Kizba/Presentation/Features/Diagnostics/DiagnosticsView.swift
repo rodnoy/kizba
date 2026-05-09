@@ -44,15 +44,25 @@ public struct DiagnosticsView: View {
         }
         .task { await model.refresh() }
         .toolbar {
+            // Phase I.1 — `.help(...)` tooltips parity with the
+            // Entry list / detail toolbars. Diagnostics is reachable
+            // via ⌘⌥D from anywhere in the main window context;
+            // these per-button tooltips describe each affordance on
+            // hover. No keyboard shortcut on the toolbar itself
+            // because the Diagnostics window has its own focused
+            // toolbar context (no risk of collision with main-window
+            // bindings).
             ToolbarItem {
                 Button("Refresh") {
                     Task { await model.refresh() }
                 }
+                .help("Refresh invocation log")
             }
             ToolbarItem {
                 Button("Clear") {
                     Task { await model.clear() }
                 }
+                .help("Clear invocation log")
             }
         }
     }
