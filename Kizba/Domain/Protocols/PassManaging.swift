@@ -105,6 +105,43 @@ public protocol PassManaging: Sendable {
         force: Bool
     ) async throws -> PassSecret
 
+    /// Regenerate the password of an existing entry IN PLACE via
+    /// `pass generate [-n] --in-place <path> <length>`.
+    ///
+    /// Unlike ``generate(_:length:includeSymbols:force:)`` (which
+    /// composes a fresh body containing only the new password line
+    /// and overwrites the entry, dropping any existing metadata /
+    /// notes), the in-place variant rewrites only the password line
+    /// and preserves the metadata block atomically. This is the
+    /// "rotate the password" path consumed by the Detail toolbar
+    /// 🎲 button (Phase G.3).
+    ///
+    /// There is no `force` flag — `pass` requires the entry to
+    /// already exist. A missing entry surfaces as
+    /// ``PassError/sourceNotFound(path:)``.
+    ///
+    /// - Parameters:
+    ///   - entry: Target entry. Must already exist in the store.
+    ///   - length: Requested password length.
+    ///   - includeSymbols: When `false`, adds the `-n` flag so the
+    ///     symbols class is omitted.
+    /// - Returns: A ``PassSecret`` whose `password` is the freshly
+    ///   generated value. **Metadata fields are returned EMPTY** —
+    ///   the CLI does not surface the surviving metadata block,
+    ///   and re-reading via ``show(_:)`` would trigger a second
+    ///   pinentry prompt. Callers that need the post-rotation
+    ///   metadata MUST re-fetch via ``show(_:)`` (typically the
+    ///   detail view does this in response to the ``StoreChange``
+    ///   event emitted by this method).
+    /// - Throws: ``PassError/invalidLength`` when `length` is
+    ///   rejected; ``PassError/sourceNotFound(path:)`` when `entry`
+    ///   does not exist; other typed ``PassError`` cases as above.
+    func generateInPlace(
+        _ entry: PassEntry,
+        length: Int,
+        includeSymbols: Bool
+    ) async throws -> PassSecret
+
     /// Remove an entry via `pass rm -f <path>`. Always uses `-f` so
     /// `pass` does not prompt for confirmation; the UI is expected to
     /// render the two-step destructive confirmation BEFORE invoking

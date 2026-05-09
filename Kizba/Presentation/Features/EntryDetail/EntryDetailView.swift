@@ -71,9 +71,123 @@ struct EntryDetailView: View {
             }
         }
         .navigationTitle(state.selectedEntryID ?? "Detail")
+        .toolbar {
+            // Phase G.2 — `✎` Edit Entry. Enabled only when an entry
+            // is selected AND the detail model has loaded its body
+            // (no point opening an editor for an entry we couldn't
+            // decrypt). The button toggles `AppState.isEditEntry…`
+            // which the sheet host below consumes.
+            ToolbarItem {
+                Button {
+                    state.isEditEntrySheetPresented = true
+                } label: {
+                    Label("Edit Entry", systemImage: "pencil")
+                }
+                // Phase G.6 — disable when no editable selection OR
+                // when any write op is in flight (concurrent-write
+                // lockout).
+                .disabled(!canEditCurrentEntry || state.anyWriteInFlight)
+                .help("Edit Entry (⌘E)")
+            }
+            // Phase G.3 — 🎲 Regenerate Password. Same enable rule
+            // as Edit (selection + loaded body). Toggles
+            // `AppState.isRegenerateSheetPresented` which the sheet
+            // host below consumes.
+            ToolbarItem {
+                Button {
+                    state.isRegenerateSheetPresented = true
+                } label: {
+                    Label("Regenerate Password", systemImage: "dice")
+                }
+                // Phase G.6 — disable when no editable selection OR
+                // when any write op is in flight (concurrent-write
+                // lockout).
+                .disabled(!canEditCurrentEntry || state.anyWriteInFlight)
+                .help("Regenerate Password (⌘⌥G)")
+            }
+        }
+        .sheet(isPresented: $state.isRegenerateSheetPresented) {
+            // Build a fresh `RegenerateInPlaceModel` per presentation
+            // so the captured prior secret is released as soon as
+            // SwiftUI tears down the sheet. Constructed lazily inside
+            // the closure so a missing selection at sheet construction
+            // time is impossible — the toolbar/menu already gate the
+            // flag on a non-nil selection.
+            if let path = state.selectedEntryID {
+                InPlaceGenerateSheet(
+                    model: makeRegenerateInPlaceModel(path: path)
+                )
+            } else {
+                // Defensive fallback — should be unreachable because
+                // the toolbar/menu disable themselves without a
+                // selection. Render a minimal placeholder so the
+                // sheet is dismissable instead of empty.
+                Text("No entry selected.")
+                    .padding()
+            }
+        }
+        .sheet(isPresented: $state.isEditEntrySheetPresented) {
+            // Build a fresh `EntryFormModel` per presentation so the
+            // previous draft's cleartext is released as soon as
+            // SwiftUI tears down the sheet. Constructed lazily here
+            // (inside the closure) so a missing selection at sheet
+            // construction time is impossible — the toolbar/menu
+            // already gate `isEditEntrySheetPresented` on a
+            // non-nil selection.
+            if let path = state.selectedEntryID {
+                EditEntrySheet(
+                    model: makeEditEntryFormModel(originalPath: path),
+                    passwordGenerator: environment.passwordGenerator
+                )
+            } else {
+                // Defensive fallback — should be unreachable because
+                // the toolbar/menu disable themselves without a
+                // selection. Render a minimal placeholder so the
+                // sheet is dismissable instead of empty.
+                Text("No entry selected.")
+                    .padding()
+            }
+        }
         .onChange(of: state.selectedEntryID, initial: true) { _, newValue in
             model.handleSelectionChange(newValue)
         }
+    }
+
+    /// Whether the toolbar `✎` button is enabled for the current
+    /// selection. Requires both a non-nil selection and a
+    /// `.loaded(_)` detail model — opening an editor for an entry
+    /// we never decrypted would let the user overwrite real data
+    /// with whatever happened to be in an empty form.
+    private var canEditCurrentEntry: Bool {
+        guard state.selectedEntryID != nil else { return false }
+        if case .loaded = model.state { return true }
+        return false
+    }
+
+    /// Build a fresh `EntryFormModel` in `.edit(originalPath:)` mode
+    /// for each presentation of the sheet.
+    private func makeEditEntryFormModel(originalPath: String) -> EntryFormModel {
+        EntryFormModel(
+            mode: .edit(originalPath: originalPath),
+            passManager: environment.passManager,
+            toastCenter: state.toastCenter,
+            appState: state
+        )
+    }
+
+    /// Build a fresh `RegenerateInPlaceModel` for each presentation
+    /// of the in-place generate sheet (Phase G.3). The model captures
+    /// `actionHistory` and `toastCenter` from `AppState` so the
+    /// success toast's Undo action wires through the same in-session
+    /// undo coordinator the rest of Phase G consumes.
+    private func makeRegenerateInPlaceModel(path: String) -> RegenerateInPlaceModel {
+        RegenerateInPlaceModel(
+            entry: PassEntry(path: path),
+            passManager: environment.passManager,
+            actionHistory: state.actionHistory,
+            toastCenter: state.toastCenter,
+            appState: state
+        )
     }
 }
 

@@ -7,8 +7,12 @@ struct KizbaApp: App {
     @State private var state: AppState
 
     init() {
-        self.environment = AppEnvironment.live()
-        self._state = State(initialValue: AppState())
+        let env = AppEnvironment.live()
+        self.environment = env
+        // Phase G.1: `AppState` constructs an `ActionHistory` and
+        // therefore needs the real `PassManaging` so undo invokes the
+        // production CLI rather than a debug double.
+        self._state = State(initialValue: AppState(passManager: env.passManager))
     }
 
     var body: some Scene {
@@ -81,14 +85,15 @@ private struct DiagnosticsCommands: Commands {
 }
 
 /// Top-level "Entry" menu. Phase C.5 introduced the menu with all
-/// actions disabled; Phase F.3 enables "New Entry…" (⌘N) by
-/// flipping `AppState.isNewEntrySheetPresented` — `EntryListView`
-/// hosts the sheet via `.sheet(isPresented:)` and is therefore the
-/// single rendering site regardless of which surface (toolbar,
-/// menu, shortcut) triggered the present.
-///
-/// The remaining four items (Edit / Regenerate / Move / Delete)
-/// stay disabled — they belong to Phase G.
+/// actions disabled; Phase F.3 enables "New Entry…" (⌘N), Phase
+/// G.2 enables "Edit Entry…" (⌘E), Phase G.3 enables
+/// "Regenerate Password" (⌘⌥G), Phase G.4 enables
+/// "Move Entry…" (⌘⇧M), and Phase G.5 enables "Delete Entry"
+/// (⌫) — each one flips its corresponding
+/// `AppState.is*Sheet/ConfirmationPresented` flag and the matching
+/// view hosts the sheet / dialog at a single rendering site
+/// regardless of which surface (toolbar, menu, shortcut) triggered
+/// the present.
 ///
 /// `CommandMenu` (vs. `CommandGroup`) creates a brand-new top-level
 /// menu after the system menus (typically between "View" and
@@ -105,33 +110,46 @@ private struct EntryMenuCommands: Commands {
 
     var body: some Commands {
         CommandMenu("Entry") {
+            // Phase G.6 — every write-side menu item is also gated
+            // on `state.anyWriteInFlight`. The lockout matches the
+            // toolbar buttons: while ANY write op is running, all
+            // five write affordances disable so the user cannot
+            // trigger a concurrent write.
             Button("New Entry…") {
                 state.isNewEntrySheetPresented = true
             }
+            .disabled(state.anyWriteInFlight)
             .keyboardShortcut("n", modifiers: .command)
 
             Button("Edit Entry…") {
-                // TODO: Phase G — present `EditEntrySheet` for selection.
+                state.isEditEntrySheetPresented = true
             }
-            .disabled(true)
+            .disabled(state.selectedEntryID == nil || state.anyWriteInFlight)
             .keyboardShortcut("e", modifiers: .command)
 
             Button("Regenerate Password") {
-                // TODO: Phase G — present `InPlaceGenerateSheet` for selection.
+                state.isRegenerateSheetPresented = true
             }
-            .disabled(true)
+            .disabled(state.selectedEntryID == nil || state.anyWriteInFlight)
             .keyboardShortcut("g", modifiers: [.command, .option])
 
             Button("Move Entry…") {
-                // TODO: Phase G — present `MoveEntrySheet` for selection.
+                state.isMoveSheetPresented = true
             }
-            .disabled(true)
+            .disabled(state.selectedEntryID == nil || state.anyWriteInFlight)
             .keyboardShortcut("m", modifiers: [.command, .shift])
 
+            // Phase G.5 — flip the shared
+            // `isDeleteConfirmationPresented` flag; the actual
+            // destructive `confirmationDialog` is hosted by
+            // `EntryListView` via the C.1
+            // `destructiveConfirmation` modifier. Disabled without
+            // a selection so ⌫ is a no-op when the entry list has
+            // no active row.
             Button("Delete Entry") {
-                // TODO: Phase G — two-step destructive confirmation + Undo.
+                state.isDeleteConfirmationPresented = true
             }
-            .disabled(true)
+            .disabled(state.selectedEntryID == nil || state.anyWriteInFlight)
             .keyboardShortcut(.delete, modifiers: [])
         }
     }

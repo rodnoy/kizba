@@ -67,7 +67,49 @@ struct EntryListView: View {
                 } label: {
                     Label("New Entry", systemImage: "plus")
                 }
+                // Phase G.6 — lock out write affordances while any
+                // write op is in flight. The new-entry button has
+                // no other gate (it's always available otherwise).
+                .disabled(state.anyWriteInFlight)
                 .help("New Entry (⌘N)")
+            }
+            // Phase G.4 — ↔ Move Entry. Same enable rule as the
+            // detail-side actions: a non-nil selection is required
+            // because move targets the currently-selected entry.
+            // Toggles `AppState.isMoveSheetPresented` which the
+            // sheet host below consumes.
+            ToolbarItem {
+                Button {
+                    state.isMoveSheetPresented = true
+                } label: {
+                    Label("Move Entry", systemImage: "arrow.left.arrow.right")
+                }
+                // Phase G.6 — disable when no selection OR when any
+                // write op is in flight (concurrent-write lockout).
+                .disabled(state.selectedEntryID == nil || state.anyWriteInFlight)
+                .help("Move Entry (⌘⇧M)")
+            }
+            // Phase G.5 — 🗑 Delete Entry. Flips
+            // `AppState.isDeleteConfirmationPresented`; the
+            // `destructiveConfirmation` modifier hosted below
+            // renders the system two-step confirmation dialog. The
+            // model's `canDelete` folds in both the selection gate
+            // and the in-flight delete state so a re-entrant click
+            // is impossible.
+            ToolbarItem {
+                Button {
+                    state.isDeleteConfirmationPresented = true
+                } label: {
+                    Label("Delete Entry", systemImage: "trash")
+                }
+                // Phase G.6 — disable when `canDelete` is false OR
+                // when any write op is in flight (concurrent-write
+                // lockout). The active delete's own button stays
+                // disabled here too — that's intentional; the
+                // in-flight Task already runs and a second click
+                // would have nothing to do.
+                .disabled(model.canDelete == false || state.anyWriteInFlight)
+                .help("Delete Entry (⌫)")
             }
             ToolbarItem {
                 Button {
@@ -84,6 +126,42 @@ struct EntryListView: View {
                 model: makeNewEntryFormModel(),
                 passwordGenerator: environment.passwordGenerator
             )
+        }
+        .sheet(isPresented: $state.isMoveSheetPresented) {
+            // Build a fresh `MoveEntryModel` per presentation so the
+            // captured original-path is released as soon as SwiftUI
+            // tears down the sheet. Constructed lazily inside the
+            // closure so a missing selection at sheet construction
+            // time is impossible — the toolbar/menu already gate
+            // the flag on a non-nil selection.
+            if let path = state.selectedEntryID {
+                MoveEntrySheet(
+                    model: makeMoveEntryModel(path: path)
+                )
+            } else {
+                // Defensive fallback — should be unreachable because
+                // the toolbar/menu disable themselves without a
+                // selection. Render a minimal placeholder so the
+                // sheet is dismissable instead of empty.
+                Text("No entry selected.")
+                    .padding()
+            }
+        }
+        // Phase G.5 — destructive delete confirmation. The C.1
+        // modifier renders a system `confirmationDialog` with a
+        // destructive-role confirm button (the "two-step" flow:
+        // user clicks 🗑 / hits ⌫, then clicks Delete in the
+        // dialog). The Delete button schedules `deleteEntry(at:)`
+        // in a fresh Task so the @MainActor closure stays
+        // synchronous-looking to the modifier API.
+        .destructiveConfirmation(
+            isPresented: $state.isDeleteConfirmationPresented,
+            title: "Delete entry?",
+            message: deleteConfirmationMessage,
+            confirmLabel: "Delete"
+        ) {
+            guard let path = state.selectedEntryID else { return }
+            Task { await model.deleteEntry(at: path) }
         }
         .task {
             await model.refresh()
@@ -113,5 +191,29 @@ struct EntryListView: View {
             toastCenter: state.toastCenter,
             appState: state
         )
+    }
+
+    /// Build a fresh `MoveEntryModel` for each presentation of the
+    /// move sheet (Phase G.4). The model captures `actionHistory`
+    /// and `toastCenter` from `AppState` so the success toast's
+    /// Undo action wires through the same in-session undo
+    /// coordinator the rest of Phase G consumes.
+    private func makeMoveEntryModel(path: String) -> MoveEntryModel {
+        MoveEntryModel(
+            originalEntry: PassEntry(path: path),
+            passManager: environment.passManager,
+            actionHistory: state.actionHistory,
+            toastCenter: state.toastCenter,
+            appState: state
+        )
+    }
+
+    /// Body text for the destructive delete confirmation dialog
+    /// (Phase G.5). Names the entry path so the user can verify the
+    /// target before confirming, and surfaces the 10-second Undo
+    /// window so the destructive action does not feel terminal.
+    private var deleteConfirmationMessage: String {
+        let path = state.selectedEntryID ?? "the entry"
+        return "This will permanently delete \(path). You'll have 10 seconds to undo."
     }
 }

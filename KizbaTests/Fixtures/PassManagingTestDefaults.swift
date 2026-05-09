@@ -45,6 +45,15 @@ extension PassManaging {
         throw PassError.writeFailed(reason: "test-default generate not implemented")
     }
 
+    func generateInPlace(
+        _ entry: PassEntry,
+        length: Int,
+        includeSymbols: Bool
+    ) async throws -> PassSecret {
+        XCTFail("PassManaging test-default generateInPlace(_:length:includeSymbols:) called on \(type(of: self)) — wire a real implementation if this fake needs writes.")
+        throw PassError.writeFailed(reason: "test-default generateInPlace not implemented")
+    }
+
     func remove(_ entry: PassEntry) async throws {
         XCTFail("PassManaging test-default remove(_:) called on \(type(of: self)) — wire a real implementation if this fake needs writes.")
         throw PassError.writeFailed(reason: "test-default remove not implemented")

@@ -41,6 +41,21 @@ final class EntryListModel {
     /// `passManager.listEntries()` call. Empty until ``refresh()`` runs.
     private(set) var allEntries: [PassEntry]
 
+    /// Discrete delete-pipeline phase (Phase G.5). `idle` while no
+    /// delete is in flight; `deleting` while ``deleteEntry(at:)`` is
+    /// running. The view binds the toolbar 🗑 button's `.disabled`
+    /// to ``canDelete`` (which folds in this state + the selection
+    /// gate), and a re-entrant ``deleteEntry(at:)`` call early-
+    /// returns when the model is already `.deleting`.
+    enum DeletionState: Sendable, Equatable {
+        case idle
+        case deleting
+    }
+
+    /// Current delete-pipeline phase. Mutated only by
+    /// ``deleteEntry(at:)``.
+    private(set) var deletionState: DeletionState = .idle
+
     private let passManager: any PassManaging
     private let state: AppState
 
@@ -55,6 +70,16 @@ final class EntryListModel {
         self.passManager = environment.passManager
         self.state = state
         self.allEntries = []
+    }
+
+    /// `true` when the toolbar 🗑 / `Entry > Delete Entry` menu item
+    /// (⌫) should be enabled: a non-nil selection AND no in-flight
+    /// delete. Phase G.6 will broaden this to a centralised
+    /// `appState.anyWriteInFlight` lockout; for G.5 the delete
+    /// pipeline is the only write that funnels through this model.
+    var canDelete: Bool {
+        guard state.selectedEntryID != nil else { return false }
+        return deletionState == .idle
     }
 
     /// Filtered, sorted list driving the entry-list UI.
@@ -113,6 +138,183 @@ final class EntryListModel {
     /// in response to row taps / list selection changes.
     func select(entryID: PassEntry.ID?) {
         state.selectedEntryID = entryID
+    }
+
+    // MARK: - Delete (Phase G.5)
+
+    /// Delete the entry at `path` after the user has confirmed via
+    /// the C.1 ``destructiveConfirmation`` dialog. Captures the
+    /// current secret BEFORE removing it so an ``ActionHistory``
+    /// undo can restore the body verbatim, then calls
+    /// ``PassManaging/remove(_:)`` (which uses `pass rm -f` under
+    /// the hood — the UI's two-step confirmation is the only
+    /// confirmation gate).
+    ///
+    /// Re-entrancy: if ``deletionState == .deleting`` (a prior
+    /// delete is still in flight) the call early-returns. Callers
+    /// (toolbar / menu) should also gate on ``canDelete``.
+    ///
+    /// Failure modes:
+    /// - ``show(_:)`` throws → refuse to delete; the body cannot be
+    ///   captured for undo, so deleting it would be irrecoverable.
+    ///   Posts a `.danger` toast and leaves ``deletionState ==
+    ///   .idle``.
+    /// - ``remove(_:)`` throws → posts a `.danger` toast carrying
+    ///   the user-facing error message; the store is unchanged
+    ///   (the manager throws BEFORE deleting).
+    ///
+    /// On success:
+    /// - Clears `appState.selectedEntryID` if it was equal to
+    ///   `path` (defensive selection follow-up; Phase H will
+    ///   centralise this via `.removed` events).
+    /// - Records ``UndoableAction/delete(path:secret:)`` in the
+    ///   shared `ActionHistory` with the standard 10-second window.
+    /// - Posts a `.success` toast carrying an "Undo" action that
+    ///   calls ``ActionHistory/undoLast()``. Per
+    ///   `.ai/decisions.md`, the toast carries only the entry path
+    ///   — never secret material.
+    func deleteEntry(at path: String) async {
+        // Re-entrancy guard. The toolbar / menu also gate on
+        // `canDelete`, so this is the second line of defence.
+        guard deletionState == .idle else { return }
+
+        deletionState = .deleting
+        // Phase G.6 — mark the delete op as in flight so the
+        // toolbars / menu items disable other write surfaces. The
+        // op is released on every exit branch below (early returns
+        // on `show` / `remove` failure, success) via the `defer`
+        // block.
+        state.beginWrite(.delete)
+        defer { state.endWrite(.delete) }
+        let entry = PassEntry(path: path)
+
+        // Capture the secret for undo BEFORE removing the entry.
+        // If `show` fails (decryption error, missing fixture, etc.)
+        // we refuse to delete: an irrecoverable destructive op is
+        // not what the user signed up for.
+        let secret: PassSecret
+        do {
+            secret = try await passManager.show(entry)
+        } catch {
+            deletionState = .idle
+            state.toastCenter.post(
+                Toast(
+                    severity: .danger,
+                    title: "Delete failed",
+                    message: "Could not load secret for undo at \(path)."
+                )
+            )
+            return
+        }
+
+        // Remove the entry. On failure the store is unchanged —
+        // surface a danger toast and exit.
+        do {
+            try await passManager.remove(entry)
+        } catch let passError as PassError {
+            deletionState = .idle
+            state.toastCenter.post(
+                Toast(
+                    severity: .danger,
+                    title: "Delete failed",
+                    message: Self.userFacingMessage(for: passError)
+                )
+            )
+            return
+        } catch {
+            // Defensive — `PassManaging` is contractually typed-throw
+            // `PassError`, but we wrap the generic case in case the
+            // contract ever loosens.
+            deletionState = .idle
+            state.toastCenter.post(
+                Toast(
+                    severity: .danger,
+                    title: "Delete failed",
+                    message: "Unexpected error while deleting \(path)."
+                )
+            )
+            return
+        }
+
+        // Defensive selection follow-up. Phase H will centralise
+        // this via the `.removed` event; for G.5 the imperative
+        // path mirrors G.4 (selection follows move).
+        if state.selectedEntryID == path {
+            state.selectedEntryID = nil
+        }
+
+        // Record the inverse FIRST so the toast's Undo action has
+        // something to consume, THEN post the toast.
+        state.actionHistory.record(
+            .delete(path: path, secret: secret),
+            expiresAfter: .seconds(10)
+        )
+
+        // Capture the action history reference into a local so the
+        // closure does not need to capture `self` — keeps the
+        // Sendable check on `BannerAction` clean and avoids retain
+        // cycles via the model.
+        let history = state.actionHistory
+        let undoAction = BannerView.BannerAction(label: "Undo") {
+            // Fire-and-forget. `ActionHistory.undoLast()` clears
+            // `pending` even on failure (per its contract), so the
+            // user can move on. A future polish pass could surface
+            // the failure as a fresh error toast.
+            Task { try? await history.undoLast() }
+        }
+
+        state.toastCenter.post(
+            Toast(
+                severity: .success,
+                title: "Entry deleted",
+                // Per `.ai/decisions.md`, toasts NEVER carry secret
+                // material — only the entry path is permitted.
+                message: path,
+                action: undoAction
+            )
+        )
+
+        deletionState = .idle
+    }
+
+    /// Short, user-facing message for a `PassError` surfaced through
+    /// the delete-failure toast. The CLI/stderr excerpt is
+    /// deliberately omitted — toasts must not carry secret material
+    /// and the Diagnostics view is the right place for raw output.
+    private static func userFacingMessage(for error: PassError) -> String {
+        switch error {
+        case .sourceNotFound(let path):
+            return "The entry \(path) is no longer in the store."
+        case .recipientNotFound(let id):
+            return "GPG cannot find a public key for \(id)."
+        case .invalidGpgId:
+            return "The store's GPG recipients are not configured."
+        case .entryAlreadyExists(let path):
+            return "An entry already exists at \(path)."
+        case .invalidLength:
+            return "The requested length was rejected."
+        case .writeFailed(let reason):
+            if let reason, !reason.isEmpty {
+                return "Delete failed: \(reason)."
+            }
+            return "Delete failed."
+        case .timedOut:
+            return "The operation timed out."
+        case .shellFailure(let exitCode, _):
+            return "pass exited with code \(exitCode)."
+        case .decryptionFailed:
+            return "Decryption failed."
+        case .parsingFailed(let reason):
+            return "Could not parse pass output: \(reason)"
+        case .storeNotFound(let path):
+            return "Password store not found at \(path)."
+        case .binaryNotFound(let name):
+            return "Required binary \(name) was not found."
+        case .pinentryNotConfigured:
+            return "pinentry is not configured."
+        case .cancelled:
+            return "Cancelled."
+        }
     }
 
     // MARK: - StoreChange subscription (Phase F.5)

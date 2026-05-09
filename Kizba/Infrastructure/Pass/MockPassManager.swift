@@ -139,6 +139,45 @@ public actor MockPassManager: PassManaging {
         return secret
     }
 
+    public func generateInPlace(
+        _ entry: PassEntry,
+        length: Int,
+        includeSymbols: Bool
+    ) async throws -> PassSecret {
+        // The in-place variant requires the entry to already exist.
+        // A missing entry mirrors the production CLI's "is not in the
+        // password store" stderr → ``PassError/sourceNotFound(path:)``
+        // mapping (see `PassErrorMapper`, command context `.generate`).
+        guard let existing = secrets[entry.path] else {
+            throw PassError.sourceNotFound(path: entry.path)
+        }
+
+        // Deterministic, recognisable shape — identical scheme to
+        // ``generate(_:length:includeSymbols:force:)`` so test
+        // assertions can pin both paths the same way. The metadata
+        // block from the prior secret is preserved verbatim, mirroring
+        // `pass generate --in-place`'s atomic metadata-preserving
+        // behaviour.
+        let fakePassword = "GEN_INPLACE_\(length)_\(includeSymbols ? "sym" : "nosym")"
+        let updated: PassSecret = await MainActor.run {
+            PassSecret(password: fakePassword, metadata: existing.metadata)
+        }
+
+        secrets[entry.path] = updated
+        emit(.updated(path: entry.path))
+
+        // Return the SAME shape as the live manager: new password +
+        // empty metadata (callers re-fetch via ``show(_:)`` if they
+        // need the surviving block; tests can also peek at the
+        // mutated `secrets` dict directly).
+        return await MainActor.run {
+            PassSecret(
+                password: fakePassword,
+                metadata: PassMetadata(fields: [], notes: nil)
+            )
+        }
+    }
+
     public func remove(_ entry: PassEntry) async throws {
         guard secrets[entry.path] != nil else {
             throw PassError.sourceNotFound(path: entry.path)

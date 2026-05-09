@@ -2,77 +2,84 @@
 
 ## Current state
 
-**MVP 2 Phase F — COMPLETE.** First user-visible write feature: New Entry creation end-to-end. Toast plumbing, form model, sheet UI, password-generator sub-sheet, and entry-list auto-refresh all wired and tested.
+**MVP 2 Phase G — COMPLETE.** All write operations end-to-end: edit, in-place regenerate, move/rename, delete. Single-step in-session Undo (~10s window) for delete / move / in-place generate. Toolbar lockout while any write is in flight.
 
-Test suite: 583 tests, 8 skipped, 0 failures (default — `KIZBA_E2E` off). With `KIZBA_E2E=1`: 583 / 0 / 0 (locally with `pass` + `gpg`). Release build green. All grep bans clean.
+Test suite: 660 tests, 8 skipped, 0 failures (default — `KIZBA_E2E` off). Release build green. All grep bans clean.
 
-MVP 1 (read-only) shipped. MVP 2 phases A (tech debt + Diagnostics menu), B (DS foundation), C (DS components + view migration + grep bans), D (pure model layer for writes), E (write infrastructure: stdin, PassCLI writes, LivePassManager + AsyncStream, opt-in E2E) all closed and committed (`ddcce10` + `db61d41`). Phase F is uncommitted.
+Committed phases: A+B+C+D (`ddcce10`), E (`db61d41`), F (`e569e7e`). Phase G uncommitted.
 
-## Phase F summary (closed)
+## Phase G summary (closed)
 
-- **F.1 — `ToastCenter` + `ToastOverlay` mounted at root** (552 tests, +14 from Phase E's 538). `Toast` value type moved to its own `Kizba/Presentation/Toast/Toast.swift`. `ToastCenter` is `@Observable @MainActor final class` owned by `AppState`. Dedup window 1s on `(severity, title, message)`. Default durations 4s / 10s actionable. At-most-one visible (pre-emption). VoiceOver announcement on appear. `ToastOverlay` mounted once at `RootSplitView` bottom-trailing.
-- **F.2 — `EntryFormModel` (.create) + tests** (566 tests, +14). `@Observable @MainActor`; mode `.create` (today) and `.edit(originalPath:)` (deferred to G.2). State `idle | loadingExisting | editing | saving | saved(path:) | failed(PassError)`. Generation-counter for cancellation safety. Validation via `EntryPathValidator` + `MetadataValidator` + non-empty password (gates `canSave`). `save()` cancels prior, spawns task, on success sets `appState.selectedEntryID` imperatively + posts success toast + resets `forceOverwrite`. On `entryAlreadyExists` → `.failed` + NO toast (form's inline banner). On other errors → `.failed` + error toast. `cancel()` and `handleDismissal()` for in-flight task and draft cleanup.
-- **F.3 — `NewEntrySheet` view + ⌘N + toolbar `+`** (566 tests, view-only). `FormSection × 4` (Path, Password, Metadata, Notes) + `KizbaButtonStyle` Save/Cancel + inline `BannerView(.warning)` for collision with "Overwrite" action. `KeyValueEditor.Pair ↔ MetadataPair` bridging via proxy Binding. `isNewEntrySheetPresented` on `AppState` so toolbar `+` AND `Entry → New Entry…` menu both trigger. ⌘N via `EntryMenuCommands`. All inline styling banned — clean.
-- **F.4 — `GeneratePasswordSheet` sub-sheet** (576 tests, +10). `PasswordGenerating` injected via `AppEnvironment.passwordGenerator`. `GeneratePasswordModel` (separate from EntryFormModel, sub-sheet-bounded): `length: 25`, `includeSymbols: true`, bounds `8...128`. Live preview via `regenerate()`; `.onChange` triggers re-roll. "Use this password" applies via `onApply` callback (no direct mutation of parent draft).
-- **F.5 — Selection reconciliation + auto-refresh on insert** (583 tests, +7). `EntryListModel.observeChanges()` subscribes to `passManager.changes`; ANY `StoreChange` triggers `refresh()`. Per-event reconciliation rules deferred to Phase H. Started via view's `.task { ... }`. Race-aware tests use a `startObservation` helper (5× `Task.yield()` + 20ms sleep) to deal with `MockPassManager`'s actor-detached continuation registration. End-to-end test verifies form → manager → stream → list refresh + selection set + toast.
+- **G.1 — `ActionHistory` (in-session undo, ~10s)** (601 tests, +18). New `UndoableAction` enum (Sendable; not Codable / not CustomStringConvertible) — same security posture as `PassSecret`. `ActionHistory` `@Observable @MainActor` owned by `AppState`. `record/undoLast/clear` API. 10s default expiry; failed undo also clears pending. `AppState.init` now takes `passManager: any PassManaging`; DEBUG-only convenience `init()` keeps existing tests untouched.
+- **G.2 — `EntryFormModel(.edit)` + `EditEntrySheet` + ⌘E + toolbar `✎`** (612 tests, +11). `.edit(originalPath:)` mode loads via `passManager.show`, populates `draft` via `SecretDraft(from:)`. `save()` always uses `force: true` against the original path. Success toast "Changes saved"; selection NOT mutated (user already on the entry). `canEditPath` computed prop disables path field in edit mode. EditEntrySheet copy-and-adapted from NewEntrySheet (no collision banner; adds loading skeleton + load-failure body).
+- **G.3 — `InPlaceGenerateSheet` + `RegenerateInPlaceModel` + ⌘⌥G + toolbar 🎲** (621 tests, +9). `PassManaging` extended with `generateInPlace(_:length:includeSymbols:)` (the existing `generate` is commit-new and clobbers metadata; `generateInPlace` maps to `pass generate --in-place` for atomic password rotation). Pre-`show` captures prior secret; CLI runs; `actionHistory.record(.inPlaceGenerate(path:previousSecret:))` + undoable toast. No client-side preview (unlike F.4 — the CLI's output IS the password).
+- **G.4 — `MoveEntryModel` + `MoveEntrySheet` + ⌘⇧M + toolbar `↔`** (635 tests, +14). Compact sheet with `FolderPathPicker`; `pathError` includes "same path" rule on top of `EntryPathValidator`. On success: `appState.selectedEntryID` follows the moved entry; `.move(from:to:)` recorded for undo; success toast "Entry moved · Now at \<path>". Collision banner with "Replace" → `forceMove = true; save()`.
+- **G.5 — Delete + two-step destructive confirmation + ⌫ + toolbar 🗑** (645 tests, +10). No new sheet — uses C.1's `destructiveConfirmation` modifier. `EntryListModel.deleteEntry(at:)` runs pre-`show` to capture secret (refuses to delete what it can't restore), then `passManager.remove`. On success: clear selection if it was on this path; `.delete(path:secret:)` recorded; undoable toast "Entry deleted". Re-entrancy guard via `deletionState == .idle`.
+- **G.6 — Toolbar lockout when any model is `.saving`** (660 tests, +15). `ActiveWriteOp` enum (`.insertNew/.edit/.regenerate/.move/.delete`) + `AppState.activeWriteOps: Set` + `anyWriteInFlight: Bool` + `beginWrite/endWrite`. Every write model wires begin/end around its in-flight state (cancel/dismissal release synchronously; in-flight task uses cancelled flag to skip double-release). All 5 write toolbar buttons + 5 menu items add `anyWriteInFlight` to their disable conditions. Read-side buttons unaffected.
 
-Phase F net: +45 tests across 5 sub-steps.
+Phase G net: +77 tests across 6 sub-steps.
 
-## Files added in Phase F
+## Files added in Phase G
 
 Production:
-- `Kizba/Presentation/Toast/Toast.swift` (new — moved from `ToastOverlay.swift`).
-- `Kizba/Presentation/Toast/ToastCenter.swift` (new).
-- `Kizba/Presentation/Features/EntryForm/EntryFormModel.swift` (new).
-- `Kizba/Presentation/Features/EntryForm/NewEntrySheet.swift` (new).
-- `Kizba/Presentation/Features/EntryForm/GeneratePasswordModel.swift` (new).
-- `Kizba/Presentation/Features/EntryForm/GeneratePasswordSheet.swift` (new).
-- `Kizba/Presentation/Features/EntryList/EntryListModel.swift` (modified — `observeChanges`, `stop`).
-- `Kizba/Presentation/Features/EntryList/EntryListView.swift` (modified — toolbar `+`, sheet host, observe-changes `.task`).
-- `Kizba/Presentation/Root/RootSplitView.swift` (modified — `ToastOverlay` overlay).
-- `Kizba/App/AppState.swift` (modified — `toastCenter`, `isNewEntrySheetPresented`).
-- `Kizba/App/AppEnvironment.swift` (modified — `passwordGenerator` parameter).
-- `Kizba/App/KizbaApp.swift` (modified — `Entry > New Entry…` enabled, ⌘N).
-- `Kizba/Presentation/DesignSystem/Components/ToastOverlay.swift` (modified — seed `Toast` removed; `accessibilityNotification` on appear).
+- `Kizba/Domain/Models/UndoableAction.swift` (new — G.1).
+- `Kizba/Presentation/Undo/ActionHistory.swift` (new — G.1).
+- `Kizba/Presentation/Features/EntryForm/EditEntrySheet.swift` (new — G.2).
+- `Kizba/Presentation/Features/EntryDetail/RegenerateInPlaceModel.swift` (new — G.3).
+- `Kizba/Presentation/Features/EntryDetail/InPlaceGenerateSheet.swift` (new — G.3).
+- `Kizba/Presentation/Features/EntryMove/MoveEntryModel.swift` (new — G.4).
+- `Kizba/Presentation/Features/EntryMove/MoveEntrySheet.swift` (new — G.4).
+- `Kizba/App/AppState.swift` (modified throughout phases — passManager, ActionHistory, isEditEntrySheetPresented, isRegenerateSheetPresented, isMoveSheetPresented, isDeleteConfirmationPresented, ActiveWriteOp, activeWriteOps, anyWriteInFlight, beginWrite/endWrite).
+- `Kizba/App/KizbaApp.swift` (modified — Entry menu items enabled + lockout).
+- `Kizba/Domain/Protocols/PassManaging.swift` (modified — `generateInPlace` added).
+- `Kizba/Infrastructure/Pass/LivePassManager.swift` (modified — `generateInPlace` impl + `.updated` event).
+- `Kizba/Infrastructure/Pass/MockPassManager.swift` (modified — `generateInPlace` preserves metadata for undo testing).
+- `Kizba/App/AppEnvironment.swift` (modified — `UnavailablePassManager.generateInPlace`).
+- `Kizba/Presentation/Features/EntryForm/EntryFormModel.swift` (modified throughout — `.edit` mode + lockout wiring).
+- `Kizba/Presentation/Features/EntryList/EntryListView.swift` (modified — toolbar `↔` + 🗑, sheets, destructive confirmation, lockout).
+- `Kizba/Presentation/Features/EntryList/EntryListModel.swift` (modified — `deleteEntry`, `deletionState`, `canDelete`, lockout).
+- `Kizba/Presentation/Features/EntryDetail/EntryDetailView.swift` (modified — toolbar `✎` + 🎲, sheets, lockout).
 
 Tests:
-- `KizbaTests/ToastCenterTests.swift` (new — 14 methods).
-- `KizbaTests/EntryFormModelCreateTests.swift` (new — 14 methods, includes a private `ScriptedFailingPassManager` actor for non-recoverable error scenarios).
-- `KizbaTests/GeneratePasswordModelTests.swift` (new — 10 methods).
-- `KizbaTests/EntryListReconciliationTests.swift` (new — 7 methods, includes `waitUntil` and `startObservation` helpers).
-- `KizbaTests/EntryDetailModelTests.swift`, `EntryDetailModelCopyTests.swift`, `EntryDetailModelRefinementTests.swift`, `EntryListModelRefreshTests.swift`, `ErrorPresentationIntegrationTests.swift` (modified — pass `passwordGenerator` parameter to `AppEnvironment` constructions).
+- `KizbaTests/UndoableActionTests.swift` (new — 6 methods).
+- `KizbaTests/ActionHistoryTests.swift` (new — 12 methods).
+- `KizbaTests/EntryFormModelEditTests.swift` (new — 11 methods).
+- `KizbaTests/RegenerateInPlaceModelTests.swift` (new — 9 methods).
+- `KizbaTests/MoveEntryModelTests.swift` (new — 14 methods).
+- `KizbaTests/EntryListDeleteTests.swift` (new — 10 methods).
+- `KizbaTests/ConcurrentWriteLockoutTests.swift` (new — 15 methods).
+- `KizbaTests/Fixtures/PassManagingTestDefaults.swift` (modified — `generateInPlace` default XCTFail).
 
 ## Next step
 
-**Phase G — Edit / In-place Generate / Move / Delete + Undo (`ActionHistory`)**.
+**Phase H — State reconciliation & cache invariants.** Centralize the per-event reconciliation rules. Currently F.5 wires "ANY change → re-list" + each write model imperatively sets selection. Phase H makes this systematic:
 
-1. G.1 `ActionHistory` (in-session undo, ~10s window) — new `@Observable @MainActor` actor-like class. Records last destructive op + reverse function; toast Undo button calls into it.
-2. G.2 `EntryFormModel(.edit)` mode + `EditEntrySheet` view. Pre-fetches via `pass.show`; save is `force: true` against `originalPath` (path field disabled). Toolbar `✎` button + ⌘E.
-3. G.3 `InPlaceGenerateSheet` (Detail toolbar `🎲`, ⌘⌥G). Length + symbols + Regenerate via `pass.generateInPlace`. Records to `ActionHistory` (re-insert the prior secret) + posts undoable toast (10s).
-4. G.4 `MoveEntrySheet` + `MoveEntryModel` (⌘⇧M). Path picker, collision banner with "Replace" → `forceMove = true`. On success records to `ActionHistory` (move back) + undoable toast.
-5. G.5 Delete (⌫) — `destructiveConfirmation` (two-step). `EntryListModel.delete(path:)` does pre-`show` for undo body, then `pass.remove`. On success records to `ActionHistory` (re-insert via `pass.insert(force: true)`) + undoable toast.
-6. G.6 Toolbar lockout when any model is `.saving`.
+1. H.1 Centralize `StoreChange` consumer in `EntryListModel`:
+   - `.inserted(path:)` from create → `appState.selectedEntryID = path` (preference-gated, default on).
+   - `.inserted(path:)` from edit → no change (still on same entry).
+   - `.updated(path:)` (in-place generate) → no change.
+   - `.moved(from:to:)` → if selected was `from`, follow to `to`.
+   - `.removed(path:)` → if selected was removed, clear selection.
+   - `.bulk` → re-list, preserve selection if surviving.
+   `EntryDetailModel` re-fetches on `.updated(currentPath)`; clears on `.removed(currentPath)`.
+2. H.2 `EntryListReconciliationTests` + `EntryDetailReconciliationTests` cover all selection rules.
+3. H.3 `ConcurrentWriteLockoutTests` already exists from G.6. Verify the centralized model doesn't regress lockout invariants.
 
-DoD for Phase G: edit + in-place generate + move + delete work end-to-end; Undo restores prior state within 10s for delete/move/in-place-generate; toolbar lockout verified; suite green.
+DoD for Phase H: all 5 write outcomes have deterministic selection behavior covered by tests; detail auto-refreshes on update; full suite green.
 
 ## Verification commands
 
 ```sh
-# Full suite (must stay green throughout MVP 2)
 xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
 
-# Opt-in E2E (requires local pass + gpg)
 TEST_RUNNER_KIZBA_E2E=1 xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
   -only-testing:KizbaTests/PassWriteIntegrationTests
 
-# Release sanity (every phase)
 xcodebuild -scheme Kizba -project Kizba.xcodeproj -configuration Release -destination 'platform=macOS' build
 
-# All grep bans (must stay green)
 xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
   -only-testing:KizbaTests/SourceGrepTests
 
-# Repo-wide hygiene
 rg -n '\bas!\b' Kizba
 rg -n 'showSettingsWindow' Kizba
 find . -name .DS_Store -not -path '*/.git/*'
@@ -81,17 +88,19 @@ rg -n 'Logger.*stdin|print\(.*stdin' Kizba
 
 ## Open follow-ups (non-blocking)
 
-- Untracked `.ai/decisions.md`, `.ai/handoff.md` updates from this Phase F sweep — should be `git add`ed when committing.
-- `MockPassManager` actor-detached continuation registration race: production-safe but test-flaky without a `startObservation` helper. Consider promoting the helper to `KizbaTests/Fixtures/` if Phase G/H tests need it too.
-- `ToastCenter` clock injection deferred — real-clock waits in tests work but make tests slower (~1.2s per dedup-expiry case). Consider `init(clock: any Clock<Duration>)` for Phase H if test runtime grows.
-- The `Toast` seed type still ships from `Kizba/Presentation/Toast/Toast.swift`. Phase G's undoable toasts will EXTEND it (toasts may need richer action types — verify whether the existing `BannerView.BannerAction` shape is sufficient or needs an `ActionHistoryRef` wrapper).
+- Untracked `.ai/decisions.md` and `.ai/handoff.md` updates from this Phase G sweep — should be `git add`ed when committing.
+- `EntryFormModel` is shared between `.create` and `.edit` modes via a single class. The duplicated `EditEntrySheet` ↔ `NewEntrySheet` view layer is pragmatic; extract a shared `EntryFormBody` if maintenance pain grows.
+- `AppState` has accumulated 4 `is*Presented: Bool` flags (NewEntry / EditEntry / Regenerate / Move) + `isDeleteConfirmationPresented`. Consider grouping into a `var presentedSheet: PresentedSheet?` enum if drift continues.
+- `RegenerateInPlaceModel` returns a `PassSecret` with EMPTY metadata from `generateInPlace` (by design — avoids second pinentry). Phase H.1's `.updated`-event re-fetch via `EntryDetailModel.show` will naturally repopulate metadata in the detail view.
+- `ActiveWriteOp` is `Set<>` rather than `Optional<>`; nothing currently runs two writes concurrently from the UI, but the typed enum is future-proof for batch ops.
+- The Phase F.5 race-aware `startObservation` test helper is duplicated across files; consider promoting to `Fixtures/`.
 
 ## Constraints (must hold throughout MVP 2)
 
 - Zero third-party Swift Packages.
 - No QtPass / GPL pass-client source consulted.
 - No secret content in logs (stdin / stdout / clipboard value / metadata values / notes).
-- `PassSecret`, `MetadataPair`, `SecretDraft` not Codable, not CustomStringConvertible/DebugStringConvertible.
+- `PassSecret`, `MetadataPair`, `SecretDraft`, `UndoableAction` not Codable, not CustomStringConvertible/DebugStringConvertible.
 - All chat with user in Russian; all code/comments/docs/commits in English.
 - Inline styling banned in `Kizba/Presentation/**` outside `DesignSystem/` (Phase C.6 grep tests enforce).
 - Repo-wide `as!` and `Logger/print`-stdin banned (Phase C.6 grep tests enforce).

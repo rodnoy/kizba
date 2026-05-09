@@ -296,3 +296,58 @@ All cells exceed thresholds with margin. Body AAA, action-fill AA, and color-ide
 
 - **583 tests total**; 8 skipped (1 D.3 known limitation + 7 PassWriteIntegrationTests when `KIZBA_E2E` off); 0 failures.
 - Phase F net delta: +45 tests (566 from end of E + 14 ToastCenter + 14 EntryFormModelCreate + 0 NewEntrySheet (view) + 10 GeneratePasswordModel + 7 EntryListReconciliation = exactly +45).
+
+## 2026-05-09 — MVP 2 Phase G (resolution)
+
+### `ActionHistory` — single-step in-session undo
+
+- **`UndoableAction` enum** in `Kizba/Domain/Models/UndoableAction.swift`: `.delete(path:secret:)`, `.move(from:to:)`, `.inPlaceGenerate(path:previousSecret:)`. `Sendable` only — NOT Codable / NOT CustomStringConvertible/Debug / NOT Equatable. Mirrors `PassSecret`'s security non-conformances.
+- **`ActionHistory`**: `@Observable @MainActor final class` owned by `AppState` (NOT a global singleton). Holds at most ONE pending action. Default expiry 10s via `Task.sleep`; expired action silently dropped. `record(_:expiresAfter:)` cancels prior expiry task; `undoLast()` clears `pending` BEFORE awaiting the inverse so a duplicate Undo press is no-op; failed undo also clears (documented). System `UndoManager` integration deferred to MVP 3.
+- **`AppState.init` signature change**: now takes `passManager: any PassManaging` (designated init) for `ActionHistory(passManager:)`. A DEBUG-only convenience `init()` constructs a `MockPassManager()` so existing tests don't need updates. Production `KizbaApp.init` passes `env.passManager`.
+
+### `EntryFormModel.edit` mode
+
+- **Init `mode == .edit(originalPath:)`**: state starts at `.loadingExisting`, immediately spawns a load task that calls `passManager.show(entry)`. Generation-counter pattern guards against late completions. On success: state `.editing`, `draft` populated via `SecretDraft(from: secret)`. On failure: `.failed(error)` + danger toast "Could not load entry".
+- **`save()` in edit mode**: ALWAYS calls `passManager.insert(entry: PassEntry(originalPath), secret: draft.snapshot(), force: true)`. `forceOverwrite` flag is ignored. On success: state `.saved(originalPath)`, success toast "Changes saved" with message=path, **`appState.selectedEntryID` is NOT mutated** (user is already on this entry).
+- **`canEditPath`**: computed bool (`true` for `.create`, `false` for `.edit`). View renders the path field as disabled in edit mode.
+- **`canSave` in edit mode**: also blocks while `state == .loadingExisting`.
+- **`EditEntrySheet`**: copy-and-adapt from `NewEntrySheet` (drops collision banner; adds loading skeleton; routes load-failure to a separate body via a `hasLoaded` heuristic). Pragmatic duplication; extract a shared `EntryFormBody` view if it grows painful.
+
+### In-place regenerate password — `PassManaging.generateInPlace(...)` extension
+
+- **`PassManaging` extended** with `func generateInPlace(_ entry: PassEntry, length: Int, includeSymbols: Bool) async throws -> PassSecret`. The existing `generate(...)` was a commit-new path (`pass generate [-f] [-n]`) that overwrites with EMPTY metadata — incompatible with G.3's "preserve metadata" contract. `generateInPlace` maps to `pass generate --in-place` (atomic).
+- **Returned `PassSecret` has empty metadata** by design (avoids a second pinentry within the same user gesture). Consumers re-fetch via `show` once the `.updated` event arrives. Documented in the protocol's doc comment. `MockPassManager` STILL preserves metadata internally (so undo can verify), but the returned value's metadata is deliberately empty for production parity.
+- **`RegenerateInPlaceModel`**: `@Observable @MainActor` sub-sheet model. State `idle | running | succeeded(newPassword:) | failed(PassError)`. `regenerate()`:
+  1. Pre-`show` to capture prior secret. On failure → `.failed` + danger toast; no ActionHistory record.
+  2. `passManager.generateInPlace(...)`. On failure → `.failed` + danger toast; no ActionHistory record.
+  3. `actionHistory.record(.inPlaceGenerate(path:previousSecret:), expiresAfter: .seconds(10))`.
+  4. State `.succeeded(newPassword:)` + success toast "Password regenerated" with Undo action.
+- **No password preview**: unlike F.4's `GeneratePasswordSheet` (which uses `LivePasswordGenerator` for client-side preview before commit), in-place regenerate has no preview — the password committed by the CLI is THE password. Single-button "Regenerate" + warning banner upfront.
+
+### Move / rename — `MoveEntryModel`
+
+- **`MoveEntryModel`**: `@Observable @MainActor`. State `idle | saving | saved(newPath:) | failed(PassError)`. `forceMove: Bool` for collision retry. `pathError` includes a "same path" rule on top of `EntryPathValidator`. Generation-counter for cancellation safety.
+- **`save()`**: calls `passManager.move(from: originalEntry, to: newPath, force: forceMove)`. On success: `appState.selectedEntryID = newEntry.path` (selection follows the moved entry); `actionHistory.record(.move(from:to:))` + undoable success toast "Entry moved · Now at <path>".
+- **`MoveEntrySheet`**: compact (single field + buttons + banners). Hosted in `EntryListView` (move is a list-column action per `.ai/plan.md`). Toolbar `↔` (SF Symbol `arrow.left.arrow.right`); ⌘⇧M shortcut.
+
+### Delete — `EntryListModel.deleteEntry(at:)` + two-step confirmation
+
+- **No new sheet**: delete uses `destructiveConfirmation(...)` from `Kizba/Presentation/DesignSystem/Modifiers/` (Phase C.1). The two-step nature comes from the dialog itself appearing — user clicks 🗑 → confirms in the destructive-role dialog (`.confirmationDialog`) → action runs.
+- **`EntryListModel.deleteEntry(at:)`**:
+  1. Re-entrancy guard via `deletionState == .idle`.
+  2. **Pre-`show`** to capture the secret for undo. If show fails → state idle, danger toast "Could not load secret for undo at \<path>". We REFUSE to delete what we can't restore.
+  3. `passManager.remove(entry)`. On failure → danger toast.
+  4. On success: clear `appState.selectedEntryID` if it was equal to deleted path; `actionHistory.record(.delete(path:secret:))`; success toast "Entry deleted" with Undo.
+- **`isDeleteConfirmationPresented`** lives on `AppState`. Toolbar 🗑 (SF Symbol `trash`) and `Entry > Delete Entry` (⌫) both toggle it. Confirmation dialog hosted in `EntryListView`.
+
+### Toolbar lockout — `ActiveWriteOp` set on `AppState`
+
+- **`ActiveWriteOp` enum** (`Sendable, Hashable`): `.insertNew`, `.edit`, `.regenerate`, `.move`, `.delete`.
+- **`AppState.activeWriteOps: Set<ActiveWriteOp>`** + `var anyWriteInFlight: Bool` + `func beginWrite(_:)` / `endWrite(_:)` (both idempotent via `Set` semantics).
+- **Per-model wiring**: each write model calls `beginWrite(op)` before transitioning to `.saving/.deleting/.running` and `endWrite(op)` on completion (success, failure, cancel, dismissal). Cancel/dismissal release the lockout SYNCHRONOUSLY (so the user can immediately start a new op); the in-flight Task uses a `cancelled` flag to skip its own `endWrite` and avoid double-release.
+- **Toolbar/menu disable conditions** updated for all 5 write actions: every write toolbar button (`+`, `✎`, 🎲, `↔`, 🗑) and every write menu item adds `state.anyWriteInFlight` to its existing `.disabled(...)` chain. Read-side buttons (Refresh, Settings, Diagnostics) are NOT affected.
+
+### Suite size at end of Phase G
+
+- **660 tests total**; 8 skipped (1 D.3 known limitation + 7 PassWriteIntegrationTests when `KIZBA_E2E` off); 0 failures.
+- Phase G net: +77 tests over 6 substeps.

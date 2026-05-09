@@ -230,6 +230,44 @@ public actor LivePassManager: PassManaging {
         return secret
     }
 
+    public func generateInPlace(
+        _ entry: PassEntry,
+        length: Int,
+        includeSymbols: Bool
+    ) async throws -> PassSecret {
+        let root = storeRootProvider()
+
+        // `pass generate --in-place` requires the entry to exist;
+        // otherwise the CLI errors out with "is not in the password
+        // store" which `PassErrorMapper.map(...,commandContext:.generate)`
+        // already maps appropriately. No `existedBefore` probe is
+        // needed because the only legal post-state is `.updated`.
+        let password = try await passCLI.generateInPlace(
+            path: entry.path,
+            length: length,
+            noSymbols: !includeSymbols,
+            passwordStoreDirOverride: root
+        )
+
+        // The metadata block is preserved atomically by `pass` itself
+        // but the CLI does not surface it on stdout. We deliberately
+        // do NOT issue a follow-up `pass show` here (that would
+        // trigger a second pinentry prompt within the same user
+        // gesture, defeating the UX of the "regenerate" affordance).
+        // Subscribers that need the post-rotation metadata re-fetch
+        // via ``show(_:)`` in response to the `.updated` event below.
+        let secret: PassSecret = await MainActor.run {
+            PassSecret(
+                password: password,
+                metadata: PassMetadata(fields: [], notes: nil)
+            )
+        }
+
+        await scanner.invalidate(storeRoot: root)
+        emit(.updated(path: entry.path))
+        return secret
+    }
+
     public func remove(_ entry: PassEntry) async throws {
         let root = storeRootProvider()
 

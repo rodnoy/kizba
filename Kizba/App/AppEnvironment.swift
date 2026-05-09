@@ -259,6 +259,13 @@ private struct UnavailablePassManager: PassManaging {
     ) async throws -> PassSecret {
         fatalError("AppEnvironment: PassManaging not yet wired in this build configuration.")
     }
+    func generateInPlace(
+        _ entry: PassEntry,
+        length: Int,
+        includeSymbols: Bool
+    ) async throws -> PassSecret {
+        fatalError("AppEnvironment: PassManaging not yet wired in this build configuration.")
+    }
     func remove(_ entry: PassEntry) async throws {
         fatalError("AppEnvironment: PassManaging not yet wired in this build configuration.")
     }
