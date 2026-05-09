@@ -240,7 +240,215 @@ final class SourceGrepTests: XCTestCase {
         XCTAssertEqual(last, "#endif", "MockPassManager.swift must end with #endif")
     }
 
+    // MARK: - Phase C.6 bans
+    //
+    // Inline-styling bans inside `Kizba/Presentation/**/*.swift`,
+    // EXCLUDING `Kizba/Presentation/DesignSystem/**`. The DesignSystem
+    // subtree is the single source of truth for tokens/atoms and is
+    // therefore allowed to use raw SwiftUI primitives. Every other
+    // Presentation file must consume `theme.*` tokens.
+    //
+    // Plus repo-wide bans across `Kizba/`:
+    //   - `Logger.*stdin` / `print\(.*stdin` (no stdin contents in logs).
+    //   - `\bas!\b` (force casts banned per Phase A.3 hygiene).
+
+    /// Subtree scanned by every Phase C.6 inline-styling ban.
+    private static let presentationRoot: String = "Kizba/Presentation"
+
+    /// Excluded subtree relative to repo root. The DesignSystem owns
+    /// the raw primitives; all other Presentation files must go through
+    /// `theme.*` tokens.
+    private static let designSystemSubpath: String =
+        "Kizba/Presentation/DesignSystem"
+
+    // (8) No numeric `.padding(<number>)` — must use `theme.spacing.*`.
+    func testNoInlineNumericPadding_inPresentationOutsideDS() throws {
+        try assertNoMatchesInPresentationOutsideDesignSystem(
+            patterns: [#"\.padding\(\s*\d"#],
+            description: "inline numeric padding (use theme.spacing.*)"
+        )
+    }
+
+    // (9) No literal SwiftUI color (`Color.<name>`). `Color.clear` is
+    //     the single sanctioned exception — it is not a brand color but
+    //     a transparent placeholder used to keep layout slots stable.
+    func testNoLiteralSwiftUIColor_inPresentationOutsideDS() throws {
+        try assertNoMatchesInPresentationOutsideDesignSystem(
+            patterns: [#"\bColor\.[A-Za-z]+\b"#],
+            description: "literal SwiftUI color (use theme.colors.*; Color.clear is the only allowed exception)",
+            lineFilter: { line, regex in
+                // Drop the line if every `Color.X` match on it is
+                // exactly `Color.clear`. A line mixing `Color.clear`
+                // with other literal colors must still fail.
+                let nsLine = line as NSString
+                let range = NSRange(line.startIndex..., in: line)
+                let matches = regex.matches(in: line, options: [], range: range)
+                guard !matches.isEmpty else { return false } // not a hit
+                for match in matches {
+                    let text = nsLine.substring(with: match.range)
+                    if text != "Color.clear" { return true } // real hit
+                }
+                return false // all hits were `Color.clear`
+            }
+        )
+    }
+
+    // (10) No literal foreground shortcuts (`.foregroundColor(.red)`,
+    //      `.foregroundStyle(.secondary)` etc.) — these must go through
+    //      `theme.colors.*`.
+    func testNoLiteralForegroundShortcut_inPresentationOutsideDS() throws {
+        try assertNoMatchesInPresentationOutsideDesignSystem(
+            patterns: [
+                #"\.foregroundColor\(\.[A-Za-z]+\)"#,
+                #"\.foregroundStyle\(\.[A-Za-z]+\)"#,
+            ],
+            description: "literal foregroundColor/foregroundStyle shortcut (use theme.colors.*)"
+        )
+    }
+
+    // (11) No literal SwiftUI font (`.font(.body)`, `.font(.system(...))`).
+    //      `.font(theme.typography.body)` does NOT match because the
+    //      argument starts with an identifier, not a `.<name>` shortcut.
+    func testNoLiteralFont_inPresentationOutsideDS() throws {
+        try assertNoMatchesInPresentationOutsideDesignSystem(
+            patterns: [#"\.font\(\.[A-Za-z]+"#],
+            description: "literal SwiftUI font (use theme.typography.*)"
+        )
+    }
+
+    // (12) No numeric corner radius — must use `theme.radius.*`.
+    func testNoNumericCornerRadius_inPresentationOutsideDS() throws {
+        try assertNoMatchesInPresentationOutsideDesignSystem(
+            patterns: [
+                #"\.cornerRadius\(\s*\d"#,
+                #"RoundedRectangle\(cornerRadius:\s*\d"#,
+            ],
+            description: "numeric corner radius (use theme.radius.*)"
+        )
+    }
+
+    // (13) No numeric `.opacity(0.x)` literal. Token-composed
+    //      transparency belongs in DesignSystem; consumers should
+    //      receive an opaque pre-composited token (e.g. `surfaceHover`,
+    //      `scrim`) rather than apply numeric alpha at the call site.
+    //      `theme.foo.opacity(0.5)` therefore also matches: a leak of
+    //      this kind is a signal that the token model is missing a
+    //      pre-composited variant.
+    func testNoNumericOpacity_inPresentationOutsideDS() throws {
+        try assertNoMatchesInPresentationOutsideDesignSystem(
+            patterns: [#"\.opacity\(\s*0\.\d"#],
+            description: "inline numeric opacity (encode in tokens or compose in DesignSystem)"
+        )
+    }
+
+    // (14) No literal SwiftUI animation (`.animation(.easeInOut, ...)`).
+    //      Use `theme.motion.animation(.standard, ...)` so that
+    //      `accessibilityReduceMotion` is honored uniformly.
+    func testNoLiteralAnimation_inPresentationOutsideDS() throws {
+        try assertNoMatchesInPresentationOutsideDesignSystem(
+            patterns: [#"\.animation\(\.[A-Za-z]+"#],
+            description: "literal SwiftUI animation (use theme.motion.animation(...))"
+        )
+    }
+
+    // (15) Stdin contents must never appear in logs. The ban anchors
+    //      on `stdin` as a substring near `Logger`/`print(` to catch
+    //      the most likely accidental introductions during Phase E
+    //      (`pass insert -m` writes the secret body to stdin).
+    func testNoStdinLogging_inKizbaSource() throws {
+        try assertNoMatches(
+            roots: ["Kizba"],
+            patterns: [
+                #"Logger.*stdin"#,
+                #"print\(.*stdin"#,
+            ],
+            description: "stdin reference in logging call (never log stdin contents)"
+        )
+    }
+
+    // (16) No force casts (`as!`) anywhere in `Kizba/`. Phase A.3
+    //      removed the only known offender (`UserDefaultsSettingsStore`);
+    //      this ban prevents regressions.
+    func testNoForceCast_inKizbaSource() throws {
+        try assertNoMatches(
+            roots: ["Kizba"],
+            patterns: [#"\bas!"#], // `\bas!\b` would not match: `!` is non-word.
+            description: "force cast (as!) in Kizba sources"
+        )
+    }
+
     // MARK: - Engine
+
+    /// Enumerate `.swift` files under `Kizba/Presentation/` excluding
+    /// `Kizba/Presentation/DesignSystem/`, scan every line against
+    /// `patterns`, optionally filter via `lineFilter`, and fail on any
+    /// remaining hit. Sharing this scaffold keeps every Phase C.6 ban
+    /// consistent in scope and reporting format.
+    ///
+    /// `lineFilter`, if provided, is invoked once per (line, regex)
+    /// pair where the regex has at least one match; returning `false`
+    /// drops the hit (e.g., `Color.clear` whitelist). The default
+    /// behavior is "any regex match is a hit".
+    private func assertNoMatchesInPresentationOutsideDesignSystem(
+        patterns: [String],
+        description: String,
+        lineFilter: ((String, NSRegularExpression) -> Bool)? = nil,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let regexes = try patterns.map {
+            try NSRegularExpression(pattern: $0, options: [])
+        }
+
+        let presentationDir = Self.repoRoot.appendingPathComponent(
+            Self.presentationRoot, isDirectory: true
+        )
+        let designSystemPrefix = Self.repoRoot
+            .appendingPathComponent(Self.designSystemSubpath, isDirectory: true)
+            .standardizedFileURL
+            .path
+
+        var hits: [String] = []
+
+        for url in try Self.swiftFiles(under: presentationDir) {
+            // Skip the DesignSystem subtree.
+            let path = url.standardizedFileURL.path
+            if path == designSystemPrefix
+                || path.hasPrefix(designSystemPrefix + "/")
+            { continue }
+
+            let contents = try String(contentsOf: url, encoding: .utf8)
+            let lines = contents.split(
+                separator: "\n",
+                omittingEmptySubsequences: false
+            )
+            for (idx, raw) in lines.enumerated() {
+                let lineText = String(raw)
+                let range = NSRange(lineText.startIndex..., in: lineText)
+                for regex in regexes {
+                    guard regex.firstMatch(in: lineText, options: [], range: range) != nil else {
+                        continue
+                    }
+                    let isHit = lineFilter?(lineText, regex) ?? true
+                    if isHit {
+                        hits.append(
+                            "\(url.path):\(idx + 1): "
+                            + lineText.trimmingCharacters(in: .whitespaces)
+                        )
+                    }
+                }
+            }
+        }
+
+        if !hits.isEmpty {
+            XCTFail(
+                "Found forbidden \(description):\n"
+                + hits.joined(separator: "\n"),
+                file: file,
+                line: line
+            )
+        }
+    }
 
     /// Enumerate `.swift` files under each root directory (relative to
     /// repo root), scan every line against `patterns`, and fail on any

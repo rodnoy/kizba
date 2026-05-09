@@ -1,5 +1,6 @@
 # macOS
 .DS_Store
+**/.DS_Store
 
 # Xcode
 build/
@@ -19,6 +20,9 @@ xcuserdata/
 Packages/
 Package.resolved
 .swiftpm/
+
+# Editor swap files
+*.swp
 
 # CocoaPods / Carthage (not used, but ignored just in case)
 Pods/
@@ -43,6 +47,6 @@ fastlane/test_output
 .vscode/
 
 #AI if needed
-.ai/
+.ai/build-output.txt
 CLAUDE.md
 Agent.md

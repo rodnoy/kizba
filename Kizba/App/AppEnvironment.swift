@@ -81,21 +81,39 @@ extension AppEnvironment {
     static func live() -> AppEnvironment {
         let invocationLog = InvocationLog()
         let shellRunner = ProcessShellRunner(invocationLog: invocationLog)
-        let discovery = BinaryDiscoveryService()
+
+        // Use UserDefaults-backed settings store in the live wiring for
+        // both DEBUG and RELEASE. The preview wiring below keeps the
+        // in-memory store for SwiftUI previews and unit tests.
+        let settings: any SettingsStoring = UserDefaultsSettingsStore()
+
+        // Phase A.4: ONE shared `BinaryDiscoveryService` per process,
+        // reused by `LivePassCLI` and the Settings UI. The override
+        // closure reads the persisted per-binary path overrides on
+        // every cache miss, so changes saved through the Settings
+        // window take effect on the next `locate(_:)` call (after a
+        // `reDetect()`) without rebuilding the service.
+        let discovery = BinaryDiscoveryService(
+            overrideProvider: Self.makeBinaryOverrideProvider(settings: settings)
+        )
+
         let passCLI = LivePassCLI(
             discovery: discovery,
             shellRunner: shellRunner
         )
 
-        // Phase 6.5: filesystem-backed listing + lazy `pass show`
-        // composed into a single ``PassManaging`` for `live()`. Store
-        // root override via ``SettingsStoring`` is wired in Phase 8;
-        // for now we use the standard `~/.password-store` location.
+        // Phase A.5: filesystem-backed listing + lazy `pass show`
+        // composed into a single ``PassManaging`` for `live()`. The
+        // store-root provider honours
+        // ``SettingsKeys/storePathOverride`` live so edits saved
+        // through Settings take effect on the next operation; the
+        // scanner and `PASSWORD_STORE_DIR` env exported to `pass`
+        // therefore always agree.
         let scanner = PasswordStoreScanner()
         let passManager = LivePassManager(
             scanner: scanner,
             passCLI: passCLI,
-            storeRoot: LivePassManager.defaultStoreRoot
+            storeRootProvider: Self.makeStoreRootProvider(settings: settings)
         )
 
         // Phase 7.2: production clipboard wiring. `ClipboardService()`
@@ -108,17 +126,59 @@ extension AppEnvironment {
         let clipboard: any ClipboardServicing = UnavailableClipboard()
         #endif
 
-        // Use UserDefaults-backed settings store in the live wiring for
-        // both DEBUG and RELEASE. The preview wiring below keeps the
-        // in-memory store for SwiftUI previews and unit tests.
         return AppEnvironment(
             passManager: passManager,
             clipboard: clipboard,
-            settings: UserDefaultsSettingsStore(),
+            settings: settings,
             passCLI: passCLI,
             discovery: discovery,
             invocationLog: invocationLog
         )
+    }
+
+    // MARK: - Live providers
+
+    /// Build the closure used by the shared ``BinaryDiscoveryService``
+    /// to resolve per-binary path overrides on demand. Reads bare
+    /// settings keys for `pass`, `gpg` and `pinentry-mac` and converts
+    /// non-empty filesystem paths into `URL` values. Empty strings and
+    /// missing entries are dropped — the discovery service then falls
+    /// back to its well-known and PATH searches for that binary.
+    static func makeBinaryOverrideProvider(
+        settings: any SettingsStoring
+    ) -> @Sendable () -> [BinaryName: URL] {
+        return { [settings] in
+            var out: [BinaryName: URL] = [:]
+            if let p = settings.value(for: SettingsKey<String>(SettingsKeys.passBinaryOverride)),
+               !p.isEmpty {
+                out[.pass] = URL(fileURLWithPath: p)
+            }
+            if let p = settings.value(for: SettingsKey<String>(SettingsKeys.gpgBinaryOverride)),
+               !p.isEmpty {
+                out[.gpg] = URL(fileURLWithPath: p)
+            }
+            if let p = settings.value(for: SettingsKey<String>(SettingsKeys.pinentryBinaryOverride)),
+               !p.isEmpty {
+                out[.pinentryMac] = URL(fileURLWithPath: p)
+            }
+            return out
+        }
+    }
+
+    /// Build the closure used by ``LivePassManager`` to source the
+    /// active password-store root. Returns the user override when
+    /// configured, falling back to ``LivePassManager/defaultStoreRoot``
+    /// (`~/.password-store`).
+    static func makeStoreRootProvider(
+        settings: any SettingsStoring
+    ) -> @Sendable () -> URL {
+        return { [settings] in
+            if let raw = settings.value(for: SettingsKey<String>(SettingsKeys.storePathOverride)),
+               !raw.isEmpty {
+                return URL(fileURLWithPath: raw, isDirectory: true)
+            }
+            return LivePassManager.defaultStoreRoot
+        }
     }
 
     /// Preview / SwiftUI / unit-test wiring.
@@ -181,11 +241,11 @@ private struct UnavailableClipboard: ClipboardServicing {
 }
 
 private struct UnavailableSettingsStore: SettingsStoring {
-    func value<Value: SettingsValue>(for key: SettingsKey<Value>) -> Value? { nil }
-    func set<Value: SettingsValue>(_ value: Value?, for key: SettingsKey<Value>) {}
-    func removeValue(forKey key: String) {}
-    func resetAll() {}
-    func registerDefaults(_ defaults: [String : Any]) {}
+    nonisolated func value<Value: SettingsValue>(for key: SettingsKey<Value>) -> Value? { nil }
+    nonisolated func set<Value: SettingsValue>(_ value: Value?, for key: SettingsKey<Value>) {}
+    nonisolated func removeValue(forKey key: String) {}
+    nonisolated func resetAll() {}
+    nonisolated func registerDefaults(_ defaults: [String : Any]) {}
 }
 
 // MARK: - Lightweight DEBUG fakes
@@ -212,15 +272,19 @@ extension AppEnvironment {
     /// In-memory `SettingsStoring` for previews and unit tests.
     /// Phase 8 introduces the real `UserDefaultsSettingsStore`.
     final class InMemorySettingsStore: SettingsStoring, @unchecked Sendable {
-        private let lock = NSLock()
-        private var storage: [String: any SettingsValue] = [:]
+        // `nonisolated(unsafe)` for `storage` — access is serialised
+        // by `lock`. `NSLock` is already Sendable.
+        nonisolated private let lock = NSLock()
+        nonisolated(unsafe) private var storage: [String: any SettingsValue] = [:]
 
-        func value<Value: SettingsValue>(for key: SettingsKey<Value>) -> Value? {
+        nonisolated init() {}
+
+        nonisolated func value<Value: SettingsValue>(for key: SettingsKey<Value>) -> Value? {
             lock.lock(); defer { lock.unlock() }
             return storage[key.name] as? Value
         }
 
-        func set<Value: SettingsValue>(_ value: Value?, for key: SettingsKey<Value>) {
+        nonisolated func set<Value: SettingsValue>(_ value: Value?, for key: SettingsKey<Value>) {
             lock.lock(); defer { lock.unlock() }
             if let value {
                 storage[key.name] = value
@@ -229,17 +293,17 @@ extension AppEnvironment {
             }
         }
 
-        func removeValue(forKey key: String) {
+        nonisolated func removeValue(forKey key: String) {
             lock.lock(); defer { lock.unlock() }
             storage.removeValue(forKey: key)
         }
 
-        func resetAll() {
+        nonisolated func resetAll() {
             lock.lock(); defer { lock.unlock() }
             storage.removeAll()
         }
 
-        func registerDefaults(_ defaults: [String : Any]) {
+        nonisolated func registerDefaults(_ defaults: [String : Any]) {
             // Convert only known types from defaults into storage if absent.
             lock.lock(); defer { lock.unlock() }
             for (k, v) in defaults {

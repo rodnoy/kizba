@@ -79,9 +79,13 @@ public actor BinaryDiscoveryService: BinaryLocating {
 
     // MARK: Stored state
 
-    /// Per-name explicit override. `nil` means "no override for this
-    /// binary, fall through to the well-known and PATH searches".
-    private let overridePaths: [BinaryName: URL]
+    /// Per-name explicit override **resolver**, evaluated lazily on
+    /// every cache miss. A closure (rather than a frozen dictionary)
+    /// lets the discovery service stay in sync with live changes from
+    /// the Settings UI without forcing callers to re-construct the
+    /// service. The closure is `@Sendable` so it can be invoked from
+    /// the actor's isolation domain.
+    private let overrideProvider: @Sendable () -> [BinaryName: URL]
 
     /// Optional PATH replacement. `nil` means "read PATH from the
     /// parent process environment at lookup time". An empty string
@@ -116,8 +120,12 @@ public actor BinaryDiscoveryService: BinaryLocating {
     /// Designated initialiser.
     ///
     /// - Parameters:
-    ///   - overridePaths: explicit per-binary overrides. Each URL is
-    ///     verified through `fileChecker` before being returned.
+    ///   - overrideProvider: closure returning the current per-binary
+    ///     overrides. Evaluated lazily on every cache miss so the
+    ///     service can honour live edits made through Settings without
+    ///     being reconstructed. Each URL is verified through
+    ///     `fileChecker` before being returned. Defaults to "no
+    ///     overrides".
     ///   - pathOverride: optional PATH value to use in lieu of the
     ///     parent environment's `PATH`. Pass `nil` in production.
     ///   - environmentReader: snapshot of the process environment.
@@ -126,14 +134,14 @@ public actor BinaryDiscoveryService: BinaryLocating {
     ///   - fileChecker: file-existence dependency. Defaults to
     ///     ``DefaultFileExistenceChecker``.
     public init(
-        overridePaths: [BinaryName: URL] = [:],
+        overrideProvider: @escaping @Sendable () -> [BinaryName: URL] = { [:] },
         pathOverride: String? = nil,
         environmentReader: @escaping @Sendable () -> [String: String] = {
             ProcessInfo.processInfo.environment
         },
         fileChecker: any FileExistenceChecking = DefaultFileExistenceChecker()
     ) {
-        self.overridePaths = overridePaths
+        self.overrideProvider = overrideProvider
         self.pathOverride = pathOverride
         self.environmentReader = environmentReader
         self.fileChecker = fileChecker
@@ -177,8 +185,10 @@ public actor BinaryDiscoveryService: BinaryLocating {
     private func resolve(_ binary: BinaryName) -> URL? {
         let name = binary.rawValue
 
-        // 1. Explicit override.
-        if let override = overridePaths[binary] {
+        // 1. Explicit override (resolved live each time the cache
+        // misses — keeps the service in sync with Settings edits).
+        let overrides = overrideProvider()
+        if let override = overrides[binary] {
             if fileChecker.isExecutableFile(atPath: override.path) {
                 return override
             }

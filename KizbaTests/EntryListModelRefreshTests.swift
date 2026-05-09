@@ -68,6 +68,9 @@ final class EntryListModelRefreshTests: XCTestCase {
     private struct NullSettings: SettingsStoring {
         func value<Value: SettingsValue>(for key: SettingsKey<Value>) -> Value? { nil }
         func set<Value: SettingsValue>(_ value: Value?, for key: SettingsKey<Value>) {}
+        func removeValue(forKey key: String) {}
+        func resetAll() {}
+        func registerDefaults(_ defaults: [String: Any]) {}
     }
 
     private func makeEnvironment(passManager: any PassManaging) -> AppEnvironment {

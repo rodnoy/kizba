@@ -119,31 +119,48 @@ final class EntryDetailModel {
     /// Copy a single field's value to the system pasteboard with
     /// token-checked auto-clear.
     ///
-    /// - Parameters:
-    ///   - value: Verbatim string written to the pasteboard. Per
-    ///     `.ai/decisions.md`, never composed with the field's key.
-    ///   - clearAfterSeconds: Delay before the auto-clear attempt.
-    ///     Defaults to 30s — the documented MVP-1 default; Phase 8
-    ///     wires the user-configurable override.
-    func copy(_ value: String, clearAfterSeconds seconds: Int = 30) async {
-        let delay = Duration.seconds(max(0, seconds))
-        await environment.clipboard.copy(value, clearAfter: delay)
+    /// The auto-clear delay is sampled live from
+    /// ``SettingsStoring`` on every call (Phase A.6) so changes made
+    /// in the Settings window take effect immediately, without
+    /// reconstructing the model. Per `.ai/decisions.md`, the value is
+    /// written verbatim — never composed with the field's key.
+    func copy(_ value: String) async {
+        await environment.clipboard.copy(value, clearAfter: currentClipboardClearDelay())
     }
 
     /// Convenience: copy the loaded password if available. No-op if
     /// the model is not in ``State/loaded(_:)``.
-    func copyPassword(clearAfterSeconds seconds: Int = 30) async {
+    func copyPassword() async {
         guard case .loaded(let secret) = state else { return }
-        await copy(secret.password, clearAfterSeconds: seconds)
+        await copy(secret.password)
     }
 
     /// Convenience: copy the first metadata value matching `key`.
     /// No-op if the model is not loaded or the key is absent.
-    func copyMetadata(forKey key: String, clearAfterSeconds seconds: Int = 30) async {
+    func copyMetadata(forKey key: String) async {
         guard case .loaded(let secret) = state,
               let value = secret.metadata.firstValue(for: key)
         else { return }
-        await copy(value, clearAfterSeconds: seconds)
+        await copy(value)
+    }
+
+    // MARK: - Settings
+
+    /// Sample the current clipboard auto-clear delay from
+    /// ``SettingsStoring`` on every copy call.
+    ///
+    /// Falls back to ``SettingsKeys/defaultClipboardClearDelaySeconds``
+    /// when the key is unset and clamps the persisted value into
+    /// ``SettingsKeys/clipboardClearDelayBounds`` so a stale or
+    /// out-of-range entry cannot produce a useless 0-second window or
+    /// a runaway multi-hour delay.
+    private func currentClipboardClearDelay() -> Duration {
+        let raw = environment.settings
+            .value(for: SettingsKey<Int>(SettingsKeys.clipboardClearDelaySeconds))
+            ?? SettingsKeys.defaultClipboardClearDelaySeconds
+        let bounds = SettingsKeys.clipboardClearDelayBounds
+        let clamped = min(max(raw, bounds.lowerBound), bounds.upperBound)
+        return .seconds(clamped)
     }
 
     // MARK: - Private

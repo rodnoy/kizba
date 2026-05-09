@@ -208,6 +208,166 @@ final class PassErrorRefinementTests: XCTestCase {
         }
         XCTAssertEqual(path, "/nope")
     }
+
+    // MARK: - Phase D.6 write-side cases
+
+    func testWriteSideCasesEqualityAndPayload() {
+        XCTAssertEqual(
+            PassError.entryAlreadyExists(path: "a/b"),
+            PassError.entryAlreadyExists(path: "a/b")
+        )
+        XCTAssertNotEqual(
+            PassError.entryAlreadyExists(path: "a/b"),
+            PassError.entryAlreadyExists(path: "a/c")
+        )
+
+        XCTAssertEqual(
+            PassError.recipientNotFound(emailOrKeyId: "alice@x"),
+            PassError.recipientNotFound(emailOrKeyId: "alice@x")
+        )
+        XCTAssertNotEqual(
+            PassError.recipientNotFound(emailOrKeyId: "alice@x"),
+            PassError.recipientNotFound(emailOrKeyId: "bob@y")
+        )
+
+        XCTAssertEqual(PassError.invalidGpgId, .invalidGpgId)
+        XCTAssertEqual(PassError.invalidLength, .invalidLength)
+        XCTAssertNotEqual(PassError.invalidGpgId, .invalidLength)
+
+        XCTAssertEqual(
+            PassError.sourceNotFound(path: "a"),
+            PassError.sourceNotFound(path: "a")
+        )
+        XCTAssertNotEqual(
+            PassError.sourceNotFound(path: "a"),
+            PassError.sourceNotFound(path: "b")
+        )
+
+        XCTAssertEqual(
+            PassError.writeFailed(reason: "disk full"),
+            PassError.writeFailed(reason: "disk full")
+        )
+        XCTAssertEqual(
+            PassError.writeFailed(reason: nil),
+            PassError.writeFailed(reason: nil)
+        )
+        XCTAssertNotEqual(
+            PassError.writeFailed(reason: nil),
+            PassError.writeFailed(reason: "disk full")
+        )
+    }
+
+    func testWriteSideCasesHashableInSet() {
+        let set: Set<PassError> = [
+            .entryAlreadyExists(path: "a/b"),
+            .entryAlreadyExists(path: "a/b"),
+            .entryAlreadyExists(path: "a/c"),
+            .recipientNotFound(emailOrKeyId: "alice@x"),
+            .recipientNotFound(emailOrKeyId: "alice@x"),
+            .invalidGpgId,
+            .invalidGpgId,
+            .invalidLength,
+            .sourceNotFound(path: "a"),
+            .sourceNotFound(path: "b"),
+            .writeFailed(reason: nil),
+            .writeFailed(reason: "x"),
+            .writeFailed(reason: "x"),
+        ]
+        XCTAssertEqual(set.count, 9)
+    }
+
+    func testWriteSideCasesAreDistinctFromReadSide() {
+        let cases: [PassError] = [
+            .entryAlreadyExists(path: "p"),
+            .recipientNotFound(emailOrKeyId: "k"),
+            .invalidGpgId,
+            .sourceNotFound(path: "p"),
+            .writeFailed(reason: "r"),
+            .invalidLength,
+            .timedOut,
+            .cancelled,
+            .pinentryNotConfigured,
+        ]
+        XCTAssertEqual(Set(cases).count, cases.count)
+    }
+
+    // MARK: - Phase D.6 presentation hints (on PassError)
+
+    func testInlineRecoverableOnlyForEntryAlreadyExists() {
+        XCTAssertTrue(PassError.entryAlreadyExists(path: "p").inlineRecoverable)
+
+        let nonRecoverable: [PassError] = [
+            .binaryNotFound("pass"), .pinentryNotConfigured,
+            .decryptionFailed(stderrExcerpt: "x"),
+            .storeNotFound(path: "/p"), .timedOut,
+            .shellFailure(exitCode: 1, stderrExcerpt: "x"),
+            .parsingFailed(reason: "x"), .cancelled,
+            .recipientNotFound(emailOrKeyId: "k"), .invalidGpgId,
+            .sourceNotFound(path: "p"), .writeFailed(reason: nil),
+            .invalidLength,
+        ]
+        for error in nonRecoverable {
+            XCTAssertFalse(
+                error.inlineRecoverable,
+                "expected \(error) to be non-recoverable inline"
+            )
+        }
+    }
+
+    func testOnboardingHintMappings() {
+        XCTAssertEqual(
+            PassError.recipientNotFound(emailOrKeyId: "alice@x").onboardingHint,
+            .checkRecipients
+        )
+        XCTAssertEqual(
+            PassError.invalidGpgId.onboardingHint,
+            .initializeStore
+        )
+
+        let noHint: [PassError] = [
+            .binaryNotFound("pass"), .pinentryNotConfigured,
+            .decryptionFailed(stderrExcerpt: "x"),
+            .storeNotFound(path: "/p"), .timedOut,
+            .shellFailure(exitCode: 1, stderrExcerpt: "x"),
+            .parsingFailed(reason: "x"), .cancelled,
+            .entryAlreadyExists(path: "p"),
+            .sourceNotFound(path: "p"), .writeFailed(reason: nil),
+            .invalidLength,
+        ]
+        for error in noHint {
+            XCTAssertNil(
+                error.onboardingHint,
+                "expected \(error) to have no onboarding hint"
+            )
+        }
+    }
+
+    func testAutoRefreshesOnlyForSourceNotFound() {
+        XCTAssertTrue(PassError.sourceNotFound(path: "p").autoRefreshes)
+
+        let noAutoRefresh: [PassError] = [
+            .binaryNotFound("pass"), .pinentryNotConfigured,
+            .decryptionFailed(stderrExcerpt: "x"),
+            .storeNotFound(path: "/p"), .timedOut,
+            .shellFailure(exitCode: 1, stderrExcerpt: "x"),
+            .parsingFailed(reason: "x"), .cancelled,
+            .entryAlreadyExists(path: "p"),
+            .recipientNotFound(emailOrKeyId: "k"), .invalidGpgId,
+            .writeFailed(reason: nil), .invalidLength,
+        ]
+        for error in noAutoRefresh {
+            XCTAssertFalse(
+                error.autoRefreshes,
+                "expected \(error) to not trigger auto-refresh"
+            )
+        }
+    }
+
+    func testOnboardingHintEqualityAndDistinctness() {
+        XCTAssertEqual(OnboardingHint.checkRecipients, .checkRecipients)
+        XCTAssertEqual(OnboardingHint.initializeStore, .initializeStore)
+        XCTAssertNotEqual(OnboardingHint.checkRecipients, .initializeStore)
+    }
 }
 
 // MARK: - Concurrency safety on an in-memory PassManaging stub

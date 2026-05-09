@@ -11,40 +11,7 @@
 import XCTest
 @testable import Kizba
 
-// MARK: - Test double
-
-/// In-memory `FileExistenceChecking` whose set of "present"
-/// executables is mutable from the test thread. Backed by an
-/// `NSLock` so it remains `Sendable` across the actor boundary.
-final class FakeFileExistenceChecker: FileExistenceChecking, @unchecked Sendable {
-
-    private let lock = NSLock()
-    private var executable: Set<String>
-
-    init(executable: Set<String> = []) {
-        self.executable = executable
-    }
-
-    nonisolated func isExecutableFile(atPath path: String) -> Bool {
-        lock.lock(); defer { lock.unlock() }
-        return executable.contains(path)
-    }
-
-    nonisolated func setExecutable(_ paths: Set<String>) {
-        lock.lock(); defer { lock.unlock() }
-        executable = paths
-    }
-
-    nonisolated func add(_ path: String) {
-        lock.lock(); defer { lock.unlock() }
-        executable.insert(path)
-    }
-
-    nonisolated func remove(_ path: String) {
-        lock.lock(); defer { lock.unlock() }
-        executable.remove(path)
-    }
-}
+// `FakeFileExistenceChecker` lives in `KizbaTests/Fixtures/FakeFileExistenceChecker.swift`.
 
 // MARK: - Tests
 
@@ -61,7 +28,7 @@ final class BinaryDiscoveryServiceTests: XCTestCase {
         ])
 
         let service = BinaryDiscoveryService(
-            overridePaths: [.pass: overrideURL],
+            overrideProvider: { [.pass: overrideURL] },
             pathOverride: "",
             environmentReader: { [:] },
             fileChecker: checker
@@ -173,7 +140,7 @@ final class BinaryDiscoveryServiceTests: XCTestCase {
         ])
 
         let service = BinaryDiscoveryService(
-            overridePaths: [.pass: URL(fileURLWithPath: "/nope/pass")],
+            overrideProvider: { [.pass: URL(fileURLWithPath: "/nope/pass")] },
             pathOverride: "",
             environmentReader: { [:] },
             fileChecker: checker
@@ -181,5 +148,48 @@ final class BinaryDiscoveryServiceTests: XCTestCase {
 
         let resolved = await service.locate(.pass)
         XCTAssertNil(resolved)
+    }
+
+    // (g) The override provider is consulted lazily — changing what
+    // it returns between `reDetect()` calls flips the resolved
+    // binary on the next `locate(_:)` without service rebuild.
+    // Mirrors how the Settings UI mutates the persisted override and
+    // then asks the SHARED discovery to re-detect.
+    func testOverrideProviderIsLive_changesAfterReDetect() async {
+        let overrideA = URL(fileURLWithPath: "/opt/kizba/bin/passA")
+        let overrideB = URL(fileURLWithPath: "/opt/kizba/bin/passB")
+        let checker = FakeFileExistenceChecker(executable: [
+            overrideA.path,
+            overrideB.path,
+        ])
+
+        // Mutable holder so a single closure can return different
+        // overrides over time. `final class` keeps `Sendable`
+        // accounting trivial.
+        final class Holder: @unchecked Sendable {
+            var current: [BinaryName: URL]
+            init(_ initial: [BinaryName: URL]) { self.current = initial }
+        }
+        let holder = Holder([.pass: overrideA])
+
+        let service = BinaryDiscoveryService(
+            overrideProvider: { holder.current },
+            pathOverride: "",
+            environmentReader: { [:] },
+            fileChecker: checker
+        )
+
+        let first = await service.locate(.pass)
+        XCTAssertEqual(first, overrideA)
+
+        // Mutate the override; without `reDetect()` the cache still
+        // returns the previous resolution.
+        holder.current = [.pass: overrideB]
+        let stale = await service.locate(.pass)
+        XCTAssertEqual(stale, overrideA)
+
+        await service.reDetect()
+        let fresh = await service.locate(.pass)
+        XCTAssertEqual(fresh, overrideB)
     }
 }

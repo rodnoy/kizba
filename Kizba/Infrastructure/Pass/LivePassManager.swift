@@ -13,9 +13,11 @@
 //
 //  ## Threading contract
 //
-//  `actor`. The store root is an immutable `nonisolated let` so
-//  ``storeLocation()`` (a synchronous protocol requirement) can be
-//  served without an actor hop. `Sendable` is satisfied via the actor
+//  `actor`. The store root is sourced via a `@Sendable` closure
+//  (``storeRootProvider``) so live overrides from ``SettingsStoring``
+//  are honoured per call without forcing the manager itself to be
+//  rebuilt. ``storeLocation()`` reads the provider synchronously and
+//  is therefore `nonisolated`. `Sendable` is satisfied via the actor
 //  model.
 //
 //  ## Logging
@@ -37,10 +39,11 @@ public actor LivePassManager: PassManaging {
     /// Lazy `pass show` wrapper used by ``show(_:)``.
     private let passCLI: LivePassCLI
 
-    /// Absolute path of the active password store. Immutable so that
-    /// ``storeLocation()`` can be served synchronously without an
-    /// actor hop.
-    nonisolated public let storeRoot: URL
+    /// Live provider for the active password store root. Evaluated on
+    /// every public method invocation so changes to
+    /// ``SettingsKeys/storePathOverride`` take effect on the next
+    /// operation without an app restart.
+    private let storeRootProvider: @Sendable () -> URL
 
     /// Designated initialiser.
     ///
@@ -49,17 +52,32 @@ public actor LivePassManager: PassManaging {
     ///     ``PasswordStoreScanner``; tests inject a fake.
     ///   - passCLI: Lazy `pass` CLI wrapper. Production wires the
     ///     real ``LivePassCLI``; tests inject one over a fake shell.
-    ///   - storeRoot: Absolute URL of the password store root. Use
-    ///     ``LivePassManager/defaultStoreRoot`` for the standard
-    ///     `~/.password-store` location.
+    ///   - storeRootProvider: Live closure returning the active store
+    ///     root. Use ``LivePassManager/defaultStoreRoot`` inside the
+    ///     closure to fall back to `~/.password-store` when no
+    ///     override is configured.
+    public init(
+        scanner: any PasswordStoreScanning,
+        passCLI: LivePassCLI,
+        storeRootProvider: @escaping @Sendable () -> URL
+    ) {
+        self.scanner = scanner
+        self.passCLI = passCLI
+        self.storeRootProvider = storeRootProvider
+    }
+
+    /// Convenience initialiser for tests/preview wiring that have a
+    /// fixed store root.
     public init(
         scanner: any PasswordStoreScanning,
         passCLI: LivePassCLI,
         storeRoot: URL
     ) {
-        self.scanner = scanner
-        self.passCLI = passCLI
-        self.storeRoot = storeRoot
+        self.init(
+            scanner: scanner,
+            passCLI: passCLI,
+            storeRootProvider: { storeRoot }
+        )
     }
 
     /// Standard `~/.password-store` location used when no override is
@@ -72,7 +90,11 @@ public actor LivePassManager: PassManaging {
     // MARK: - PassManaging
 
     public func listEntries() async throws -> [PassEntry] {
-        let paths = try await scanner.listEntries(in: storeRoot)
+        // Snapshot the store root once per public call so a single
+        // operation is internally consistent even if the underlying
+        // setting is mutated mid-flight.
+        let root = storeRootProvider()
+        let paths = try await scanner.listEntries(in: root)
         // Scanner already returns deterministically sorted paths;
         // preserve order. Each entry is identified by its path —
         // `PassEntry.id` is the path itself, so identity is stable
@@ -87,7 +109,14 @@ public actor LivePassManager: PassManaging {
     }
 
     public func show(_ entry: PassEntry) async throws -> PassSecret {
-        let result = try await passCLI.show(entryPath: entry.path)
+        // Snapshot the store root for this call and forward it as
+        // `PASSWORD_STORE_DIR` so `pass show` and the scanner agree on
+        // which store to hit.
+        let root = storeRootProvider()
+        let result = try await passCLI.show(
+            entryPath: entry.path,
+            passwordStoreDirOverride: root
+        )
         // Compose the domain value types on the MainActor — see the
         // note in ``listEntries()`` above. The decrypted body never
         // leaves this actor hop except as an opaque ``PassSecret``.
@@ -101,6 +130,6 @@ public actor LivePassManager: PassManaging {
     }
 
     nonisolated public func storeLocation() -> URL {
-        storeRoot
+        storeRootProvider()
     }
 }

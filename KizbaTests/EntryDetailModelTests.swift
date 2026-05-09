@@ -78,12 +78,13 @@ final class EntryDetailModelTests: XCTestCase {
 
     private func makeEnvironment(
         passManager: any PassManaging,
-        clipboard: any ClipboardServicing = NoopClipboardForTests()
+        clipboard: any ClipboardServicing = NoopClipboardForTests(),
+        settings: any SettingsStoring = InMemorySettingsStoreForTests()
     ) -> AppEnvironment {
         AppEnvironment(
             passManager: passManager,
             clipboard: clipboard,
-            settings: InMemorySettingsStoreForTests(),
+            settings: settings,
             discovery: nil
         )
     }
@@ -181,7 +182,7 @@ final class EntryDetailModelTests: XCTestCase {
 
     // MARK: - 3. Copy forwards to clipboard
 
-    func testCopy_callsClipboardWithVerbatimValueAndDelay() async {
+    func testCopy_callsClipboardWithVerbatimValueAndSettingsDelay() async {
         let entry = PassEntry(path: "work/github/personal-token")
         let secret = PassSecret(
             password: "ghp_TEST_TOKEN_0001",
@@ -194,29 +195,33 @@ final class EntryDetailModelTests: XCTestCase {
             secrets: [entry.path: secret]
         )
         let clipboard = RecordingClipboard()
-        let env = makeEnvironment(passManager: manager, clipboard: clipboard)
+        let settings = InMemorySettingsStoreForTests()
+        // No persisted value → model must fall back to the documented
+        // default.
+        let env = makeEnvironment(passManager: manager, clipboard: clipboard, settings: settings)
         let appState = AppState()
         let model = EntryDetailModel(environment: env, state: appState)
 
         model.handleSelectionChange(entry.id)
         await waitForState(of: model, where: isLoaded, timeout: 1.0)
 
-        await model.copyPassword(clearAfterSeconds: 30)
-        await model.copyMetadata(forKey: "user", clearAfterSeconds: 10)
-        await model.copy("explicit-value", clearAfterSeconds: 5)
+        await model.copyPassword()
+        await model.copyMetadata(forKey: "user")
+        await model.copy("explicit-value")
 
+        let defaultDelay = Duration.seconds(SettingsKeys.defaultClipboardClearDelaySeconds)
         XCTAssertEqual(clipboard.calls.count, 3)
         XCTAssertEqual(
             clipboard.calls[0],
-            .init(value: "ghp_TEST_TOKEN_0001", clearAfter: .seconds(30))
+            .init(value: "ghp_TEST_TOKEN_0001", clearAfter: defaultDelay)
         )
         XCTAssertEqual(
             clipboard.calls[1],
-            .init(value: "jane", clearAfter: .seconds(10))
+            .init(value: "jane", clearAfter: defaultDelay)
         )
         XCTAssertEqual(
             clipboard.calls[2],
-            .init(value: "explicit-value", clearAfter: .seconds(5))
+            .init(value: "explicit-value", clearAfter: defaultDelay)
         )
     }
 
@@ -283,5 +288,20 @@ private final class InMemorySettingsStoreForTests: SettingsStoring, @unchecked S
         } else {
             storage.removeValue(forKey: key.name)
         }
+    }
+
+    func removeValue(forKey key: String) {
+        lock.lock(); defer { lock.unlock() }
+        storage.removeValue(forKey: key)
+    }
+
+    func resetAll() {
+        lock.lock(); defer { lock.unlock() }
+        storage.removeAll()
+    }
+
+    func registerDefaults(_ defaults: [String: Any]) {
+        // Tests do not exercise defaults registration on this double.
+        _ = defaults
     }
 }

@@ -151,33 +151,12 @@ final class ShellCommandRunningTests: XCTestCase {
 
 // MARK: - ClipboardServicing
 
-/// Captures every `copy` call for assertions.
-private final class FakeClipboard: ClipboardServicing, @unchecked Sendable {
-
-    struct Call: Equatable {
-        let value: String
-        let clearAfter: Duration
-    }
-
-    private let lock = NSLock()
-    private var _calls: [Call] = []
-
-    var calls: [Call] {
-        lock.lock(); defer { lock.unlock() }
-        return _calls
-    }
-
-    func copy(_ value: String, clearAfter: Duration) async {
-        lock.lock()
-        _calls.append(Call(value: value, clearAfter: clearAfter))
-        lock.unlock()
-    }
-}
+// `FakeClipboardServicing` lives in `KizbaTests/Fixtures/FakeClipboard.swift`.
 
 final class ClipboardServicingTests: XCTestCase {
 
     func testCopyRecordsValueVerbatim() async {
-        let clipboard = FakeClipboard()
+        let clipboard = FakeClipboardServicing()
         await clipboard.copy("hunter2", clearAfter: .seconds(30))
         XCTAssertEqual(
             clipboard.calls,
@@ -186,7 +165,7 @@ final class ClipboardServicingTests: XCTestCase {
     }
 
     func testRepeatedCopiesAreOrdered() async {
-        let clipboard = FakeClipboard()
+        let clipboard = FakeClipboardServicing()
         await clipboard.copy("a", clearAfter: .seconds(30))
         await clipboard.copy("b", clearAfter: .seconds(10))
         XCTAssertEqual(clipboard.calls.map(\.value), ["a", "b"])
@@ -265,6 +244,26 @@ private final class InMemorySettingsStore: SettingsStoring, @unchecked Sendable 
             storage[key.name] = value
         } else {
             storage.removeValue(forKey: key.name)
+        }
+    }
+
+    func removeValue(forKey key: String) {
+        lock.lock(); defer { lock.unlock() }
+        storage.removeValue(forKey: key)
+    }
+
+    func resetAll() {
+        lock.lock(); defer { lock.unlock() }
+        storage.removeAll()
+    }
+
+    func registerDefaults(_ defaults: [String: Any]) {
+        lock.lock(); defer { lock.unlock() }
+        for (k, v) in defaults where storage[k] == nil {
+            if let s = v as? String { storage[k] = s }
+            else if let i = v as? Int { storage[k] = i }
+            else if let d = v as? Double { storage[k] = d }
+            else if let b = v as? Bool { storage[k] = b }
         }
     }
 }

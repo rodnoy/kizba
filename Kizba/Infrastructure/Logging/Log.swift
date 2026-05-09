@@ -14,6 +14,7 @@
 //  - `clipboard` — `Infrastructure/Clipboard/` token / changeCount
 //                  transitions only.
 //  - `discovery` — `Infrastructure/Discovery/` binary resolution.
+//  - `settings`  — `Infrastructure/Settings/` persisted preference I/O.
 //  - `ui`        — `Presentation/` high-level lifecycle events.
 //
 //  ## Privacy & redaction discipline (durable, see `.ai/decisions.md`)
@@ -74,6 +75,10 @@ enum Log {
 
     /// Logger for `Infrastructure/Discovery/` — binary resolution.
     nonisolated static let discovery = Logger(subsystem: subsystem, category: "discovery")
+
+    /// Logger for `Infrastructure/Settings/` — persisted preference
+    /// reads/writes. Never receives user-supplied secret material.
+    nonisolated static let settings = Logger(subsystem: subsystem, category: "settings")
 
     /// Logger for `Presentation/` — high-level UI lifecycle events.
     nonisolated static let ui = Logger(subsystem: subsystem, category: "ui")

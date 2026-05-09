@@ -8,40 +8,49 @@
 //  Int, Double and Bool.
 //
 import Foundation
+import os
 
 /// Production implementation of `SettingsStoring` backed by
 /// `UserDefaults`.
 ///
-/// Threading: marked `@MainActor` to align with the project's
-/// default actor isolation. The underlying `UserDefaults` is safe for
-/// concurrent access from multiple threads.
-public final class UserDefaultsSettingsStore: SettingsStoring {
+/// Threading: declared `nonisolated` so live-override providers wired
+/// into actor-isolated services (e.g. `BinaryDiscoveryService`,
+/// `LivePassManager`) can sample settings without an actor hop. The
+/// underlying `UserDefaults` is documented as safe for concurrent
+/// access.
+public final class UserDefaultsSettingsStore: SettingsStoring, @unchecked Sendable {
 
-    private let userDefaults: UserDefaults
-    private let namespacePrefix = "app.kizba.settings."
+    // `nonisolated(unsafe)` because `UserDefaults` is not Sendable in
+    // the SDK headers but is documented as thread-safe. We confine all
+    // access to thread-safe methods.
+    nonisolated(unsafe) private let userDefaults: UserDefaults
+    nonisolated private let namespacePrefix = "app.kizba.settings."
 
     /// Inject a `UserDefaults` for testability. Tests should pass
     /// `UserDefaults(suiteName:)` and clean up with
     /// `removePersistentDomain(forName:)`.
-    public init(userDefaults: UserDefaults = .standard) {
+    public nonisolated init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
         // Ensure sensible default for clipboard clear delay when nothing
-        // has been registered by the caller.
-        if userDefaults.object(forKey: namespaced("clipboardClearDelaySeconds")) == nil {
-            userDefaults.register(defaults: [namespaced("clipboardClearDelaySeconds"): 30])
+        // has been registered by the caller. The literal lives in
+        // ``SettingsKeys`` so ``SettingsModel`` and ``EntryDetailModel``
+        // share the same source of truth.
+        let key = namespaced(SettingsKeys.clipboardClearDelaySeconds)
+        if userDefaults.object(forKey: key) == nil {
+            userDefaults.register(defaults: [key: SettingsKeys.defaultClipboardClearDelaySeconds])
         }
     }
 
     // MARK: - Namespacing helper
 
-    private func namespaced(_ key: String) -> String {
+    private nonisolated func namespaced(_ key: String) -> String {
         return namespacePrefix + key
     }
 
     // MARK: - SettingsStoring
 
     /// Read the stored value for `key`, or `nil` if unset.
-    public func value<Value: SettingsValue>(for key: SettingsKey<Value>) -> Value? {
+    public nonisolated func value<Value: SettingsValue>(for key: SettingsKey<Value>) -> Value? {
         let nsKey = namespaced(key.name)
 
         switch Value.self {
@@ -69,7 +78,7 @@ public final class UserDefaultsSettingsStore: SettingsStoring {
 
     /// Write `value` for `key`, or remove the entry when `value` is
     /// `nil`.
-    public func set<Value: SettingsValue>(_ value: Value?, for key: SettingsKey<Value>) {
+    public nonisolated func set<Value: SettingsValue>(_ value: Value?, for key: SettingsKey<Value>) {
         let nsKey = namespaced(key.name)
 
         guard let v = value else {
@@ -77,20 +86,49 @@ public final class UserDefaultsSettingsStore: SettingsStoring {
             return
         }
 
+        // Phase A.3: replace force-casts with safe `as?` patterns. The
+        // protocol's generic constraint already restricts `Value` to the
+        // allow-list, so a mismatch here is genuinely a programmer error
+        // — assert in DEBUG, degrade gracefully (drop the write) in
+        // release rather than crashing the host process.
         switch Value.self {
         case is String.Type:
-            userDefaults.set(v as! String, forKey: nsKey)
+            guard let typed = v as? String else {
+                assertionFailure("Settings type mismatch for key \(key.name): expected String, got \(type(of: v))")
+                Log.settings.error("Settings write skipped: type mismatch for key \(key.name, privacy: .public)")
+                return
+            }
+            userDefaults.set(typed, forKey: nsKey)
         case is URL.Type:
             // Persist URL as absoluteString to avoid platform-specific
             // storage semantics. Do not log the value.
-            let url = v as! URL
+            guard let url = v as? URL else {
+                assertionFailure("Settings type mismatch for key \(key.name): expected URL, got \(type(of: v))")
+                Log.settings.error("Settings write skipped: type mismatch for key \(key.name, privacy: .public)")
+                return
+            }
             userDefaults.set(url.absoluteString, forKey: nsKey)
         case is Int.Type:
-            userDefaults.set(v as! Int, forKey: nsKey)
+            guard let typed = v as? Int else {
+                assertionFailure("Settings type mismatch for key \(key.name): expected Int, got \(type(of: v))")
+                Log.settings.error("Settings write skipped: type mismatch for key \(key.name, privacy: .public)")
+                return
+            }
+            userDefaults.set(typed, forKey: nsKey)
         case is Double.Type:
-            userDefaults.set(v as! Double, forKey: nsKey)
+            guard let typed = v as? Double else {
+                assertionFailure("Settings type mismatch for key \(key.name): expected Double, got \(type(of: v))")
+                Log.settings.error("Settings write skipped: type mismatch for key \(key.name, privacy: .public)")
+                return
+            }
+            userDefaults.set(typed, forKey: nsKey)
         case is Bool.Type:
-            userDefaults.set(v as! Bool, forKey: nsKey)
+            guard let typed = v as? Bool else {
+                assertionFailure("Settings type mismatch for key \(key.name): expected Bool, got \(type(of: v))")
+                Log.settings.error("Settings write skipped: type mismatch for key \(key.name, privacy: .public)")
+                return
+            }
+            userDefaults.set(typed, forKey: nsKey)
         default:
             // Drop unsupported types silently — preserves the allow-list.
             break
@@ -102,7 +140,7 @@ public final class UserDefaultsSettingsStore: SettingsStoring {
     /// Register a dictionary of defaults. Keys are treated as bare names
     /// (without the `app.kizba.settings.` prefix) and are namespaced by
     /// this store before being forwarded to `UserDefaults.register`.
-    public func registerDefaults(_ defaults: [String: Any]) {
+    public nonisolated func registerDefaults(_ defaults: [String: Any]) {
         var mapped: [String: Any] = [:]
         for (k, v) in defaults {
             mapped[namespaced(k)] = v
@@ -111,20 +149,20 @@ public final class UserDefaultsSettingsStore: SettingsStoring {
     }
 
     /// Remove a value for a typed `SettingsKey`.
-    public func remove<Value: SettingsValue>(for key: SettingsKey<Value>) {
+    public nonisolated func remove<Value: SettingsValue>(for key: SettingsKey<Value>) {
         userDefaults.removeObject(forKey: namespaced(key.name))
     }
 
     /// Remove a value by raw (bare) key name — useful for callers that
     /// keep string keys.
-    public func removeValue(forKey key: String) {
+    public nonisolated func removeValue(forKey key: String) {
         userDefaults.removeObject(forKey: namespaced(key))
     }
 
     /// Reset (remove) all keys stored under this store's namespace.
     /// This method only touches keys that begin with
     /// `app.kizba.settings.` and leaves other suites untouched.
-    public func resetAll() {
+    public nonisolated func resetAll() {
         let keys = userDefaults.dictionaryRepresentation().keys
         for k in keys where k.hasPrefix(namespacePrefix) {
             userDefaults.removeObject(forKey: k)

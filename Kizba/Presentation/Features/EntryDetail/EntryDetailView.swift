@@ -10,6 +10,17 @@
 //  string lives only inside the model's `State.loaded(PassSecret)`
 //  case and reaches the UI exclusively through inline reads here.
 //
+//  Phase C.4 migration:
+//  - Idle state → `EmptyStateView` (lock-shield icon).
+//  - Loading state → stacked `LoadingShimmer` placeholders shaped like
+//    the eventual loaded layout.
+//  - Loaded state → `SecretRevealField` for the password row;
+//    metadata key/value rows use `theme.typography.monoSmall` with
+//    ghost-style Copy buttons; notes block wrapped in `KizbaCard`.
+//  - Failed state → `BannerView` / `EmptyStateView` per
+//    `ErrorPresentation` case (mapping is unchanged from MVP1; only
+//    the rendering layer swapped).
+//
 
 import SwiftUI
 
@@ -27,6 +38,8 @@ struct EntryDetailView: View {
     @State private var model: EntryDetailModel
     private let environment: AppEnvironment
 
+    @Environment(\.theme) private var theme
+
     init(environment: AppEnvironment, state: AppState) {
         self.state = state
         self.environment = environment
@@ -39,15 +52,18 @@ struct EntryDetailView: View {
         Group {
             switch model.state {
             case .idle:
-                placeholder("Select an entry")
+                EmptyStateView(
+                    iconName: "lock.shield",
+                    title: "Select an entry",
+                    message: "Pick an entry from the list to view details."
+                )
             case .loading:
-                ProgressView("Loading…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                LoadingPlaceholder()
             case .loaded(let secret):
                 LoadedSecretView(
                     secret: secret,
                     isRevealed: $model.isPasswordRevealed,
-                    onCopyPassword: { Task { await model.copyPassword() } },
+                    onCopyPassword: { @Sendable in Task { await model.copyPassword() } },
                     onCopyField: { value in Task { await model.copy(value) } }
                 )
             case .failed(let error):
@@ -59,11 +75,33 @@ struct EntryDetailView: View {
             model.handleSelectionChange(newValue)
         }
     }
+}
 
-    private func placeholder(_ text: String) -> some View {
-        Text(text)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+// MARK: - Loading placeholder
+
+/// Skeleton layout for the loading phase. Mirrors the shape of the
+/// loaded view (a wide password row, then a few shorter metadata rows,
+/// then a notes block) so the transition into `.loaded` does not jump.
+private struct LoadingPlaceholder: View {
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: theme.spacing.lg) {
+                LoadingShimmer(width: 80, height: 12)
+                LoadingShimmer(height: 36)
+
+                VStack(alignment: .leading, spacing: theme.spacing.sm) {
+                    LoadingShimmer(width: 60, height: 12)
+                    LoadingShimmer(width: 240, height: 16)
+                    LoadingShimmer(width: 200, height: 16)
+                }
+
+                LoadingShimmer(height: 80)
+            }
+            .padding(theme.spacing.lg)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 
@@ -72,75 +110,74 @@ struct EntryDetailView: View {
 private struct LoadedSecretView: View {
     let secret: PassSecret
     @Binding var isRevealed: Bool
-    let onCopyPassword: () -> Void
-    let onCopyField: (String) -> Void
+    let onCopyPassword: @MainActor @Sendable () -> Void
+    let onCopyField: @MainActor (String) -> Void
+
+    @Environment(\.theme) private var theme
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                passwordSection
+            VStack(alignment: .leading, spacing: theme.spacing.lg) {
+                SecretRevealField(
+                    value: secret.password,
+                    label: "Password",
+                    isRevealed: $isRevealed,
+                    onCopy: onCopyPassword
+                )
+                .accessibilityIdentifier("password-reveal-field")
+
                 if !secret.metadata.fields.isEmpty {
-                    Divider()
                     metadataSection
                 }
+
                 if let notes = secret.metadata.notes, !notes.isEmpty {
-                    Divider()
                     notesSection(notes)
                 }
             }
-            .padding(16)
+            .padding(theme.spacing.lg)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
-    private var passwordSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Password")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            HStack(spacing: 8) {
-                Text(isRevealed ? secret.password : String(repeating: "•", count: 12))
-                    .font(.system(.body, design: .monospaced))
-                    .textSelection(.enabled)
-                Spacer()
-                Button(isRevealed ? "Hide" : "Reveal") {
-                    isRevealed.toggle()
-                }
-                Button("Copy", action: onCopyPassword)
-                    .accessibilityIdentifier("copy-password-button")
-            }
-        }
-    }
-
     private var metadataSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: theme.spacing.sm) {
             Text("Metadata")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            ForEach(Array(secret.metadata.fields.enumerated()), id: \.offset) { index, field in
-                HStack(spacing: 8) {
-                    Text("\(field.key):")
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                    Text(field.value)
-                        .font(.system(.body, design: .monospaced))
-                        .textSelection(.enabled)
-                    Spacer()
-                    Button("Copy") { onCopyField(field.value) }
-                        .accessibilityIdentifier("copy-meta-\(index)-button")
+                .font(theme.typography.caption)
+                .foregroundStyle(theme.colors.onSurfaceMuted)
+
+            VStack(alignment: .leading, spacing: theme.spacing.xs) {
+                ForEach(Array(secret.metadata.fields.enumerated()), id: \.offset) { index, field in
+                    HStack(spacing: theme.spacing.sm) {
+                        Text("\(field.key):")
+                            .font(theme.typography.monoSmall)
+                            .foregroundStyle(theme.colors.onSurfaceMuted)
+                        Text(field.value)
+                            .font(theme.typography.monoSmall)
+                            .foregroundStyle(theme.colors.onSurface)
+                            .textSelection(.enabled)
+                        Spacer()
+                        Button("Copy") { onCopyField(field.value) }
+                            .buttonStyle(.kizba(.ghost, size: .compact))
+                            .accessibilityIdentifier("copy-meta-\(index)-button")
+                    }
                 }
             }
         }
     }
 
     private func notesSection(_ notes: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: theme.spacing.sm) {
             Text("Notes")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Text(notes)
-                .font(.body)
-                .textSelection(.enabled)
+                .font(theme.typography.caption)
+                .foregroundStyle(theme.colors.onSurfaceMuted)
+
+            KizbaCard {
+                Text(notes)
+                    .font(theme.typography.body)
+                    .foregroundStyle(theme.colors.onSurface)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 }
@@ -154,53 +191,82 @@ private struct FailedView: View {
     @State private var showingDiagnostics = false
     @State private var diagnosticsModel: DiagnosticsModel? = nil
 
+    @Environment(\.theme) private var theme
+
     var body: some View {
         let presentation = ErrorPresentation.present(for: error)
-        VStack(alignment: .leading, spacing: 12) {
+
+        return Group {
             switch presentation {
             case .emptyState(let nudge):
-                Text(nudge.title)
-                    .font(.headline)
-                Text("Configure the missing tool in Settings to continue.")
-                    .foregroundStyle(.secondary)
-                #if canImport(AppKit)
-                Button(nudge.actionTitle) {
-                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                EmptyStateView(
+                    iconName: emptyStateIcon(for: error),
+                    title: nudge.title,
+                    message: "Configure the missing tool in Settings to continue."
+                ) {
+                    // `SettingsLink` (macOS 14+) opens the `Settings { ... }`
+                    // scene declared in `KizbaApp` without resorting to a
+                    // stringly-typed `NSApp.sendAction` selector.
+                    SettingsLink {
+                        Text(nudge.actionTitle)
+                    }
+                    .buttonStyle(.kizba(.primary))
                 }
-                #endif
 
             case .banner(let message, let helpURL):
-                Text(message)
-                    .padding(8)
-                    .background(Color.secondary.opacity(0.08))
-                    .cornerRadius(6)
-                if let url = helpURL {
-                    Link("Help", destination: url)
+                VStack(alignment: .leading, spacing: theme.spacing.md) {
+                    BannerView(
+                        severity: .warning,
+                        title: "Pinentry not configured",
+                        message: message
+                    )
+                    if let url = helpURL {
+                        Link("Help", destination: url)
+                            .font(theme.typography.body)
+                            .foregroundStyle(theme.colors.accent)
+                    }
                 }
+                .padding(theme.spacing.lg)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
             case .inlineWithDiagnostics(let message), .toastWithDiagnostics(let message):
-                Text(message)
-                    .foregroundStyle(.secondary)
-                Button("View details") {
-                    diagnosticsModel = DiagnosticsModel(invocationLog: environment.invocationLog ?? InvocationLog())
-                    showingDiagnostics = true
+                VStack(alignment: .leading, spacing: theme.spacing.md) {
+                    BannerView(
+                        severity: .danger,
+                        title: "Could not decrypt",
+                        message: message,
+                        action: BannerView.BannerAction(label: "View details") {
+                            // Reuse the SHARED `InvocationLog` carried by
+                            // `AppEnvironment.live()` so the Diagnostics sheet
+                            // renders the actual recorded invocations. In live
+                            // wiring `invocationLog` is always populated;
+                            // preview/test wirings do not present this sheet.
+                            diagnosticsModel = DiagnosticsModel(
+                                invocationLog: environment.invocationLog!
+                            )
+                            showingDiagnostics = true
+                        }
+                    )
                 }
+                .padding(theme.spacing.lg)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
             case .onboarding(let message):
-                Text(message)
-                    .foregroundStyle(.secondary)
-                #if canImport(AppKit)
-                Button("Open Settings") {
-                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                EmptyStateView(
+                    iconName: "folder.badge.questionmark",
+                    title: "Password store not found",
+                    message: message
+                ) {
+                    SettingsLink {
+                        Text("Configure store path")
+                    }
+                    .buttonStyle(.kizba(.primary))
                 }
-                #endif
 
             case .silent:
                 EmptyView()
             }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .sheet(isPresented: $showingDiagnostics) {
             if let model = diagnosticsModel {
                 DiagnosticsView(model: model)
@@ -209,7 +275,21 @@ private struct FailedView: View {
                     }
             } else {
                 Text("Loading…")
+                    .font(theme.typography.body)
+                    .foregroundStyle(theme.colors.onSurfaceMuted)
             }
+        }
+    }
+
+    /// Icon for the `.emptyState` presentation. `binaryNotFound` is the
+    /// only PassError that maps here today; pick a tools icon. Any
+    /// future addition falls through to a neutral question-mark folder.
+    private func emptyStateIcon(for error: PassError) -> String {
+        switch error {
+        case .binaryNotFound:
+            return "wrench.and.screwdriver"
+        default:
+            return "folder.badge.questionmark"
         }
     }
 }

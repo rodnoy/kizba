@@ -32,10 +32,23 @@ struct EntryListView: View {
     var body: some View {
         List(selection: selectionBinding) {
             ForEach(model.entries) { entry in
-                EntryRow(entry: entry)
-                    .tag(entry.id as PassEntry.ID?)
+                EntryRowView(
+                    title: entry.name,
+                    subtitle: entry.folder.isEmpty ? nil : entry.path,
+                    isSelected: state.selectedEntryID == entry.id
+                )
+                .tag(entry.id as PassEntry.ID?)
             }
         }
+        // Phase C.5 — suppress `List`'s default per-row selection chrome
+        // (system accent fill) so the row's own `surfaceSelected`
+        // background from `EntryRowView` is the sole selection
+        // indicator. `.plain` was chosen over `.sidebar` (which is
+        // semantically reserved for the leftmost split-view column)
+        // and over a custom `ScrollView { LazyVStack { … } }`
+        // (which would lose `List(selection:)`'s built-in arrow-key
+        // navigation + accessibility wiring).
+        .listStyle(.plain)
         .navigationTitle(state.selectedFolder ?? "Entries")
         .searchable(text: $state.searchQuery, placement: .toolbar)
         .toolbar {
@@ -61,25 +74,5 @@ struct EntryListView: View {
             get: { state.selectedEntryID },
             set: { model.select(entryID: $0) }
         )
-    }
-}
-
-/// Single entry row: name on top, full path beneath in secondary text.
-private struct EntryRow: View {
-    let entry: PassEntry
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(entry.name)
-                .font(.body)
-            if !entry.folder.isEmpty {
-                Text(entry.path)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-        }
-        .padding(.vertical, 2)
     }
 }

@@ -31,11 +31,23 @@ struct SidebarView: View {
         List(selection: $selection) {
             Section("Folders") {
                 ForEach(model.folders) { folder in
-                    Label(folder.name, systemImage: "folder")
-                        .tag(folder.name as String?)
+                    EntryRowView(
+                        leadingIconName: "folder",
+                        title: folder.name,
+                        isSelected: selection == folder.name
+                    )
+                    .tag(folder.name as String?)
                 }
             }
         }
+        // Phase C.6 — match `EntryListView`: suppress `List`'s default
+        // per-row selection chrome (system accent fill) so the row's
+        // own `surfaceSelected` background from `EntryRowView` is the
+        // sole selection indicator. `.plain` is used (rather than
+        // `.sidebar`) for visual consistency with the middle column —
+        // the goal of this phase is a single themed selection language
+        // across the split view, not a macOS-native sidebar look.
+        .listStyle(.plain)
         .navigationTitle("Kizba")
         .task {
             await model.load()

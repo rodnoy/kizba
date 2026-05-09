@@ -44,7 +44,8 @@ public final class SettingsModel {
         self.gpgBinaryOverride = settings.value(for: SettingsKey<String>(SettingsKeys.gpgBinaryOverride))
         self.pinentryBinaryOverride = settings.value(for: SettingsKey<String>(SettingsKeys.pinentryBinaryOverride))
 
-        self.clipboardClearDelaySeconds = settings.value(for: SettingsKey<Int>(SettingsKeys.clipboardClearDelaySeconds)) ?? 30
+        self.clipboardClearDelaySeconds = settings.value(for: SettingsKey<Int>(SettingsKeys.clipboardClearDelaySeconds))
+            ?? SettingsKeys.defaultClipboardClearDelaySeconds
     }
 
     // MARK: - Actions
@@ -68,7 +69,7 @@ public final class SettingsModel {
         settings.removeValue(forKey: SettingsKeys.pinentryBinaryOverride)
 
         // Reset clipboard delay to default and persist.
-        clipboardClearDelaySeconds = 30
+        clipboardClearDelaySeconds = SettingsKeys.defaultClipboardClearDelaySeconds
         settings.set(clipboardClearDelaySeconds, for: SettingsKey<Int>(SettingsKeys.clipboardClearDelaySeconds))
 
         // Reflect cleared overrides in-memory as well.

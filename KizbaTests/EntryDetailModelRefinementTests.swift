@@ -116,30 +116,35 @@ final class EntryDetailModelRefinementTests: XCTestCase {
             entries: [entry],
             outcomes: [entry.path: .success(secret)]
         )
-        let clipboard = FakeClipboard()
-        let env = makeEnvironment(passManager: manager, clipboard: clipboard)
+        let clipboard = FakeClipboardServicing()
+        // Persist a non-default delay so the assertion below proves the
+        // model is reading from settings rather than using a literal
+        // fallback.
+        let settings = EphemeralSettingsStore()
+        settings.set(45, for: SettingsKey<Int>(SettingsKeys.clipboardClearDelaySeconds))
+        let env = makeEnvironment(passManager: manager, clipboard: clipboard, settings: settings)
         let appState = AppState()
         let model = EntryDetailModel(environment: env, state: appState)
 
         model.handleSelectionChange(entry.id)
         await waitForState(of: model, where: { if case .loaded = $0 { return true }; return false }, timeout: 1.0)
 
-        await model.copyPassword(clearAfterSeconds: 30)
+        await model.copyPassword()
 
         let last = clipboard.lastCall
         XCTAssertEqual(last?.value, "aws-root-pw")
-        XCTAssertEqual(last?.clearAfter, .seconds(30))
+        XCTAssertEqual(last?.clearAfter, .seconds(45))
 
         // Verbatim guarantee: the copied value must equal the field's
         // raw value, never a `"key: value"` composition.
-        await model.copyMetadata(forKey: "user", clearAfterSeconds: 7)
+        await model.copyMetadata(forKey: "user")
         let metaCall = clipboard.lastCall
         XCTAssertEqual(metaCall?.value, "root@example.test")
         XCTAssertFalse(
             (metaCall?.value ?? "").contains(": "),
             "Clipboard must receive verbatim value, not a 'key: value' composition."
         )
-        XCTAssertEqual(metaCall?.clearAfter, .seconds(7))
+        XCTAssertEqual(metaCall?.clearAfter, .seconds(45))
     }
 
     // MARK: - c) Rapid selection-change race
@@ -243,13 +248,13 @@ final class EntryDetailModelRefinementTests: XCTestCase {
 
     private func makeEnvironment(
         passManager: any PassManaging,
-        clipboard: any ClipboardServicing = SilentClipboard()
+        clipboard: any ClipboardServicing = SilentClipboard(),
+        settings: any SettingsStoring = EphemeralSettingsStore()
     ) -> AppEnvironment {
         AppEnvironment(
             passManager: passManager,
             clipboard: clipboard,
-            settings: EphemeralSettingsStore()
-            ,
+            settings: settings,
             discovery: nil
         )
     }
@@ -317,32 +322,7 @@ private actor ScriptedPassManager: PassManaging {
     }
 }
 
-/// Records every clipboard call. Reads occur on MainActor after the
-/// awaited `copy` completes, so the lock is just defensive.
-private final class FakeClipboard: ClipboardServicing, @unchecked Sendable {
-    struct Call: Equatable, Sendable {
-        let value: String
-        let clearAfter: Duration
-    }
-
-    private let lock = NSLock()
-    private var _calls: [Call] = []
-
-    var calls: [Call] {
-        lock.lock(); defer { lock.unlock() }
-        return _calls
-    }
-
-    var lastCall: Call? {
-        lock.lock(); defer { lock.unlock() }
-        return _calls.last
-    }
-
-    func copy(_ value: String, clearAfter: Duration) async {
-        lock.lock(); defer { lock.unlock() }
-        _calls.append(Call(value: value, clearAfter: clearAfter))
-    }
-}
+// `FakeClipboardServicing` lives in `KizbaTests/Fixtures/FakeClipboard.swift`.
 
 /// Drops every clipboard call — used when the test is not asserting on
 /// clipboard interaction.
@@ -367,5 +347,20 @@ private final class EphemeralSettingsStore: SettingsStoring, @unchecked Sendable
         } else {
             storage.removeValue(forKey: key.name)
         }
+    }
+
+    func removeValue(forKey key: String) {
+        lock.lock(); defer { lock.unlock() }
+        storage.removeValue(forKey: key)
+    }
+
+    func resetAll() {
+        lock.lock(); defer { lock.unlock() }
+        storage.removeAll()
+    }
+
+    func registerDefaults(_ defaults: [String: Any]) {
+        // Tests do not exercise defaults registration on this double.
+        _ = defaults
     }
 }

@@ -76,13 +76,23 @@ public actor LivePassCLI {
 
     /// Run `pass show <entryPath>` against the lazily-resolved binary.
     ///
+    /// - Parameters:
+    ///   - entryPath: pass entry path forwarded as the second `argv`
+    ///     element (`pass show <entry>`).
+    ///   - timeout: wall-clock timeout. Defaults to
+    ///     ``kizbaPassShowDefaultTimeout``.
+    ///   - passwordStoreDirOverride: per-call override for
+    ///     `PASSWORD_STORE_DIR`. When non-`nil`, takes precedence over
+    ///     the value supplied at construction time. Lets ``LivePassManager``
+    ///     keep the env in sync with its live store-root provider.
     /// - Throws: ``PassError/binaryNotFound`` if discovery returns
     ///   `nil`; otherwise any error surfaced by ``PassCLI/show(entryPath:timeout:)``.
     public func show(
         entryPath: String,
-        timeout: Duration = kizbaPassShowDefaultTimeout
+        timeout: Duration = kizbaPassShowDefaultTimeout,
+        passwordStoreDirOverride: URL? = nil
     ) async throws -> PassShowResult {
-        let cli = try await resolveCLI()
+        let cli = try await resolveCLI(passwordStoreDirOverride: passwordStoreDirOverride)
         return try await cli.show(entryPath: entryPath, timeout: timeout)
     }
 
@@ -94,22 +104,30 @@ public actor LivePassCLI {
 
     // MARK: - Private
 
-    private func resolveCLI() async throws -> PassCLI {
-        if let resolved { return resolved }
+    private func resolveCLI(passwordStoreDirOverride: URL? = nil) async throws -> PassCLI {
+        // The cached `PassCLI` is reusable only when no per-call
+        // store-dir override is supplied; otherwise the environment
+        // dictionary would be wrong for this invocation. Building a
+        // fresh `PassCLI` value type is cheap (it does not spawn
+        // anything) so we accept that cost on the override path.
+        if passwordStoreDirOverride == nil, let resolved { return resolved }
 
         guard let executable = await discovery.locate(.pass) else {
             throw PassError.binaryNotFound(BinaryName.pass.rawValue)
         }
 
+        let effectiveStoreDir = passwordStoreDirOverride ?? passwordStoreDir
         let cli = PassCLI(
             executable: executable,
             shellRunner: shellRunner,
-            passwordStoreDir: passwordStoreDir,
+            passwordStoreDir: effectiveStoreDir,
             gnupgHome: gnupgHome,
             pathOverride: pathOverride,
             homeOverride: homeOverride
         )
-        resolved = cli
+        if passwordStoreDirOverride == nil {
+            resolved = cli
+        }
         return cli
     }
 }

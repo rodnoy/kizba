@@ -6,6 +6,17 @@
 //  `SettingsModel` instance and exposes controls for path/binary
 //  overrides, clipboard delay, and binary re-detection.
 //
+//  Phase C.4 migrated this view to the design system: each `Section`
+//  becomes a `FormSection`, each labeled control row a `FormFieldRow`,
+//  text fields adopt `.kizba`, and primary/destructive actions use
+//  `KizbaButtonStyle`. The vanilla `.alert` reset confirmation is
+//  replaced by the shared `.destructiveConfirmation(...)` modifier.
+//
+//  Native SwiftUI controls without a theme hook (`Stepper`,
+//  `ProgressView`, the Settings scene container itself) are left
+//  system-rendered intentionally; they pick up the parent theme through
+//  standard appearance proxies.
+//
 
 import SwiftUI
 #if canImport(AppKit)
@@ -18,106 +29,163 @@ public struct SettingsView: View {
     @State private var model: SettingsModel
     @State private var showingResetConfirmation = false
 
+    @Environment(\.theme) private var theme
+
     public init(model: SettingsModel) {
         _model = State(wrappedValue: model)
     }
 
     public var body: some View {
-        Form {
-            Section("General") {
-                HStack {
-                    TextField("Password store path override", text: bindingForOptional(\.storePathOverride))
-                        .textFieldStyle(.roundedBorder)
+        ScrollView {
+            VStack(alignment: .leading, spacing: theme.spacing.lg) {
+                generalSection
+                binariesSection
+                clipboardSection
+                actionsSection
+            }
+            .padding(theme.spacing.lg)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(minWidth: 520)
+        .destructiveConfirmation(
+            isPresented: $showingResetConfirmation,
+            title: "Reset to Defaults?",
+            message: "This will clear all overrides and restore the clipboard delay to the default value.",
+            confirmLabel: "Reset"
+        ) {
+            model.resetToDefaults()
+        }
+        .safeAreaInset(edge: .bottom) {
+            HStack {
+                Spacer()
+                Text("Version \(AppInfo.version) (\(AppInfo.build))")
+                    .font(theme.typography.caption)
+                    .foregroundStyle(theme.colors.onSurfaceMuted)
+                Spacer()
+            }
+            .padding(.vertical, theme.spacing.sm)
+        }
+    }
+
+    // MARK: - Sections
+
+    private var generalSection: some View {
+        FormSection("General") {
+            FormFieldRow(
+                label: "Store path override",
+                helpText: "Absolute path to your password store. Leave empty for the default."
+            ) {
+                HStack(spacing: theme.spacing.sm) {
+                    TextField(
+                        "Password store path override",
+                        text: bindingForOptional(\.storePathOverride)
+                    )
+                    .textFieldStyle(.kizba)
                     pickerButton(allowsDirectories: true) { url in
                         model.storePathOverride = url.path
                     }
                 }
             }
+        }
+    }
 
-            Section("Binaries") {
-                HStack {
-                    TextField("pass binary override", text: bindingForOptional(\.passBinaryOverride))
-                        .textFieldStyle(.roundedBorder)
+    private var binariesSection: some View {
+        FormSection("Binaries") {
+            FormFieldRow(label: "pass") {
+                HStack(spacing: theme.spacing.sm) {
+                    TextField(
+                        "pass binary override",
+                        text: bindingForOptional(\.passBinaryOverride)
+                    )
+                    .textFieldStyle(.kizba)
                     pickerButton(allowsDirectories: false) { url in
                         model.passBinaryOverride = url.path
                     }
                 }
+            }
 
-                HStack {
-                    TextField("gpg binary override", text: bindingForOptional(\.gpgBinaryOverride))
-                        .textFieldStyle(.roundedBorder)
+            FormFieldRow(label: "gpg") {
+                HStack(spacing: theme.spacing.sm) {
+                    TextField(
+                        "gpg binary override",
+                        text: bindingForOptional(\.gpgBinaryOverride)
+                    )
+                    .textFieldStyle(.kizba)
                     pickerButton(allowsDirectories: false) { url in
                         model.gpgBinaryOverride = url.path
                     }
                 }
+            }
 
-                HStack {
-                    TextField("pinentry binary override", text: bindingForOptional(\.pinentryBinaryOverride))
-                        .textFieldStyle(.roundedBorder)
+            FormFieldRow(label: "pinentry") {
+                HStack(spacing: theme.spacing.sm) {
+                    TextField(
+                        "pinentry binary override",
+                        text: bindingForOptional(\.pinentryBinaryOverride)
+                    )
+                    .textFieldStyle(.kizba)
                     pickerButton(allowsDirectories: false) { url in
                         model.pinentryBinaryOverride = url.path
                     }
                 }
+            }
 
-                HStack {
-                    if model.isDetectingBinaries {
-                        ProgressView()
-                    }
+            FormFieldRow(label: "Detection") {
+                HStack(spacing: theme.spacing.sm) {
                     Button("Re-detect binaries") {
                         Task { await model.reDetectBinaries() }
                     }
-                    Spacer()
-                }
-            }
+                    .buttonStyle(.kizba(.secondary))
+                    .disabled(model.isDetectingBinaries)
 
-            Section("Clipboard") {
-                HStack {
-                    Stepper(value: $model.clipboardClearDelaySeconds, in: 5...300, step: 5) {
-                        Text("Clipboard clear delay")
+                    if model.isDetectingBinaries {
+                        ProgressView()
+                            .controlSize(.small)
                     }
-                    Spacer()
-                    Text("\(model.clipboardClearDelaySeconds) s")
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Section {
-                HStack {
-                    Spacer()
-                    Button("Save") {
-                        model.save()
-                    }
-                    .keyboardShortcut(.defaultAction)
-
-                    Button("Reset to Defaults") {
-                        showingResetConfirmation = true
-                    }
-                    .keyboardShortcut(.cancelAction)
                     Spacer()
                 }
             }
         }
-        .padding()
-        .frame(minWidth: 520)
-        .alert("Reset to Defaults?", isPresented: $showingResetConfirmation) {
-            Button("Reset", role: .destructive) {
-                model.resetToDefaults()
+    }
+
+    private var clipboardSection: some View {
+        FormSection("Clipboard") {
+            FormFieldRow(
+                label: "Auto-clear delay",
+                helpText: "Seconds before a copied secret is cleared from the pasteboard."
+            ) {
+                HStack(spacing: theme.spacing.sm) {
+                    // Native `Stepper` has no theme hook — left system-rendered
+                    // intentionally; its label adopts the surrounding font.
+                    Stepper(
+                        value: $model.clipboardClearDelaySeconds,
+                        in: SettingsKeys.clipboardClearDelayBounds,
+                        step: 5
+                    ) {
+                        Text("\(model.clipboardClearDelaySeconds) s")
+                            .font(theme.typography.body)
+                            .foregroundStyle(theme.colors.onSurface)
+                    }
+                    Spacer()
+                }
             }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("This will clear all overrides and restore the clipboard delay to the default value.")
         }
-        // Footer with app version/build metadata
-        // Removed .toolbarBackground(.visible, for: .window) — ToolbarPlacement.window is unavailable in the current SDK
-        .safeAreaInset(edge: .bottom) {
-            HStack {
-                Spacer()
-                Text("Version \(AppInfo.version) (\(AppInfo.build))")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-                Spacer()
+    }
+
+    private var actionsSection: some View {
+        HStack(spacing: theme.spacing.md) {
+            Spacer()
+            Button("Reset to Defaults") {
+                showingResetConfirmation = true
             }
-            .padding(.vertical, 8)
+            .buttonStyle(.kizba(.destructive))
+            .keyboardShortcut(.cancelAction)
+
+            Button("Save") {
+                model.save()
+            }
+            .buttonStyle(.kizba(.primary))
+            .keyboardShortcut(.defaultAction)
         }
     }
 
@@ -140,7 +208,7 @@ public struct SettingsView: View {
     @ViewBuilder
     private func pickerButton(allowsDirectories: Bool, completion: @escaping (URL) -> Void) -> some View {
 #if canImport(AppKit)
-        Button(action: {
+        Button {
             let panel = NSOpenPanel()
             panel.canChooseFiles = true
             panel.canChooseDirectories = allowsDirectories
@@ -149,10 +217,11 @@ public struct SettingsView: View {
                 guard response == .OK, let url = panel.url else { return }
                 Task { @MainActor in completion(url) }
             }
-        }) {
+        } label: {
             Image(systemName: "ellipsis.circle")
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.kizba(.ghost, size: .compact))
+        .accessibilityLabel("Browse")
 #else
         EmptyView()
 #endif

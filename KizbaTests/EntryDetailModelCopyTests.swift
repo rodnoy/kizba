@@ -20,15 +20,20 @@ import XCTest
 @MainActor
 final class EntryDetailModelCopyTests: XCTestCase {
 
-    func testModelCopy_invokesClipboardWithVerbatimValueAndDelay() async {
-        let clipboard = RecordingClipboard()
+    func testModelCopy_invokesClipboardWithVerbatimValueAndDefaultDelay() async {
+        let clipboard = FakeClipboardServicing()
+        // Empty store — `currentClipboardClearDelay()` must fall back
+        // to ``SettingsKeys/defaultClipboardClearDelaySeconds``.
         let model = makeModel(clipboard: clipboard)
 
-        await model.copy("super-secret-token", clearAfterSeconds: 30)
+        await model.copy("super-secret-token")
 
         XCTAssertEqual(clipboard.calls.count, 1)
         XCTAssertEqual(clipboard.calls.first?.value, "super-secret-token")
-        XCTAssertEqual(clipboard.calls.first?.clearAfter, .seconds(30))
+        XCTAssertEqual(
+            clipboard.calls.first?.clearAfter,
+            .seconds(SettingsKeys.defaultClipboardClearDelaySeconds)
+        )
     }
 
     func testModelCopyPassword_forwardsLoadedPasswordVerbatim() async {
@@ -39,7 +44,7 @@ final class EntryDetailModelCopyTests: XCTestCase {
             )
         )
         let entry = PassEntry(path: "work/example/alice")
-        let clipboard = RecordingClipboard()
+        let clipboard = FakeClipboardServicing()
         let passManager = StubPassManager(entry: entry, secret: secret)
         let model = makeModel(passManager: passManager, clipboard: clipboard)
 
@@ -47,24 +52,69 @@ final class EntryDetailModelCopyTests: XCTestCase {
         model.handleSelectionChange(entry.id)
         await waitForLoaded(model, timeout: 1.0)
 
-        await model.copyPassword(clearAfterSeconds: 30)
+        await model.copyPassword()
 
         XCTAssertEqual(clipboard.calls.count, 1)
         XCTAssertEqual(clipboard.calls.first?.value, "p@ss-w0rd!")
-        XCTAssertEqual(clipboard.calls.first?.clearAfter, .seconds(30))
+        XCTAssertEqual(
+            clipboard.calls.first?.clearAfter,
+            .seconds(SettingsKeys.defaultClipboardClearDelaySeconds)
+        )
+    }
+
+    // MARK: - Phase A.6: live read of `clipboardClearDelaySeconds`
+
+    /// Setting a non-default value in the injected ``SettingsStoring``
+    /// must drive the very next `copy(_:)` invocation.
+    func testCopy_readsClipboardDelayFromSettingsLive() async {
+        let clipboard = FakeClipboardServicing()
+        let settings = MutableSettingsStore()
+        settings.set(60, for: SettingsKey<Int>(SettingsKeys.clipboardClearDelaySeconds))
+        let model = makeModel(clipboard: clipboard, settings: settings)
+
+        await model.copy("token-1")
+
+        XCTAssertEqual(clipboard.calls.last?.clearAfter, .seconds(60))
+
+        // Mutate the setting between copies — the change must take
+        // effect on the next call without rebuilding the model.
+        settings.set(15, for: SettingsKey<Int>(SettingsKeys.clipboardClearDelaySeconds))
+
+        await model.copy("token-2")
+
+        XCTAssertEqual(clipboard.calls.last?.clearAfter, .seconds(15))
+    }
+
+    /// Out-of-range persisted values must be clamped to
+    /// ``SettingsKeys/clipboardClearDelayBounds``.
+    func testCopy_clampsOutOfRangeSettingsValue() async {
+        let clipboard = FakeClipboardServicing()
+        let settings = MutableSettingsStore()
+        let bounds = SettingsKeys.clipboardClearDelayBounds
+
+        // Below lower bound (and the legacy "no-clear" footgun) → clamp up.
+        settings.set(0, for: SettingsKey<Int>(SettingsKeys.clipboardClearDelaySeconds))
+        let model = makeModel(clipboard: clipboard, settings: settings)
+        await model.copy("a")
+        XCTAssertEqual(clipboard.calls.last?.clearAfter, .seconds(bounds.lowerBound))
+
+        // Above upper bound → clamp down.
+        settings.set(1_000_000, for: SettingsKey<Int>(SettingsKeys.clipboardClearDelaySeconds))
+        await model.copy("b")
+        XCTAssertEqual(clipboard.calls.last?.clearAfter, .seconds(bounds.upperBound))
     }
 
     // MARK: - Helpers
 
     private func makeModel(
         passManager: any PassManaging = NullPassManager(),
-        clipboard: any ClipboardServicing
+        clipboard: any ClipboardServicing,
+        settings: any SettingsStoring = MutableSettingsStore()
     ) -> EntryDetailModel {
         let env = AppEnvironment(
             passManager: passManager,
             clipboard: clipboard,
-            settings: NullSettingsStore()
-            ,
+            settings: settings,
             discovery: nil
         )
         return EntryDetailModel(environment: env, state: AppState())
@@ -90,23 +140,7 @@ final class EntryDetailModelCopyTests: XCTestCase {
 }
 
 // MARK: - File-private doubles
-
-private final class RecordingClipboard: ClipboardServicing, @unchecked Sendable {
-    struct Call: Equatable, Sendable {
-        let value: String
-        let clearAfter: Duration
-    }
-    private let lock = NSLock()
-    private var _calls: [Call] = []
-    var calls: [Call] {
-        lock.lock(); defer { lock.unlock() }
-        return _calls
-    }
-    func copy(_ value: String, clearAfter: Duration) async {
-        lock.lock(); defer { lock.unlock() }
-        _calls.append(Call(value: value, clearAfter: clearAfter))
-    }
-}
+// `FakeClipboardServicing` lives in `KizbaTests/Fixtures/FakeClipboard.swift`.
 
 private struct StubPassManager: PassManaging {
     let entry: PassEntry
@@ -133,7 +167,40 @@ private struct NullPassManager: PassManaging {
     }
 }
 
-private struct NullSettingsStore: SettingsStoring {
-    func value<Value: SettingsValue>(for key: SettingsKey<Value>) -> Value? { nil }
-    func set<Value: SettingsValue>(_ value: Value?, for key: SettingsKey<Value>) {}
+/// Tiny in-memory `SettingsStoring` test double. Mutable so a single
+/// instance can drive multiple `copy(_:)` calls in a single test, in
+/// order to assert that ``EntryDetailModel`` re-reads the setting on
+/// every call rather than caching it at init time.
+private final class MutableSettingsStore: SettingsStoring, @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [String: any SettingsValue] = [:]
+
+    func value<Value: SettingsValue>(for key: SettingsKey<Value>) -> Value? {
+        lock.lock(); defer { lock.unlock() }
+        return storage[key.name] as? Value
+    }
+
+    func set<Value: SettingsValue>(_ value: Value?, for key: SettingsKey<Value>) {
+        lock.lock(); defer { lock.unlock() }
+        if let value {
+            storage[key.name] = value
+        } else {
+            storage.removeValue(forKey: key.name)
+        }
+    }
+
+    func removeValue(forKey key: String) {
+        lock.lock(); defer { lock.unlock() }
+        storage.removeValue(forKey: key)
+    }
+
+    func resetAll() {
+        lock.lock(); defer { lock.unlock() }
+        storage.removeAll()
+    }
+
+    func registerDefaults(_ defaults: [String: Any]) {
+        // Tests mutate explicit keys; defaults registration is unused here.
+        _ = defaults
+    }
 }

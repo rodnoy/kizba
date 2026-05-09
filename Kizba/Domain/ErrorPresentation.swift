@@ -73,6 +73,44 @@ public enum ErrorPresentation: Sendable {
 
         case .cancelled:
             return .silent
+
+        // MARK: Write-side (Phase D.6)
+
+        case .entryAlreadyExists:
+            // Form-level concern: `EntryFormModel` reads
+            // `error.inlineRecoverable` directly and renders an inline
+            // `BannerView` with an "Overwrite" action. No top-level
+            // presentation is needed — keep it `.silent` so the global
+            // toast/banner surface stays out of the way of the form.
+            return .silent
+
+        case let .recipientNotFound(emailOrKeyId):
+            return .banner(
+                message: "GPG cannot find a public key for recipient \(emailOrKeyId).",
+                helpURL: nil
+            )
+
+        case .invalidGpgId:
+            return .onboarding(
+                message: "Password store is not initialised — run `pass init <gpg-id>` to set a recipient."
+            )
+
+        case let .sourceNotFound(path):
+            return .toastWithDiagnostics(
+                message: "Entry no longer exists: \(path)"
+            )
+
+        case let .writeFailed(reason):
+            return .toastWithDiagnostics(
+                message: "Could not save: \(reason ?? "unknown error")"
+            )
+
+        case .invalidLength:
+            // Form-level inline validation should reject invalid lengths
+            // before the request leaves the UI. If one slips through,
+            // staying silent at the global surface is preferable to a
+            // confusing toast — the form will keep its own inline error.
+            return .silent
         }
     }
 }
