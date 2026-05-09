@@ -61,6 +61,13 @@ final class EntryDetailModel {
     private var generation: UInt64 = 0
     private var loadTask: Task<Void, Never>?
 
+    /// Long-lived subscription to `passManager.changes` (Phase H.1).
+    /// Started by ``observeChanges()`` (typically driven by the view's
+    /// `.task` modifier so cancellation is automatic on disappear) and
+    /// optionally torn down by ``stop()`` for tests / programmatic
+    /// detachment.
+    private var changeSubscriptionTask: Task<Void, Never>?
+
     init(environment: AppEnvironment, state: AppState) {
         self.environment = environment
         self.appState = state
@@ -161,6 +168,112 @@ final class EntryDetailModel {
         let bounds = SettingsKeys.clipboardClearDelayBounds
         let clamped = min(max(raw, bounds.lowerBound), bounds.upperBound)
         return .seconds(clamped)
+    }
+
+    // MARK: - StoreChange subscription (Phase H.1)
+
+    /// Subscribe to `passManager.changes` and reconcile detail-side
+    /// state against events targeting the currently-displayed entry.
+    ///
+    /// Reaction policy:
+    ///
+    /// - `.updated(path)` — if `path == appState.selectedEntryID`,
+    ///   re-fetch the secret via the existing selection-change
+    ///   pipeline so the UI reflects the rewritten body (e.g. after
+    ///   `pass generate --in-place` repopulates metadata).
+    /// - `.removed(path)` — if `path == appState.selectedEntryID`,
+    ///   clear the loaded secret. The list-side handler clears
+    ///   `selectedEntryID` itself; this branch covers the case where
+    ///   the detail model is still showing a body whose underlying
+    ///   entry vanished.
+    /// - `.moved(from, to)` — if `from == appState.selectedEntryID`,
+    ///   re-fetch under the new path. The list-side handler updates
+    ///   `selectedEntryID` to `to` (which would normally trigger
+    ///   ``handleSelectionChange(_:)`` via the view's `.onChange`),
+    ///   but we also drive the load explicitly to guarantee the
+    ///   detail view converges even in tests / non-view contexts.
+    /// - `.inserted`, `.bulk` — no detail-side reaction.
+    ///
+    /// Intended to be driven by the hosting view's `.task { await
+    /// model.observeChanges() }` so the subscription's lifetime
+    /// matches the view: SwiftUI cancels the surrounding task on
+    /// disappear, the `for await` loop sees the cancellation and
+    /// exits cleanly. Calling this method while a subscription is
+    /// already active is a no-op.
+    func observeChanges() async {
+        guard changeSubscriptionTask == nil else { return }
+
+        let stream = environment.passManager.changes
+
+        let task = Task { [weak self] in
+            for await event in stream {
+                if Task.isCancelled { return }
+                guard let self else { return }
+                self.handle(event)
+            }
+        }
+        changeSubscriptionTask = task
+
+        await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
+
+        changeSubscriptionTask = nil
+    }
+
+    /// Cancel the active changes subscription (if any). Idempotent.
+    func stop() {
+        changeSubscriptionTask?.cancel()
+        changeSubscriptionTask = nil
+    }
+
+    /// React to a single `StoreChange` against the currently-
+    /// displayed entry. See ``observeChanges()`` for the full rule
+    /// table.
+    private func handle(_ event: StoreChange) {
+        let current = appState.selectedEntryID
+
+        switch event {
+        case .updated(let path):
+            guard let current, current == path else { return }
+            // Re-fetch via the existing selection pipeline. Passing
+            // the same id cancels the prior task (idempotent here:
+            // there is no prior in-flight load for the same id) and
+            // schedules a fresh `pass.show` for the (now updated)
+            // body.
+            handleSelectionChange(current)
+
+        case .removed(let path):
+            guard let current, current == path else { return }
+            // The list-side handler clears `appState.selectedEntryID`
+            // independently; this branch deals with the detail-only
+            // state. Cancel any in-flight load and reset to idle so
+            // the UI stops showing a body whose entry no longer
+            // exists.
+            loadTask?.cancel()
+            loadTask = nil
+            generation &+= 1
+            isPasswordRevealed = false
+            self.state = .idle
+
+        case .moved(let from, let to):
+            guard let current, current == from else { return }
+            // Drive the load explicitly under the new path. In a
+            // running app the list-side handler also updates
+            // `selectedEntryID` to `to`, which fires the view's
+            // `.onChange` and calls `handleSelectionChange(to)`;
+            // doing it here too is idempotent (the second call
+            // cancels the first in-flight task and starts a fresh
+            // one against the same id, which is cheap and converges
+            // to the same final state).
+            handleSelectionChange(to)
+
+        case .inserted, .bulk:
+            // No detail-side reaction.
+            return
+        }
     }
 
     // MARK: - Private

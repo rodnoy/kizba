@@ -12,12 +12,35 @@
 //
 //  Phase F.5 — subscribes to `PassManaging.changes` so any successful
 //  write (insert / update / remove / move / bulk) re-fetches the
-//  underlying snapshot. Selection-follow-up rules (e.g. "if current
-//  selection was removed, clear it") are deferred to Phase H; F.5
-//  guarantees only that the LIST reflects the FS state after any
-//  change. The form-side `EntryFormModel.applySuccess(...)` already
-//  sets `appState.selectedEntryID = newPath` imperatively before the
-//  refresh handler runs.
+//  underlying snapshot.
+//
+//  Phase H.1 — adds per-event selection reconciliation rules on top
+//  of the F.5 re-list. The contract is intentionally split between
+//  the centralised handler (this file) and the imperative selection
+//  setting performed by individual write models:
+//
+//  - `.inserted(path:)` — the centralised handler does NOT touch
+//    `appState.selectedEntryID`. The event is UI-origin neutral:
+//    a `.inserted` from "create new entry" is indistinguishable from
+//    a `.inserted` produced by an edit (which Mock currently does not
+//    emit, but which a future write path could). The write model
+//    that produced the insert knows its own intent and sets the
+//    selection imperatively (see `EntryFormModel.applySuccess` in
+//    `.create` mode). See `.ai/decisions.md` MVP 2 § "Cache
+//    invalidation".
+//  - `.updated(path:)` — selection unchanged. `EntryDetailModel`
+//    runs its own `pass.changes` subscription and re-fetches the
+//    secret if the updated path matches the current selection
+//    (see `EntryDetailModel.observeChanges()`).
+//  - `.moved(from:to:)` — if the selection was on `from`, it
+//    follows to `to`. The imperative set in
+//    `MoveEntryModel.applySuccess` already does this; the
+//    centralised rule is idempotent and serves as a safety net.
+//  - `.removed(path:)` — if the selection was on `path`, it is
+//    cleared. `EntryListModel.deleteEntry(at:)` already clears it
+//    imperatively; the centralised rule is idempotent.
+//  - `.bulk` — re-list, then preserve the selection if it survives
+//    the new entries snapshot, otherwise clear.
 //
 
 import Foundation
@@ -332,14 +355,12 @@ final class EntryListModel {
     /// in-flight events. To explicitly tear the subscription down (for
     /// example in tests) call ``stop()`` first.
     ///
-    /// **Phase F.5 reaction policy.** Every event triggers a full
-    /// ``refresh()``. This is intentionally coarse: a re-list is cheap
-    /// against the local FS, and Phase H will layer the selection
-    /// follow-up rules (`.removed` clears selection if it matched,
-    /// `.moved` follows selection from `from` → `to`, etc.) on top.
-    /// F.5 only guarantees the list reflects the FS state after any
-    /// change so newly-inserted entries become visible without a
-    /// manual ⌘R.
+    /// **Phase F.5 / H.1 reaction policy.** Every event triggers a
+    /// full ``refresh()``. F.5 guarantees the list reflects the FS
+    /// state after any change so newly-inserted entries become
+    /// visible without a manual ⌘R; Phase H.1 layers per-event
+    /// selection reconciliation on top (see ``handle(_:)`` for the
+    /// rule table).
     func observeChanges() async {
         // Avoid double-subscribing; if a prior call wired a task,
         // simply yield back to the caller. The existing task already
@@ -386,13 +407,53 @@ final class EntryListModel {
 
     // MARK: - Private
 
-    /// React to a single `StoreChange`. Phase F.5 maps every variant
-    /// to a re-list; Phase H will refine this with selection
-    /// follow-up rules.
+    /// React to a single `StoreChange`. Phase F.5 mapped every
+    /// variant to a re-list; Phase H.1 adds per-event selection
+    /// reconciliation:
+    ///
+    /// - `.inserted` — re-list. Selection is NOT touched here:
+    ///   `StoreChange` is UI-origin neutral (an insert from create
+    ///   vs. edit looks identical), so the write model that
+    ///   produced the insert is responsible for setting selection
+    ///   imperatively if its intent calls for it.
+    ///   `EntryFormModel(.create).applySuccess` already does this.
+    /// - `.updated` — re-list. Selection unchanged.
+    ///   `EntryDetailModel` re-fetches via its own subscription.
+    /// - `.moved(from, to)` — re-list, then if `selectedEntryID ==
+    ///   from`, follow it to `to`. Idempotent w.r.t. the imperative
+    ///   set in `MoveEntryModel.applySuccess`.
+    /// - `.removed(path)` — re-list, then if `selectedEntryID ==
+    ///   path`, clear it. Idempotent w.r.t. the imperative clear in
+    ///   `EntryListModel.deleteEntry`.
+    /// - `.bulk` — re-list, then clear the selection if it no
+    ///   longer matches any surviving entry; otherwise leave it
+    ///   alone.
     private func handle(_ event: StoreChange) async {
         switch event {
-        case .inserted, .updated, .removed, .moved, .bulk:
+        case .inserted:
             await refresh()
+
+        case .updated:
+            await refresh()
+
+        case .moved(let from, let to):
+            await refresh()
+            if state.selectedEntryID == from {
+                state.selectedEntryID = to
+            }
+
+        case .removed(let path):
+            await refresh()
+            if state.selectedEntryID == path {
+                state.selectedEntryID = nil
+            }
+
+        case .bulk:
+            await refresh()
+            if let selected = state.selectedEntryID,
+               !allEntries.contains(where: { $0.path == selected }) {
+                state.selectedEntryID = nil
+            }
         }
     }
 }

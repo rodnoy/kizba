@@ -7,10 +7,13 @@
 //  snapshot on every `StoreChange` event so the list reflects the
 //  underlying FS state without a manual refresh.
 //
-//  Selection follow-up rules (`.removed` clears selection,
-//  `.moved` follows from → to, etc.) are deferred to Phase H —
-//  this file only asserts the F.5 contract: any change → re-list.
-//  The file name is forward-compatible so Phase H can extend it.
+//  Phase H.1 / H.2 — adds per-event selection reconciliation
+//  coverage: `.removed` clears selection if it matched, `.moved`
+//  follows selection from `from` to `to`, `.bulk` preserves
+//  surviving selection (clearing if it does not survive), and
+//  `.inserted` does NOT mutate selection from the centralised
+//  handler (selection on insert is set imperatively by the write
+//  model that knows its origin — see `EntryFormModel.applySuccess`).
 //
 //  Async-timing strategy: every assertion that depends on a
 //  `StoreChange` round-tripping through the AsyncStream uses the
@@ -337,6 +340,239 @@ final class EntryListReconciliationTests: XCTestCase {
         // Success toast posted by the form model.
         XCTAssertEqual(state.toastCenter.visible?.severity, .success)
         XCTAssertEqual(state.toastCenter.visible?.title, "Entry created")
+    }
+
+    // MARK: - Phase H.2 — per-event selection reconciliation
+
+    // .removed of selected → selection cleared.
+    func testRemoved_ofSelectedEntry_clearsSelection() async {
+        let entry = PassEntry(path: "x")
+        let manager = MockPassManager(
+            entries: [entry],
+            secrets: [entry.path: PassSecret(password: "p")]
+        )
+        let env = makeEnvironment(passManager: manager)
+        let state = AppState()
+        state.selectedEntryID = "x"
+        let model = EntryListModel(environment: env, state: state)
+        await model.refresh()
+
+        let observer = await startObservation(model: model)
+        defer {
+            model.stop()
+            observer.cancel()
+        }
+
+        try? await manager.remove(entry)
+
+        await waitUntil(
+            { state.selectedEntryID == nil },
+            message: "selection on removed entry was not cleared"
+        )
+    }
+
+    // .removed of OTHER entry → selection unchanged.
+    func testRemoved_ofOtherEntry_leavesSelectionAlone() async {
+        let x = PassEntry(path: "x")
+        let y = PassEntry(path: "y")
+        let manager = MockPassManager(
+            entries: [x, y],
+            secrets: [
+                x.path: PassSecret(password: "p"),
+                y.path: PassSecret(password: "p"),
+            ]
+        )
+        let env = makeEnvironment(passManager: manager)
+        let state = AppState()
+        state.selectedEntryID = "y"
+        let model = EntryListModel(environment: env, state: state)
+        await model.refresh()
+
+        let observer = await startObservation(model: model)
+        defer {
+            model.stop()
+            observer.cancel()
+        }
+
+        try? await manager.remove(x)
+
+        // Wait for the list to re-list (which is the observable
+        // proof the event was processed) before asserting selection.
+        await waitUntil(
+            { !model.allEntries.contains(where: { $0.path == "x" }) },
+            message: "removed entry never disappeared from list"
+        )
+        XCTAssertEqual(state.selectedEntryID, "y")
+    }
+
+    // .moved of selected → selection follows.
+    func testMoved_ofSelectedEntry_selectionFollows() async {
+        let x = PassEntry(path: "x")
+        let manager = MockPassManager(
+            entries: [x],
+            secrets: [x.path: PassSecret(password: "p")]
+        )
+        let env = makeEnvironment(passManager: manager)
+        let state = AppState()
+        state.selectedEntryID = "x"
+        let model = EntryListModel(environment: env, state: state)
+        await model.refresh()
+
+        let observer = await startObservation(model: model)
+        defer {
+            model.stop()
+            observer.cancel()
+        }
+
+        _ = try? await manager.move(from: x, to: "y", force: false)
+
+        await waitUntil(
+            { state.selectedEntryID == "y" },
+            message: "selection did not follow moved entry"
+        )
+    }
+
+    // .moved of OTHER entry → selection unchanged.
+    func testMoved_ofOtherEntry_leavesSelectionAlone() async {
+        let x = PassEntry(path: "x")
+        let y = PassEntry(path: "y")
+        let manager = MockPassManager(
+            entries: [x, y],
+            secrets: [
+                x.path: PassSecret(password: "p"),
+                y.path: PassSecret(password: "p"),
+            ]
+        )
+        let env = makeEnvironment(passManager: manager)
+        let state = AppState()
+        state.selectedEntryID = "y"
+        let model = EntryListModel(environment: env, state: state)
+        await model.refresh()
+
+        let observer = await startObservation(model: model)
+        defer {
+            model.stop()
+            observer.cancel()
+        }
+
+        _ = try? await manager.move(from: x, to: "z", force: false)
+
+        await waitUntil(
+            { model.allEntries.contains(where: { $0.path == "z" }) },
+            message: "moved entry never appeared at new path"
+        )
+        XCTAssertEqual(state.selectedEntryID, "y")
+    }
+
+    // .inserted does NOT mutate selection from the centralised handler.
+    func testInserted_doesNotMutateSelection_fromCentralisedHandler() async {
+        let manager = MockPassManager(entries: [], secrets: [:])
+        let env = makeEnvironment(passManager: manager)
+        let state = AppState()
+        state.selectedEntryID = nil
+        let model = EntryListModel(environment: env, state: state)
+        await model.refresh()
+
+        let observer = await startObservation(model: model)
+        defer {
+            model.stop()
+            observer.cancel()
+        }
+
+        // Bypass the write model (no EntryFormModel here) so the
+        // imperative selection-setting in `applySuccess` is NOT in
+        // the loop. The centralised handler MUST NOT set selection
+        // on its own — `StoreChange.inserted` is UI-origin neutral.
+        let new = PassEntry(path: "freshly-inserted")
+        _ = try? await manager.insert(
+            new,
+            secret: PassSecret(password: "p"),
+            force: false
+        )
+
+        await waitUntil(
+            { model.allEntries.contains(where: { $0.path == "freshly-inserted" }) },
+            message: "inserted entry never appeared in list"
+        )
+        XCTAssertNil(
+            state.selectedEntryID,
+            "centralised handler must not set selection on .inserted"
+        )
+    }
+
+    // .bulk preserves surviving selection.
+    func testBulk_preservesSurvivingSelection() async {
+        let x = PassEntry(path: "x")
+        let y = PassEntry(path: "y")
+        let manager = MockPassManager(
+            entries: [x, y],
+            secrets: [
+                x.path: PassSecret(password: "p"),
+                y.path: PassSecret(password: "p"),
+            ]
+        )
+        let env = makeEnvironment(passManager: manager)
+        let state = AppState()
+        state.selectedEntryID = "y"
+        let model = EntryListModel(environment: env, state: state)
+        await model.refresh()
+
+        let observer = await startObservation(model: model)
+        defer {
+            model.stop()
+            observer.cancel()
+        }
+
+        await manager.emitBulk()
+
+        // We can't observe a list-content change (the corpus is
+        // unchanged), so we wait for selection stability over a short
+        // window. The handler runs inline in the subscription task;
+        // a couple of yields plus a sleep is enough for the event to
+        // round-trip.
+        for _ in 0..<10 { await Task.yield() }
+        try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+
+        XCTAssertEqual(
+            state.selectedEntryID,
+            "y",
+            ".bulk cleared a selection that survives the snapshot"
+        )
+    }
+
+    // .bulk clears non-surviving selection.
+    func testBulk_clearsNonSurvivingSelection() async {
+        let x = PassEntry(path: "x")
+        let y = PassEntry(path: "y")
+        let manager = MockPassManager(
+            entries: [x, y],
+            secrets: [
+                x.path: PassSecret(password: "p"),
+                y.path: PassSecret(password: "p"),
+            ]
+        )
+        let env = makeEnvironment(passManager: manager)
+        let state = AppState()
+        // Selection points to an entry NOT in the corpus. Models
+        // never let this happen in a running app, but it lets us
+        // assert the centralised handler's "clear if non-surviving"
+        // rule deterministically.
+        state.selectedEntryID = "z"
+        let model = EntryListModel(environment: env, state: state)
+        await model.refresh()
+
+        let observer = await startObservation(model: model)
+        defer {
+            model.stop()
+            observer.cancel()
+        }
+
+        await manager.emitBulk()
+
+        await waitUntil(
+            { state.selectedEntryID == nil },
+            message: ".bulk did not clear a non-surviving selection"
+        )
     }
 }
 

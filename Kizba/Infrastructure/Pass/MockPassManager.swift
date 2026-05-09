@@ -248,6 +248,22 @@ public actor MockPassManager: PassManaging {
             cont.yield(change)
         }
     }
+
+    // MARK: - Test affordance
+
+    /// Emit a synthetic ``StoreChange/bulk`` event to every active
+    /// subscriber WITHOUT mutating the underlying corpus. Reserved
+    /// for tests that need to exercise the bulk-event reconciliation
+    /// path (Phase H.2) without going through `LivePassManager`'s
+    /// real "external store reload" trigger (which does not exist
+    /// yet — `bulk` is reserved for MVP 3+).
+    ///
+    /// Live production code paths NEVER call this directly; the
+    /// corpus is mutated through ``insert``, ``remove``, ``move``,
+    /// etc., each of which fans out the corresponding event.
+    public func emitBulk() {
+        emit(.bulk)
+    }
 }
 
 // MARK: - Deterministic fixture corpus

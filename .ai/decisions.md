@@ -351,3 +351,40 @@ All cells exceed thresholds with margin. Body AAA, action-fill AA, and color-ide
 
 - **660 tests total**; 8 skipped (1 D.3 known limitation + 7 PassWriteIntegrationTests when `KIZBA_E2E` off); 0 failures.
 - Phase G net: +77 tests over 6 substeps.
+
+## 2026-05-09 — MVP 2 Phase H (resolution)
+
+### Centralized `StoreChange` reconciliation (option B — neutral data layer)
+
+- **`StoreChange` stays neutral** — no UI-origin tags. The `.inserted` event does NOT carry "was this a create or an edit?" — that's UI-side intent. Adding origin tags to the data layer would be a leak.
+- **Selection on insert is IMPERATIVE from the write model**: `EntryFormModel(.create).applySuccess` sets `appState.selectedEntryID = newPath`; `.edit` mode does not. The centralized reconciler observes `.inserted` events but does NOT touch `selectedEntryID` for them.
+- **Selection on move/delete is IDEMPOTENT**: write models (`MoveEntryModel.applySuccess`, `EntryListModel.deleteEntry`) imperatively set/clear `selectedEntryID` for instant UX feedback. The centralized reconciler ALSO sets/clears on `.moved`/`.removed` events. Both runs produce the same result; the centralized rule is "belt-and-suspenders" defense against a future write model forgetting to update selection.
+
+### Per-event reconciliation rules (locked)
+
+| Event | EntryListModel handler | EntryDetailModel handler |
+|---|---|---|
+| `.inserted(path:)` | refresh; selection NOT touched (write model owns it) | no-op |
+| `.updated(path:)` | refresh; selection NOT touched | if `path == selectedEntryID` → re-fetch via load(entry:); else no-op |
+| `.moved(from:to:)` | refresh; if `selectedEntryID == from` → set to `to` | if `selectedEntryID == from` → re-fetch via load(entry: `to`) |
+| `.removed(path:)` | refresh; if `selectedEntryID == path` → clear | if `selectedEntryID == path` → clear loaded secret |
+| `.bulk` | refresh; if selection no longer exists → clear | no-op |
+
+### `EntryDetailModel` subscription
+
+- New `observeChanges() async` method mirrors F.5's `EntryListModel` subscription pattern. Started by `EntryDetailView`'s `.task { await detailModel.observeChanges() }`. Auto-cancels on `.onDisappear`.
+- Re-entrancy guard: a second call short-circuits if already running.
+- `stop()` test seam.
+
+### `MockPassManager.emitBulk()`
+
+- New `#if DEBUG`-gated public method: `func emitBulk() async`. Emits `.bulk` to all subscribers without mutating the in-memory corpus. Test-only affordance for `EntryListReconciliationTests` to verify `.bulk` handling without needing a full multi-write batch. Live `LivePassManager` does not currently emit `.bulk` (no FSEvents wiring); future MVP3 work for external-change detection will exercise this code path.
+
+### Suite size at end of Phase H
+
+- **676 tests total**; 8 skipped (1 D.3 known limitation + 7 PassWriteIntegrationTests when KIZBA_E2E off); 0 failures.
+- Phase H net: +16 tests across 3 sub-steps (H.1 model changes are tested by H.2's new EntryDetailReconciliationTests + H.2 extensions to EntryListReconciliationTests; H.3 was a regression check on G.6's existing tests).
+
+### What's left in MVP 2
+
+Phase I — polish, a11y, Sequoia smoke, README, opt-in E2E green, final regression sweep.

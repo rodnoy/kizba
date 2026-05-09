@@ -151,6 +151,16 @@ struct EntryDetailView: View {
         .onChange(of: state.selectedEntryID, initial: true) { _, newValue in
             model.handleSelectionChange(newValue)
         }
+        // Phase H.1 — subscribe the detail model to `pass.changes` so
+        // a `.updated`/`.removed`/`.moved` event targeting the
+        // currently-displayed entry refreshes / clears / re-fetches
+        // the body without waiting for a manual ⌘R or selection
+        // change. SwiftUI cancels the surrounding task on disappear
+        // and `EntryDetailModel.observeChanges()` honours that
+        // cancellation by exiting its `for await` loop cleanly.
+        .task {
+            await model.observeChanges()
+        }
     }
 
     /// Whether the toolbar `✎` button is enabled for the current
