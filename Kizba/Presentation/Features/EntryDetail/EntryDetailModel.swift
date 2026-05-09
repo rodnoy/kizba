@@ -123,32 +123,107 @@ final class EntryDetailModel {
         }
     }
 
+    /// Identifies the semantic target of a copy operation so the
+    /// confirmation toast can render a meaningful per-field label
+    /// without ever surfacing the copied value itself. Per
+    /// `.ai/decisions.md`, toasts NEVER carry secret material — only
+    /// the field's role / key is permitted in the title.
+    enum CopyTarget: Sendable, Equatable {
+        case password
+        case metadata(key: String)
+        case notes
+        /// Reserved for future arbitrary fields. The provided label
+        /// is rendered as the toast title prefix.
+        case other(label: String)
+
+        /// Human-readable label rendered into the toast title. The
+        /// metadata case quotes the key so a key like `email` reads
+        /// `"email" copied` rather than `email copied` (which would
+        /// look like a sentence fragment).
+        var toastLabel: String {
+            switch self {
+            case .password: return "Password"
+            case .metadata(let key): return "\"\(key)\""
+            case .notes: return "Notes"
+            case .other(let label): return label
+            }
+        }
+    }
+
     /// Copy a single field's value to the system pasteboard with
-    /// token-checked auto-clear.
+    /// token-checked auto-clear, then post a confirmation toast
+    /// labelled by `target`.
     ///
     /// The auto-clear delay is sampled live from
     /// ``SettingsStoring`` on every call (Phase A.6) so changes made
     /// in the Settings window take effect immediately, without
     /// reconstructing the model. Per `.ai/decisions.md`, the value is
-    /// written verbatim — never composed with the field's key.
+    /// written verbatim — never composed with the field's key — and
+    /// the confirmation toast carries ONLY the semantic label and
+    /// the auto-clear window. The copied value never crosses the
+    /// toast boundary.
+    func copy(_ value: String, target: CopyTarget) async {
+        let delay = currentClipboardClearDelay()
+        await environment.clipboard.copy(value, clearAfter: delay)
+        postCopyConfirmationToast(target: target, delay: delay)
+    }
+
+    /// Backward-compatible overload preserved for callers that have
+    /// no semantic target (tests / Diagnostics-style usage). New
+    /// view-layer call sites SHOULD prefer the typed
+    /// ``copy(_:target:)`` overload so the user sees a confirmation
+    /// toast.
     func copy(_ value: String) async {
         await environment.clipboard.copy(value, clearAfter: currentClipboardClearDelay())
     }
 
     /// Convenience: copy the loaded password if available. No-op if
-    /// the model is not in ``State/loaded(_:)``.
+    /// the model is not in ``State/loaded(_:)``. Posts an
+    /// `.info` confirmation toast titled `"Password copied"`.
     func copyPassword() async {
         guard case .loaded(let secret) = state else { return }
-        await copy(secret.password)
+        await copy(secret.password, target: .password)
     }
 
     /// Convenience: copy the first metadata value matching `key`.
-    /// No-op if the model is not loaded or the key is absent.
+    /// No-op if the model is not loaded or the key is absent. Posts
+    /// an `.info` confirmation toast titled `"\"<key>\" copied"`.
     func copyMetadata(forKey key: String) async {
         guard case .loaded(let secret) = state,
               let value = secret.metadata.firstValue(for: key)
         else { return }
-        await copy(value)
+        await copy(value, target: .metadata(key: key))
+    }
+
+    /// Convenience: copy the loaded notes block if available. No-op
+    /// if the model is not loaded or the entry has no notes. Posts an
+    /// `.info` confirmation toast titled `"Notes copied"`.
+    func copyNotes() async {
+        guard case .loaded(let secret) = state,
+              let notes = secret.metadata.notes,
+              !notes.isEmpty
+        else { return }
+        await copy(notes, target: .notes)
+    }
+
+    // MARK: - Confirmation toast
+
+    /// Post the per-copy confirmation toast. Severity `.info`
+    /// because the action is non-destructive and acknowledgment-
+    /// only. Title is `"<Label> copied"`; message is `"Auto-clears
+    /// in <N>s"`. The toast NEVER contains the copied value — see
+    /// the `.ai/decisions.md` ToastCenter contract.
+    private func postCopyConfirmationToast(
+        target: CopyTarget,
+        delay: Duration
+    ) {
+        let seconds = Int(delay.components.seconds)
+        let toast = Toast(
+            severity: .info,
+            title: "\(target.toastLabel) copied",
+            message: "Auto-clears in \(seconds)s"
+        )
+        appState.toastCenter.post(toast)
     }
 
     // MARK: - Settings

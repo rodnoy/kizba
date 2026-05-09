@@ -22,6 +22,23 @@ struct EntryListView: View {
 
     @State private var model: EntryListModel
 
+    /// Sheet-bound form model held in `@State` so it survives parent
+    /// re-renders. Constructed by the matching `.onChange(of:
+    /// isPresented)` handler exactly once per presentation and
+    /// released in the sheet's `onDismiss`. Holding the model in a
+    /// view-local `@State` (rather than constructing it inside the
+    /// `.sheet { ... }` ViewBuilder closure) prevents a fresh
+    /// `EntryFormModel` from being spawned on every parent body
+    /// re-render — which previously discarded the in-flight
+    /// `.editing → .saved` transition because the new model started
+    /// over in `.editing` state.
+    @State private var newEntryFormModel: EntryFormModel?
+
+    /// Sheet-bound move model — same rationale as
+    /// ``newEntryFormModel`` above. Move was not visibly bugged at
+    /// the time of the fix but the anti-pattern is identical.
+    @State private var moveEntryModel: MoveEntryModel?
+
     /// Captured composition root used to construct an
     /// `EntryFormModel` on demand when the user opens the New Entry
     /// sheet. Held as a stored property because `AppEnvironment` is
@@ -121,23 +138,45 @@ struct EntryListView: View {
                 .help("Refresh entries (⌘R)")
             }
         }
-        .sheet(isPresented: $state.isNewEntrySheetPresented) {
-            NewEntrySheet(
-                model: makeNewEntryFormModel(),
-                passwordGenerator: environment.passwordGenerator
-            )
+        // Build the form model BEFORE presenting the sheet so the
+        // `.sheet { ... }` ViewBuilder closure can read it from
+        // `@State`. Constructing inside the ViewBuilder would
+        // re-create the model on every parent re-render (e.g. when
+        // `appState.activeWriteOps` mutates or `toastCenter.visible`
+        // updates) and the new model would have stale `.editing`
+        // state, never observing the prior model's `.saved`
+        // transition.
+        .onChange(of: state.isNewEntrySheetPresented) { _, presented in
+            if presented {
+                newEntryFormModel = makeNewEntryFormModel()
+            }
         }
-        .sheet(isPresented: $state.isMoveSheetPresented) {
-            // Build a fresh `MoveEntryModel` per presentation so the
-            // captured original-path is released as soon as SwiftUI
-            // tears down the sheet. Constructed lazily inside the
-            // closure so a missing selection at sheet construction
-            // time is impossible — the toolbar/menu already gate
-            // the flag on a non-nil selection.
-            if let path = state.selectedEntryID {
-                MoveEntrySheet(
-                    model: makeMoveEntryModel(path: path)
+        .sheet(
+            isPresented: $state.isNewEntrySheetPresented,
+            onDismiss: { newEntryFormModel = nil }
+        ) {
+            if let model = newEntryFormModel {
+                NewEntrySheet(
+                    model: model,
+                    passwordGenerator: environment.passwordGenerator
                 )
+            }
+        }
+        // Same `@State`-held pattern as the New Entry sheet above.
+        // The `MoveEntryModel` is built per presentation so the
+        // captured original-path is released as soon as SwiftUI
+        // tears down the sheet.
+        .onChange(of: state.isMoveSheetPresented) { _, presented in
+            if presented, let path = state.selectedEntryID {
+                moveEntryModel = makeMoveEntryModel(path: path)
+            }
+        }
+        .sheet(
+            isPresented: $state.isMoveSheetPresented,
+            onDismiss: { moveEntryModel = nil }
+        ) {
+            if let model = moveEntryModel {
+                MoveEntrySheet(model: model)
             } else {
                 // Defensive fallback — should be unreachable because
                 // the toolbar/menu disable themselves without a

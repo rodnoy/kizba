@@ -36,6 +36,24 @@ struct EntryDetailView: View {
     @Bindable var state: AppState
 
     @State private var model: EntryDetailModel
+
+    /// Sheet-bound edit model held in `@State` so it survives parent
+    /// re-renders. Constructed by the matching `.onChange(of:
+    /// isPresented)` handler exactly once per presentation and
+    /// released in the sheet's `onDismiss`. Holding the model in a
+    /// view-local `@State` (rather than constructing it inside the
+    /// `.sheet { ... }` ViewBuilder closure) prevents a fresh
+    /// `EntryFormModel` from being spawned on every parent body
+    /// re-render — which previously re-spawned `loadExistingSecret`
+    /// infinitely (the "blinking" edit-sheet bug) and discarded the
+    /// in-flight `.editing → .saved` transition because each new
+    /// model started over in `.loadingExisting`.
+    @State private var editFormModel: EntryFormModel?
+
+    /// Sheet-bound regenerate model — same rationale as
+    /// ``editFormModel`` above.
+    @State private var regenerateModel: RegenerateInPlaceModel?
+
     private let environment: AppEnvironment
 
     @Environment(\.theme) private var theme
@@ -64,7 +82,20 @@ struct EntryDetailView: View {
                     secret: secret,
                     isRevealed: $model.isPasswordRevealed,
                     onCopyPassword: { @Sendable in Task { await model.copyPassword() } },
-                    onCopyField: { value in Task { await model.copy(value) } }
+                    // Per-field copy callbacks route through the
+                    // model's typed copy methods so each post yields
+                    // a semantic confirmation toast (`"Password
+                    // copied"`, `"\"<key>\" copied"`, `"Notes
+                    // copied"`) without the view ever assembling
+                    // toast text. The model owns BOTH the clipboard
+                    // write AND the toast; the view only knows
+                    // which field was tapped.
+                    onCopyMetadataKey: { key in
+                        Task { await model.copyMetadata(forKey: key) }
+                    },
+                    onCopyNotes: {
+                        Task { await model.copyNotes() }
+                    }
                 )
             case .failed(let error):
                 FailedView(error: error, environment: environment)
@@ -106,17 +137,20 @@ struct EntryDetailView: View {
                 .help("Regenerate Password (⌘⌥G)")
             }
         }
-        .sheet(isPresented: $state.isRegenerateSheetPresented) {
-            // Build a fresh `RegenerateInPlaceModel` per presentation
-            // so the captured prior secret is released as soon as
-            // SwiftUI tears down the sheet. Constructed lazily inside
-            // the closure so a missing selection at sheet construction
-            // time is impossible — the toolbar/menu already gate the
-            // flag on a non-nil selection.
-            if let path = state.selectedEntryID {
-                InPlaceGenerateSheet(
-                    model: makeRegenerateInPlaceModel(path: path)
-                )
+        // Build the regenerate model BEFORE presenting the sheet so
+        // the `.sheet { ... }` ViewBuilder closure can read it from
+        // `@State`. See ``regenerateModel`` for the rationale.
+        .onChange(of: state.isRegenerateSheetPresented) { _, presented in
+            if presented, let path = state.selectedEntryID {
+                regenerateModel = makeRegenerateInPlaceModel(path: path)
+            }
+        }
+        .sheet(
+            isPresented: $state.isRegenerateSheetPresented,
+            onDismiss: { regenerateModel = nil }
+        ) {
+            if let model = regenerateModel {
+                InPlaceGenerateSheet(model: model)
             } else {
                 // Defensive fallback — should be unreachable because
                 // the toolbar/menu disable themselves without a
@@ -126,17 +160,24 @@ struct EntryDetailView: View {
                     .padding()
             }
         }
-        .sheet(isPresented: $state.isEditEntrySheetPresented) {
-            // Build a fresh `EntryFormModel` per presentation so the
-            // previous draft's cleartext is released as soon as
-            // SwiftUI tears down the sheet. Constructed lazily here
-            // (inside the closure) so a missing selection at sheet
-            // construction time is impossible — the toolbar/menu
-            // already gate `isEditEntrySheetPresented` on a
-            // non-nil selection.
-            if let path = state.selectedEntryID {
+        // Same `@State`-held pattern for the Edit sheet. Without it,
+        // every parent re-render would spawn a fresh `EntryFormModel`
+        // whose `loadExistingSecret` would race the previous one's,
+        // producing the "blinking" load behaviour and never observing
+        // the prior model's `.saved` transition (so the sheet would
+        // never auto-dismiss after Save).
+        .onChange(of: state.isEditEntrySheetPresented) { _, presented in
+            if presented, let path = state.selectedEntryID {
+                editFormModel = makeEditEntryFormModel(originalPath: path)
+            }
+        }
+        .sheet(
+            isPresented: $state.isEditEntrySheetPresented,
+            onDismiss: { editFormModel = nil }
+        ) {
+            if let model = editFormModel {
                 EditEntrySheet(
-                    model: makeEditEntryFormModel(originalPath: path),
+                    model: model,
                     passwordGenerator: environment.passwordGenerator
                 )
             } else {
@@ -235,7 +276,16 @@ private struct LoadedSecretView: View {
     let secret: PassSecret
     @Binding var isRevealed: Bool
     let onCopyPassword: @MainActor @Sendable () -> Void
-    let onCopyField: @MainActor (String) -> Void
+    /// Tapping the per-row Copy button forwards the metadata key
+    /// (NOT the value) to the model so the model owns both the
+    /// clipboard write and the confirmation toast. Routing by key
+    /// keeps the toast title semantic (`"\"<key>\" copied"`) without
+    /// the view ever composing toast text.
+    let onCopyMetadataKey: @MainActor (String) -> Void
+    /// Tapping the Notes Copy button drives the model's
+    /// ``EntryDetailModel/copyNotes()`` so the toast can be labelled
+    /// `"Notes copied"`.
+    let onCopyNotes: @MainActor () -> Void
 
     @Environment(\.theme) private var theme
 
@@ -280,7 +330,7 @@ private struct LoadedSecretView: View {
                             .foregroundStyle(theme.colors.onSurface)
                             .textSelection(.enabled)
                         Spacer()
-                        Button("Copy") { onCopyField(field.value) }
+                        Button("Copy") { onCopyMetadataKey(field.key) }
                             .buttonStyle(.kizba(.ghost, size: .compact))
                             .accessibilityIdentifier("copy-meta-\(index)-button")
                     }
@@ -291,9 +341,15 @@ private struct LoadedSecretView: View {
 
     private func notesSection(_ notes: String) -> some View {
         VStack(alignment: .leading, spacing: theme.spacing.sm) {
-            Text("Notes")
-                .font(theme.typography.caption)
-                .foregroundStyle(theme.colors.onSurfaceMuted)
+            HStack(spacing: theme.spacing.sm) {
+                Text("Notes")
+                    .font(theme.typography.caption)
+                    .foregroundStyle(theme.colors.onSurfaceMuted)
+                Spacer()
+                Button("Copy") { onCopyNotes() }
+                    .buttonStyle(.kizba(.ghost, size: .compact))
+                    .accessibilityIdentifier("copy-notes-button")
+            }
 
             KizbaCard {
                 Text(notes)

@@ -104,12 +104,132 @@ final class EntryDetailModelCopyTests: XCTestCase {
         XCTAssertEqual(clipboard.calls.last?.clearAfter, .seconds(bounds.upperBound))
     }
 
+    // MARK: - Confirmation toast (post-784212b regression coverage)
+
+    /// `copyPassword()` must post an `.info` toast titled `Password
+    /// copied`, with a message that surfaces the auto-clear delay
+    /// in seconds. The toast MUST NOT contain the password value
+    /// (security: per-`.ai/decisions.md` toasts never carry secret
+    /// material).
+    func testCopyPassword_postsInfoToastWithLabelAndDelay() async {
+        let secretValue = "p@ss-w0rd!"
+        let secret = PassSecret(
+            password: secretValue,
+            metadata: PassMetadata(fields: [])
+        )
+        let entry = PassEntry(path: "work/example/alice")
+        let clipboard = FakeClipboardServicing()
+        let passManager = StubPassManager(entry: entry, secret: secret)
+        let settings = MutableSettingsStore()
+        settings.set(45, for: SettingsKey<Int>(SettingsKeys.clipboardClearDelaySeconds))
+        let appState = AppState()
+        let model = makeModel(
+            passManager: passManager,
+            clipboard: clipboard,
+            settings: settings,
+            appState: appState
+        )
+
+        model.handleSelectionChange(entry.id)
+        await waitForLoaded(model, timeout: 1.0)
+
+        await model.copyPassword()
+
+        let toast = appState.toastCenter.visible
+        XCTAssertNotNil(toast)
+        XCTAssertEqual(toast?.severity, .info)
+        XCTAssertEqual(toast?.title, "Password copied")
+        XCTAssertEqual(toast?.message, "Auto-clears in 45s")
+
+        // Security: the toast must NEVER contain the copied value.
+        XCTAssertFalse(toast?.title.contains(secretValue) ?? false)
+        XCTAssertFalse(toast?.message?.contains(secretValue) ?? false)
+    }
+
+    /// `copyMetadata(forKey:)` must post an `.info` toast titled
+    /// `"<key>" copied` (key wrapped in quotes). The toast MUST NOT
+    /// contain the metadata value.
+    func testCopyMetadata_postsInfoToastWithKeyLabel() async {
+        let metadataValue = "alice@example.com"
+        let secret = PassSecret(
+            password: "irrelevant",
+            metadata: PassMetadata(
+                fields: [.init(key: "email", value: metadataValue)]
+            )
+        )
+        let entry = PassEntry(path: "work/example/alice")
+        let clipboard = FakeClipboardServicing()
+        let passManager = StubPassManager(entry: entry, secret: secret)
+        let settings = MutableSettingsStore()
+        settings.set(20, for: SettingsKey<Int>(SettingsKeys.clipboardClearDelaySeconds))
+        let appState = AppState()
+        let model = makeModel(
+            passManager: passManager,
+            clipboard: clipboard,
+            settings: settings,
+            appState: appState
+        )
+
+        model.handleSelectionChange(entry.id)
+        await waitForLoaded(model, timeout: 1.0)
+
+        await model.copyMetadata(forKey: "email")
+
+        let toast = appState.toastCenter.visible
+        XCTAssertNotNil(toast)
+        XCTAssertEqual(toast?.severity, .info)
+        XCTAssertEqual(toast?.title, "\"email\" copied")
+        XCTAssertEqual(toast?.message, "Auto-clears in 20s")
+
+        // Security: the toast must NEVER contain the copied value.
+        XCTAssertFalse(toast?.title.contains(metadataValue) ?? false)
+        XCTAssertFalse(toast?.message?.contains(metadataValue) ?? false)
+    }
+
+    /// `copyNotes()` must post an `.info` toast titled `Notes
+    /// copied`. The toast MUST NOT contain the notes body.
+    func testCopyNotes_postsInfoToastWithLabel() async {
+        let notesBody = "recovery codes: 11111-22222"
+        let secret = PassSecret(
+            password: "irrelevant",
+            metadata: PassMetadata(fields: [], notes: notesBody)
+        )
+        let entry = PassEntry(path: "work/example/alice")
+        let clipboard = FakeClipboardServicing()
+        let passManager = StubPassManager(entry: entry, secret: secret)
+        let settings = MutableSettingsStore()
+        settings.set(30, for: SettingsKey<Int>(SettingsKeys.clipboardClearDelaySeconds))
+        let appState = AppState()
+        let model = makeModel(
+            passManager: passManager,
+            clipboard: clipboard,
+            settings: settings,
+            appState: appState
+        )
+
+        model.handleSelectionChange(entry.id)
+        await waitForLoaded(model, timeout: 1.0)
+
+        await model.copyNotes()
+
+        let toast = appState.toastCenter.visible
+        XCTAssertNotNil(toast)
+        XCTAssertEqual(toast?.severity, .info)
+        XCTAssertEqual(toast?.title, "Notes copied")
+        XCTAssertEqual(toast?.message, "Auto-clears in 30s")
+
+        // Security: the toast must NEVER contain the copied notes.
+        XCTAssertFalse(toast?.title.contains(notesBody) ?? false)
+        XCTAssertFalse(toast?.message?.contains(notesBody) ?? false)
+    }
+
     // MARK: - Helpers
 
     private func makeModel(
         passManager: any PassManaging = NullPassManager(),
         clipboard: any ClipboardServicing,
-        settings: any SettingsStoring = MutableSettingsStore()
+        settings: any SettingsStoring = MutableSettingsStore(),
+        appState: AppState? = nil
     ) -> EntryDetailModel {
         let env = AppEnvironment(
             passManager: passManager,
@@ -118,7 +238,7 @@ final class EntryDetailModelCopyTests: XCTestCase {
             passwordGenerator: LivePasswordGenerator(),
             discovery: nil
         )
-        return EntryDetailModel(environment: env, state: AppState())
+        return EntryDetailModel(environment: env, state: appState ?? AppState())
     }
 
     private func waitForLoaded(

@@ -63,6 +63,26 @@ struct GeneratePasswordSheet: View {
         .padding(theme.spacing.lg)
         .frame(minWidth: 380)
         .background(theme.colors.surface)
+        // Side-effect dispatch on every committed change of the two
+        // bindable knobs. Replaces the post-`784212b` proxy-Binding
+        // pattern that mutated `model.state` synchronously inside the
+        // setter — that mutation invalidated the body mid-commit and
+        // froze the visible Stepper / Toggle state because the next
+        // render read the stale `Binding.get`. Direct `$model.X`
+        // bindings keep the visual state coherent; `.onChange`
+        // requests a fresh preview after each commit.
+        //
+        // Observation tracking for `model.length` is registered by
+        // the body-level read in `controls` (the `Text("\(model.length)")`
+        // mirror). `model.includeSymbols` is read via the `Toggle`'s
+        // `isOn:` binding access, which is also a tracked read under
+        // `@Bindable`.
+        .onChange(of: model.length) { _, _ in
+            model.regenerate()
+        }
+        .onChange(of: model.includeSymbols) { _, _ in
+            model.regenerate()
+        }
     }
 
     // MARK: - Header
@@ -136,28 +156,26 @@ struct GeneratePasswordSheet: View {
                     .font(theme.typography.bodyEmphasized)
                     .foregroundStyle(theme.colors.onSurface)
                     .monospacedDigit()
-                // Use a proxy Binding so the regenerate side effect
-                // fires on every commit. `.onChange(of:)` against an
-                // Observation-tracked property may not fire if the
-                // body never reads the property — the proxy makes
-                // the write path explicit.
+                // Direct `$model.length` binding — SwiftUI commits
+                // the new value into the Observation-tracked property
+                // and the body re-renders coherently. The
+                // ``Text("\(model.length)")`` above registers the
+                // tracked read so `.onChange(of: model.length)` at
+                // body scope fires `regenerate()` after each commit.
                 Stepper(
                     "Length",
-                    value: Binding(
-                        get: { model.length },
-                        set: { model.length = $0; model.regenerate() }
-                    ),
+                    value: $model.length,
                     in: GeneratePasswordModel.lengthBounds,
                     step: 1
                 )
                 .labelsHidden()
             }
-            // Same proxy-Binding pattern as the Stepper above —
-            // ensures `regenerate()` runs on every toggle commit.
-            Toggle(isOn: Binding(
-                get: { model.includeSymbols },
-                set: { model.includeSymbols = $0; model.regenerate() }
-            )) {
+            // Direct `$model.includeSymbols` binding (same rationale
+            // as the Stepper above). Observation tracking is
+            // registered by the Toggle's `isOn:` binding access; the
+            // body-level `.onChange(of: model.includeSymbols)` fires
+            // `regenerate()` after each commit.
+            Toggle(isOn: $model.includeSymbols) {
                 Text("Include symbols")
                     .font(theme.typography.body)
                     .foregroundStyle(theme.colors.onSurface)
