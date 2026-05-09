@@ -56,6 +56,18 @@ struct EditEntrySheet: View {
     /// because the affordance is scoped to this sheet's lifetime.
     @State private var isGenerateSheetPresented: Bool = false
 
+    /// Backing storage for the sub-sheet's view-model. Held as
+    /// `@State` (rather than constructed inline inside the
+    /// `.sheet` content closure) so that re-evaluations of this
+    /// view's body — which re-run the `@ViewBuilder` content
+    /// closure — do NOT recreate the model and clobber any
+    /// in-flight user input on `length` / `includeSymbols`. The
+    /// model is lazily instantiated in
+    /// `.onChange(of: isGenerateSheetPresented)` and released in
+    /// the `.sheet`'s `onDismiss` so the cleartext preview is torn
+    /// down as soon as the sub-sheet closes.
+    @State private var generatePasswordModel: GeneratePasswordModel?
+
     var body: some View {
         VStack(spacing: theme.spacing.lg) {
             header
@@ -73,17 +85,39 @@ struct EditEntrySheet: View {
         .onDisappear {
             model.handleDismissal()
         }
-        .sheet(isPresented: $isGenerateSheetPresented) {
-            // Build a fresh `GeneratePasswordModel` per presentation
-            // so the previewed cleartext is released as soon as the
-            // sub-sheet is torn down. The `onApply` callback is the
-            // only way data crosses back into the parent draft.
-            GeneratePasswordSheet(
-                model: GeneratePasswordModel(generator: passwordGenerator),
-                onApply: { newPassword in
-                    model.draft.password = newPassword
-                }
-            )
+        .onChange(of: isGenerateSheetPresented) { _, presented in
+            // Lazily build the sub-sheet's model exactly once per
+            // presentation. Constructing it inside the `.sheet`
+            // content closure would recreate it on every parent
+            // body re-evaluation, overwriting any user input via
+            // the Stepper / Toggle on the next render.
+            if presented {
+                generatePasswordModel = GeneratePasswordModel(
+                    generator: passwordGenerator
+                )
+            }
+        }
+        .sheet(
+            isPresented: $isGenerateSheetPresented,
+            onDismiss: {
+                // Release the cleartext preview as soon as the
+                // sub-sheet is torn down (preserves the original
+                // intent of building a fresh model per presentation).
+                generatePasswordModel = nil
+            }
+        ) {
+            // The `@State`-held model is the single instance the
+            // sub-sheet observes for the duration of this
+            // presentation. The `onApply` callback is the only way
+            // data crosses back into the parent draft.
+            if let subModel = generatePasswordModel {
+                GeneratePasswordSheet(
+                    model: subModel,
+                    onApply: { newPassword in
+                        model.draft.password = newPassword
+                    }
+                )
+            }
         }
     }
 
