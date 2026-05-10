@@ -24,7 +24,7 @@ struct KizbaApp: App {
                 RootSplitView(environment: environment, state: state)
             }
         }
-        .commands {
+            .commands {
             DiagnosticsCommands()
             EntryMenuCommands(state: state)
         }
@@ -116,27 +116,27 @@ private struct EntryMenuCommands: Commands {
             // five write affordances disable so the user cannot
             // trigger a concurrent write.
             Button("New Entry…") {
-                state.isNewEntrySheetPresented = true
+                state.router.isNewEntrySheetPresented = true
             }
             .disabled(state.anyWriteInFlight)
             .keyboardShortcut("n", modifiers: .command)
 
             Button("Edit Entry…") {
-                state.isEditEntrySheetPresented = true
+                state.router.isEditEntrySheetPresented = true
             }
-            .disabled(state.selectedEntryID == nil || state.anyWriteInFlight)
+            .disabled(state.router.selectedEntryID == nil || state.anyWriteInFlight)
             .keyboardShortcut("e", modifiers: .command)
 
             Button("Regenerate Password") {
-                state.isRegenerateSheetPresented = true
+                state.router.isRegenerateInPlaceSheetPresented = true
             }
-            .disabled(state.selectedEntryID == nil || state.anyWriteInFlight)
+            .disabled(state.router.selectedEntryID == nil || state.anyWriteInFlight)
             .keyboardShortcut("g", modifiers: [.command, .option])
 
             Button("Move Entry…") {
-                state.isMoveSheetPresented = true
+                state.router.isMoveEntrySheetPresented = true
             }
-            .disabled(state.selectedEntryID == nil || state.anyWriteInFlight)
+            .disabled(state.router.selectedEntryID == nil || state.anyWriteInFlight)
             .keyboardShortcut("m", modifiers: [.command, .shift])
 
             // Phase G.5 — flip the shared
@@ -147,9 +147,9 @@ private struct EntryMenuCommands: Commands {
             // a selection so ⌫ is a no-op when the entry list has
             // no active row.
             Button("Delete Entry") {
-                state.isDeleteConfirmationPresented = true
+                state.router.isDeleteConfirmationPresented = true
             }
-            .disabled(state.selectedEntryID == nil || state.anyWriteInFlight)
+            .disabled(state.router.selectedEntryID == nil || state.anyWriteInFlight)
             .keyboardShortcut(.delete, modifiers: [])
         }
     }

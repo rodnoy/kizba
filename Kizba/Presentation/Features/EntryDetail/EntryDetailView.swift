@@ -101,7 +101,7 @@ struct EntryDetailView: View {
                 FailedView(error: error, environment: environment)
             }
         }
-        .navigationTitle(state.selectedEntryID ?? "Detail")
+        .navigationTitle(state.router.selectedEntryID ?? "Detail")
         .toolbar {
             // Phase G.2 — `✎` Edit Entry. Enabled only when an entry
             // is selected AND the detail model has loaded its body
@@ -110,7 +110,7 @@ struct EntryDetailView: View {
             // which the sheet host below consumes.
             ToolbarItem {
                 Button {
-                    state.isEditEntrySheetPresented = true
+                    state.router.isEditEntrySheetPresented = true
                 } label: {
                     Label("Edit Entry", systemImage: "pencil")
                 }
@@ -126,7 +126,7 @@ struct EntryDetailView: View {
             // host below consumes.
             ToolbarItem {
                 Button {
-                    state.isRegenerateSheetPresented = true
+                    state.router.isRegenerateInPlaceSheetPresented = true
                 } label: {
                     Label("Regenerate Password", systemImage: "dice")
                 }
@@ -140,13 +140,13 @@ struct EntryDetailView: View {
         // Build the regenerate model BEFORE presenting the sheet so
         // the `.sheet { ... }` ViewBuilder closure can read it from
         // `@State`. See ``regenerateModel`` for the rationale.
-        .onChange(of: state.isRegenerateSheetPresented) { _, presented in
-            if presented, let path = state.selectedEntryID {
+        .onChange(of: state.router.isRegenerateInPlaceSheetPresented) { _, presented in
+            if presented, let path = state.router.selectedEntryID {
                 regenerateModel = makeRegenerateInPlaceModel(path: path)
             }
         }
         .sheet(
-            isPresented: $state.isRegenerateSheetPresented,
+            isPresented: $state.router.isRegenerateInPlaceSheetPresented,
             onDismiss: { regenerateModel = nil }
         ) {
             if let model = regenerateModel {
@@ -166,13 +166,13 @@ struct EntryDetailView: View {
         // producing the "blinking" load behaviour and never observing
         // the prior model's `.saved` transition (so the sheet would
         // never auto-dismiss after Save).
-        .onChange(of: state.isEditEntrySheetPresented) { _, presented in
-            if presented, let path = state.selectedEntryID {
+        .onChange(of: state.router.isEditEntrySheetPresented) { _, presented in
+            if presented, let path = state.router.selectedEntryID {
                 editFormModel = makeEditEntryFormModel(originalPath: path)
             }
         }
         .sheet(
-            isPresented: $state.isEditEntrySheetPresented,
+            isPresented: $state.router.isEditEntrySheetPresented,
             onDismiss: { editFormModel = nil }
         ) {
             if let model = editFormModel {
@@ -189,7 +189,7 @@ struct EntryDetailView: View {
                     .padding()
             }
         }
-        .onChange(of: state.selectedEntryID, initial: true) { _, newValue in
+        .onChange(of: state.router.selectedEntryID, initial: true) { _, newValue in
             model.handleSelectionChange(newValue)
         }
         // Phase H.1 — subscribe the detail model to `pass.changes` so
@@ -210,7 +210,7 @@ struct EntryDetailView: View {
     /// we never decrypted would let the user overwrite real data
     /// with whatever happened to be in an empty form.
     private var canEditCurrentEntry: Bool {
-        guard state.selectedEntryID != nil else { return false }
+        guard state.router.selectedEntryID != nil else { return false }
         if case .loaded = model.state { return true }
         return false
     }

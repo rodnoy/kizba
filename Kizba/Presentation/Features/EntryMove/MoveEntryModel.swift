@@ -298,7 +298,7 @@ final class MoveEntryModel {
         // Phase G.4 — selection follows the entry to its new path.
         // Imperative set (same pattern as Phase F.5); systematic
         // selection-on-event reconciliation is Phase H's concern.
-        appState.selectedEntryID = newEntry.path
+        appState.router.selectedEntryID = newEntry.path
 
         // Record the inverse FIRST so the toast's Undo action has
         // something to consume, THEN post the toast.

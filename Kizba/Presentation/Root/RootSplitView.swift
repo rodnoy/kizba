@@ -30,7 +30,7 @@ struct RootSplitView: View {
         NavigationSplitView {
             SidebarView(
                 environment: environment,
-                selection: $state.selectedFolder
+                selection: $state.router.selectedFolder
             )
         } content: {
             EntryListView(environment: environment, state: state)

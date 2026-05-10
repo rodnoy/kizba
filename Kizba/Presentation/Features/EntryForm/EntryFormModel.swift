@@ -496,7 +496,7 @@ final class EntryFormModel {
             // rules in full; F.5 keeps this imperative set so the
             // UI experience does not depend on event delivery
             // latency.
-            appState.selectedEntryID = savedPath
+            appState.router.selectedEntryID = savedPath
             toastCenter.post(
                 Toast(
                     severity: .success,

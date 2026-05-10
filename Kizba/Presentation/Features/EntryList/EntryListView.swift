@@ -60,7 +60,7 @@ struct EntryListView: View {
                 EntryRowView(
                     title: entry.name,
                     subtitle: entry.folder.isEmpty ? nil : entry.path,
-                    isSelected: state.selectedEntryID == entry.id
+                    isSelected: state.router.selectedEntryID == entry.id
                 )
                 .contentShape(Rectangle())
                 .onTapGesture {
@@ -75,12 +75,12 @@ struct EntryListView: View {
         // Hide the default list container background for a cleaner custom
         // entries surface.
         .scrollContentBackground(.hidden)
-        .navigationTitle(state.selectedFolder ?? "Entries")
+        .navigationTitle(state.router.selectedFolder ?? "Entries")
         .searchable(text: $state.searchQuery, placement: .toolbar)
         .toolbar {
             ToolbarItem {
                 Button {
-                    state.isNewEntrySheetPresented = true
+                    state.router.isNewEntrySheetPresented = true
                 } label: {
                     Label("New Entry", systemImage: "plus")
                 }
@@ -97,13 +97,13 @@ struct EntryListView: View {
             // sheet host below consumes.
             ToolbarItem {
                 Button {
-                    state.isMoveSheetPresented = true
+                    state.router.isMoveEntrySheetPresented = true
                 } label: {
                     Label("Move Entry", systemImage: "arrow.left.arrow.right")
                 }
                 // Phase G.6 — disable when no selection OR when any
                 // write op is in flight (concurrent-write lockout).
-                .disabled(state.selectedEntryID == nil || state.anyWriteInFlight)
+                .disabled(state.router.selectedEntryID == nil || state.anyWriteInFlight)
                 .help("Move Entry (⌘⇧M)")
             }
             // Phase G.5 — 🗑 Delete Entry. Flips
@@ -115,7 +115,7 @@ struct EntryListView: View {
             // is impossible.
             ToolbarItem {
                 Button {
-                    state.isDeleteConfirmationPresented = true
+                    state.router.isDeleteConfirmationPresented = true
                 } label: {
                     Label("Delete Entry", systemImage: "trash")
                 }
@@ -146,13 +146,13 @@ struct EntryListView: View {
         // updates) and the new model would have stale `.editing`
         // state, never observing the prior model's `.saved`
         // transition.
-        .onChange(of: state.isNewEntrySheetPresented) { _, presented in
+        .onChange(of: state.router.isNewEntrySheetPresented) { _, presented in
             if presented {
                 newEntryFormModel = makeNewEntryFormModel()
             }
         }
         .sheet(
-            isPresented: $state.isNewEntrySheetPresented,
+            isPresented: $state.router.isNewEntrySheetPresented,
             onDismiss: { newEntryFormModel = nil }
         ) {
             if let model = newEntryFormModel {
@@ -166,13 +166,13 @@ struct EntryListView: View {
         // The `MoveEntryModel` is built per presentation so the
         // captured original-path is released as soon as SwiftUI
         // tears down the sheet.
-        .onChange(of: state.isMoveSheetPresented) { _, presented in
-            if presented, let path = state.selectedEntryID {
+        .onChange(of: state.router.isMoveEntrySheetPresented) { _, presented in
+            if presented, let path = state.router.selectedEntryID {
                 moveEntryModel = makeMoveEntryModel(path: path)
             }
         }
         .sheet(
-            isPresented: $state.isMoveSheetPresented,
+            isPresented: $state.router.isMoveEntrySheetPresented,
             onDismiss: { moveEntryModel = nil }
         ) {
             if let model = moveEntryModel {
@@ -194,12 +194,12 @@ struct EntryListView: View {
         // in a fresh Task so the @MainActor closure stays
         // synchronous-looking to the modifier API.
         .destructiveConfirmation(
-            isPresented: $state.isDeleteConfirmationPresented,
+            isPresented: $state.router.isDeleteConfirmationPresented,
             title: "Delete entry?",
             message: deleteConfirmationMessage,
             confirmLabel: "Delete"
         ) {
-            guard let path = state.selectedEntryID else { return }
+            guard let path = state.router.selectedEntryID else { return }
             Task { await model.deleteEntry(at: path) }
         }
         .task {
@@ -229,7 +229,7 @@ struct EntryListView: View {
             passManager: environment.passManager,
             toastCenter: state.toastCenter,
             appState: state,
-            initialPath: Self.initialPath(for: state.selectedFolder)
+            initialPath: Self.initialPath(for: state.router.selectedFolder)
         )
     }
 
@@ -265,7 +265,7 @@ struct EntryListView: View {
     /// target before confirming, and surfaces the 10-second Undo
     /// window so the destructive action does not feel terminal.
     private var deleteConfirmationMessage: String {
-        let path = state.selectedEntryID ?? "the entry"
+        let path = state.router.selectedEntryID ?? "the entry"
         return "This will permanently delete \(path). You'll have 10 seconds to undo."
     }
 }

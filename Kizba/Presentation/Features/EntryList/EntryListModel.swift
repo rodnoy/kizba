@@ -129,7 +129,7 @@ final class EntryListModel {
             }
         }
 
-        let folder = state.selectedFolder
+        let folder = state.router.selectedFolder
         return allEntries.filter { entry in
             guard let folder, !folder.isEmpty else { return true }
             let head: String
@@ -166,7 +166,7 @@ final class EntryListModel {
     /// Update the shared selection in `AppState`. Called by the view
     /// in response to row taps / list selection changes.
     func select(entryID: PassEntry.ID?) {
-        state.selectedEntryID = entryID
+        state.router.selectedEntryID = entryID
     }
 
     // MARK: - Delete (Phase G.5)
@@ -268,8 +268,8 @@ final class EntryListModel {
         // Defensive selection follow-up. Phase H will centralise
         // this via the `.removed` event; for G.5 the imperative
         // path mirrors G.4 (selection follows move).
-        if state.selectedEntryID == path {
-            state.selectedEntryID = nil
+        if state.router.selectedEntryID == path {
+            state.router.selectedEntryID = nil
         }
 
         // Record the inverse FIRST so the toast's Undo action has
@@ -444,21 +444,21 @@ final class EntryListModel {
 
         case .moved(let from, let to):
             await refresh()
-            if state.selectedEntryID == from {
-                state.selectedEntryID = to
+            if state.router.selectedEntryID == from {
+                state.router.selectedEntryID = to
             }
 
         case .removed(let path):
             await refresh()
-            if state.selectedEntryID == path {
-                state.selectedEntryID = nil
+            if state.router.selectedEntryID == path {
+                state.router.selectedEntryID = nil
             }
 
         case .bulk:
             await refresh()
-            if let selected = state.selectedEntryID,
+            if let selected = state.router.selectedEntryID,
                !allEntries.contains(where: { $0.path == selected }) {
-                state.selectedEntryID = nil
+                state.router.selectedEntryID = nil
             }
         }
     }

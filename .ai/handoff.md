@@ -84,4 +84,9 @@ Next immediate action after A.4: A.5 — Regression sweep — COMPLETED
 
 Recent verification: focused test and full test suite executed; all tests passed. Commit c090b81 (2026-05-10) updated CodeReviewChecklistTests to improve path discovery for .ai/code-review-checklist.md.
 
-Next immediate action: B.1 — AppRouter scaffold
+Next immediate action: B.1 — AppRouter scaffold — COMPLETED
+
+Commit: 70e88f7
+Date: 2026-05-10
+
+Next immediate action after B.1: B.2 — AppRouter call-site migration
