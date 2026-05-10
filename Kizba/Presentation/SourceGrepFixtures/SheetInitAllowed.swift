@@ -6,8 +6,9 @@ final class MyModelAllowed {}
 struct SheetInitAllowedView: View {
     var body: some View {
         Text("Hello")
-            .sheet {
-                MyModelAllowed()
+            .sheet(isPresented: .constant(true)) {
+                EmptyView()
+                    .onAppear { _ = MyModelAllowed() }
             }
     }
 }

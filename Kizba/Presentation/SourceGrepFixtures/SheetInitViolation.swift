@@ -1,12 +1,13 @@
 import SwiftUI
 
-final class MyModel {}
+final class BadModel {}
 
 struct SheetInitViolationView: View {
     var body: some View {
         Text("Hello")
-            .sheet {
-                MyModel()
+            .sheet(isPresented: .constant(true)) {
+                EmptyView()
+                    .onAppear { _ = BadModel() }
             }
     }
 }
