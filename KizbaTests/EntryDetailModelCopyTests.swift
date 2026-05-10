@@ -292,7 +292,8 @@ private struct NullPassManager: PassManaging {
 /// instance can drive multiple `copy(_:)` calls in a single test, in
 /// order to assert that ``EntryDetailModel`` re-reads the setting on
 /// every call rather than caching it at init time.
-private final class MutableSettingsStore: SettingsStoring, @unchecked Sendable {
+// Shared in-memory SettingsStoring test fixture used by multiple test files.
+final class MutableSettingsStore: SettingsStoring, @unchecked Sendable {
     private let lock = NSLock()
     private var storage: [String: any SettingsValue] = [:]
 
