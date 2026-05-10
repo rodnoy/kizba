@@ -8,10 +8,11 @@ final class AsyncTestHelpersTests: XCTestCase {
         // A Minimal mock that conforms to AsyncObserving by yielding
         // once then finishing; exercise startObservation returns a
         // Task that completes and waitUntil sees a predicate change.
-        actor OneTickModel: AsyncObserving {
+        // Minimal MainActor-isolated mock to conform to AsyncObserving.
+        @MainActor
+        final class OneTickModel: AsyncObserving {
             var didRun = false
             func observeChanges() async {
-                // flip state after a small delay
                 try? await Task.sleep(nanoseconds: 10_000_000)
                 didRun = true
             }
@@ -19,7 +20,7 @@ final class AsyncTestHelpersTests: XCTestCase {
 
         let model = OneTickModel()
         let task = await startObservation(model: model)
-        await waitUntil({ await model.didRun }, timeout: 1.0)
+        await waitUntil({ model.didRun }, timeout: 1.0)
         task.cancel()
     }
 

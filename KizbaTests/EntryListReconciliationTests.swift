@@ -59,9 +59,7 @@ final class EntryListReconciliationTests: XCTestCase {
     /// of the multi-subscriber `AsyncStream` pattern in
     /// `MockPassManager` (continuation registration runs through a
     /// detached `Task`).
-    private func startObservation(model: EntryListModel) async -> Task<Void, Never> {
-        await startObservation(model: model as AsyncObserving)
-    }
+    // use shared startObservation(model:) from Fixtures/AsyncTestHelpers.swift
 
     // MARK: - 1. .inserted re-lists
 

@@ -51,6 +51,22 @@ internal func waitUntil(
     XCTFail(message, file: file, line: line)
 }
 
+@MainActor
+internal func waitUntil(
+    _ predicate: @MainActor () async -> Bool,
+    timeout: TimeInterval = 1.0,
+    message: String = "predicate did not become true in time",
+    file: StaticString = #filePath,
+    line: UInt = #line
+) async {
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+        if await predicate() { return }
+        try? await Task.sleep(nanoseconds: 10_000_000) // 10ms
+    }
+    XCTFail(message, file: file, line: line)
+}
+
 /// Alternate calling convention used by some tests: `waitUntil(timeout: 1.0) { ... }`
 @MainActor
 internal func waitUntil(

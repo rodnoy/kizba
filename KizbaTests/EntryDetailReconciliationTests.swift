@@ -44,9 +44,7 @@ final class EntryDetailReconciliationTests: XCTestCase {
 
     /// Spin up `model.observeChanges()` on a detached task and wait a
     /// short tick for the subscription to register with the manager.
-    private func startObservation(model: EntryDetailModel) async -> Task<Void, Never> {
-        await startObservation(model: model as AsyncObserving)
-    }
+    // use shared startObservation(model:) from Fixtures/AsyncTestHelpers.swift
 
     /// Drive the detail model into `.loaded(_)` for `path` and wait
     /// for the load to complete. Mirrors the production view's

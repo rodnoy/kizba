@@ -87,7 +87,7 @@ final class ActionHistoryTests: XCTestCase {
         let history = makeHistory()
         history.record(.move(from: "a", to: "b"), expiresAfter: .milliseconds(50))
         XCTAssertNotNil(history.pending)
-        await waitUntil(timeout: 1.0) { history.pending == nil }
+        await KizbaTests.waitUntil(timeout: 1.0) { history.pending == nil }
         XCTAssertNil(history.pending)
     }
 
@@ -231,17 +231,7 @@ final class ActionHistoryTests: XCTestCase {
         ActionHistory(passManager: passManager)
     }
 
-    /// Polls `predicate` on the MainActor until it becomes `true` or
-    /// `seconds` elapse. Mirrors the helper used by other Phase F
-    /// timing-sensitive tests.
-    private func waitUntil(
-        timeout seconds: TimeInterval,
-        file: StaticString = #filePath,
-        line: UInt = #line,
-        _ predicate: @MainActor () -> Bool
-    ) async {
-        await waitUntil(timeout: seconds, file: file, line: line, predicate)
-    }
+    // using shared waitUntil helper from Fixtures/AsyncTestHelpers
 }
 
 // MARK: - Test fakes
