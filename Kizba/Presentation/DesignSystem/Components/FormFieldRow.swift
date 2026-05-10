@@ -28,19 +28,36 @@ public struct FormFieldRow<Control: View>: View {
     }
 
     @Environment(\.theme) private var theme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     public var body: some View {
         VStack(alignment: .leading, spacing: theme.spacing.xs) {
-            HStack(alignment: .firstTextBaseline, spacing: theme.spacing.md) {
-                Text(label)
-                    .font(theme.typography.body)
-                    .foregroundStyle(theme.colors.onSurface)
-                    .frame(width: formFieldRowLabelWidth, alignment: .trailing)
-                    .accessibilityHidden(true)
+            if Self.shouldUseVerticalLayout(dynamicTypeSize) {
+                // Vertical layout: label above control. Label should not
+                // have a fixed width so it wraps naturally at large sizes.
+                VStack(alignment: .leading, spacing: theme.spacing.xs) {
+                    Text(label)
+                        .font(theme.typography.body)
+                        .foregroundStyle(theme.colors.onSurface)
+                        .accessibilityHidden(true)
 
-                control()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityLabel(label)
+                    control()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityLabel(label)
+                }
+            } else {
+                // Existing horizontal layout preserved for non-accessibility sizes.
+                HStack(alignment: .firstTextBaseline, spacing: theme.spacing.md) {
+                    Text(label)
+                        .font(theme.typography.body)
+                        .foregroundStyle(theme.colors.onSurface)
+                        .frame(width: formFieldRowLabelWidth, alignment: .trailing)
+                        .accessibilityHidden(true)
+
+                    control()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityLabel(label)
+                }
             }
 
             if let errorText {
@@ -53,14 +70,24 @@ public struct FormFieldRow<Control: View>: View {
 
     private func helperText(_ text: String, color: Color) -> some View {
         HStack(spacing: 0) {
-            // Match the indentation of the control column so helper text
-            // visually aligns with the field above it.
-            Spacer().frame(width: formFieldRowLabelWidth + theme.spacing.md)
+            // When using the vertical layout we should not indent the
+            // helper text — it should start at the leading edge. For the
+            // horizontal layout we keep the spacer so the helper aligns
+            // with the control column.
+            if !Self.shouldUseVerticalLayout(dynamicTypeSize) {
+                Spacer().frame(width: formFieldRowLabelWidth + theme.spacing.md)
+            }
             Text(text)
                 .font(theme.typography.caption)
                 .foregroundStyle(color)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    // MARK: - Pure helpers
+
+    static func shouldUseVerticalLayout(_ size: DynamicTypeSize) -> Bool {
+        size >= .accessibility1
     }
 }

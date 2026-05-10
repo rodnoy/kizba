@@ -88,3 +88,122 @@ test in KeyValueEditorAccessibilityTests.
 ## Suggested current step
 
 Tasks 1 and 2 can be done together (single edit pass). Task 3 is verification only.
+
+---
+
+# D.3 — FormFieldRow Dynamic Type Vertical Layout
+
+## Goal
+
+When the user's Dynamic Type size is `.accessibility1` or larger, `FormFieldRow` switches from a horizontal layout (label | control) to a vertical layout (label above control) so content is not clipped or truncated. Extract a testable pure helper for the layout decision.
+
+## Constraints
+
+- Zero third-party dependencies.
+- Inline styling banned in Presentation outside DesignSystem (this change IS in DesignSystem — OK).
+- All code/comments/commits in English.
+- `SWIFT_STRICT_CONCURRENCY = complete`.
+- Follow D.1/D.2 pattern: extract a `static` pure helper; test the helper, not the view.
+- Preserve existing behavior for all non-accessibility Dynamic Type sizes.
+
+## Tasks
+
+### Task 1 — Extract static helper + update body layout
+
+- **Objective:** `FormFieldRow` reads `@Environment(\.dynamicTypeSize)` and uses a vertical `VStack(alignment: .leading)` layout (label on top, control below) when `dynamicTypeSize >= .accessibility1`. For smaller sizes, the existing `HStack` layout is preserved unchanged.
+- **Files to modify:** `Kizba/Presentation/DesignSystem/Components/FormFieldRow.swift`
+- **Changes:**
+  1. Add `@Environment(\.dynamicTypeSize) private var dynamicTypeSize` to `FormFieldRow`.
+  2. Add a `// MARK: - Pure helpers` section with:
+     ```swift
+     static func shouldUseVerticalLayout(_ size: DynamicTypeSize) -> Bool {
+         size >= .accessibility1
+     }
+     ```
+  3. In `body`, branch on `Self.shouldUseVerticalLayout(dynamicTypeSize)`:
+     - **Vertical path** (`true`): Replace the `HStack` with a `VStack(alignment: .leading, spacing: theme.spacing.xs)` containing:
+       - `Text(label)` — same font/color, but NO fixed width, alignment `.leading`, `accessibilityHidden(true)`.
+       - `control()` — `frame(maxWidth: .infinity, alignment: .leading)`, `.accessibilityLabel(label)`.
+     - **Horizontal path** (`false`): Existing `HStack` code unchanged.
+  4. In `helperText(_:color:)`, when vertical layout is active, drop the leading `Spacer` (no label column to align with) — helper text starts at leading edge.
+- **Implementation notes:**
+  - `DynamicTypeSize` conforms to `Comparable` in SwiftUI (macOS 14+), so `>=` works directly.
+  - The outer `VStack` wrapping error/help text stays as-is in both paths.
+  - The `formFieldRowLabelWidth` private constant is still used in the horizontal path; no change needed.
+- **Verification:** Project compiles. Existing tests pass. Visual check: in Xcode preview, set Dynamic Type to `.accessibility1` and confirm vertical layout.
+- **Risks:** Low. Additive branching; horizontal path is byte-for-byte identical to current code.
+
+### Task 2 — Add unit test for `shouldUseVerticalLayout`
+
+- **Objective:** Deterministic test proving the helper returns `true` for accessibility sizes and `false` for standard sizes.
+- **Files to add:** `KizbaTests/FormFieldRowAccessibilityTests.swift`
+- **Test class:** `FormFieldRowAccessibilityTests`
+- **Test methods:**
+  1. `testShouldUseVerticalLayout_standardSizes_returnsFalse` — assert `false` for `.xSmall`, `.small`, `.medium`, `.large`, `.xLarge`, `.xxLarge`, `.xxxLarge`.
+  2. `testShouldUseVerticalLayout_accessibilitySizes_returnsTrue` — assert `true` for `.accessibility1`, `.accessibility2`, `.accessibility3`, `.accessibility4`, `.accessibility5`.
+- **Test body sketch:**
+  ```swift
+  import XCTest
+  import SwiftUI
+  @testable import Kizba
+
+  final class FormFieldRowAccessibilityTests: XCTestCase {
+      func testShouldUseVerticalLayout_standardSizes_returnsFalse() {
+          let standard: [DynamicTypeSize] = [
+              .xSmall, .small, .medium, .large,
+              .xLarge, .xxLarge, .xxxLarge
+          ]
+          for size in standard {
+              XCTAssertFalse(
+                  FormFieldRow<EmptyView>.shouldUseVerticalLayout(size),
+                  "\(size) should use horizontal layout"
+              )
+          }
+      }
+
+      func testShouldUseVerticalLayout_accessibilitySizes_returnsTrue() {
+          let accessibility: [DynamicTypeSize] = [
+              .accessibility1, .accessibility2, .accessibility3,
+              .accessibility4, .accessibility5
+          ]
+          for size in accessibility {
+              XCTAssertTrue(
+                  FormFieldRow<EmptyView>.shouldUseVerticalLayout(size),
+                  "\(size) should use vertical layout"
+              )
+          }
+      }
+  }
+  ```
+- **Verification:** `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/FormFieldRowAccessibilityTests` — 2 tests, 0 failures.
+- **Risks:** None. Pure function, no concurrency, no UI dependencies. `FormFieldRow<EmptyView>` is the canonical way to reference the static method on a generic type.
+
+### Task 3 — Verify no regressions
+
+- **Objective:** Full suite green.
+- **Files to modify:** None.
+- **Verification:**
+  - Focused: `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/FormFieldRowAccessibilityTests`
+  - SourceGrepTests: `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/SourceGrepTests`
+  - Full suite: `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'` — all pass, 0 failures
+- **Success criteria:** Test count ≥ 718 (716 baseline from D.2 + 2 new), 0 failures.
+- **Risks:** None.
+
+## Concurrency Notes
+
+No concurrency concerns. `FormFieldRow` is a plain SwiftUI `View` struct. The new static helper is a pure function. No actor boundaries crossed.
+
+## Commit message
+
+```
+feat(a11y): FormFieldRow vertical layout for accessibility sizes (D.3)
+
+When dynamicTypeSize >= .accessibility1, FormFieldRow switches from
+HStack(label, control) to VStack(alignment: .leading) so content is
+not clipped at large text sizes. Extracted shouldUseVerticalLayout(_:)
+static helper; two new tests in FormFieldRowAccessibilityTests.
+```
+
+## Suggested current step
+
+Tasks 1 and 2 can be done together (single edit pass). Task 3 is verification only.
