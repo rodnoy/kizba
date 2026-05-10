@@ -21,7 +21,7 @@ final class FakeStoreWatcher: StoreWatching, @unchecked Sendable {
     init() {}
 
     var events: AsyncStream<Void> {
-        AsyncStream { continuation in
+        AsyncStream<Void>(bufferingPolicy: .unbounded) { continuation in
             let id = UUID()
             let holder = Holder(id: id, continuation: continuation)
             lock.sync {
@@ -61,10 +61,12 @@ final class FakeStoreWatcher: StoreWatching, @unchecked Sendable {
 
     /// Yield a change event to all current subscribers.
     func simulateChange() {
-        lock.sync {
-            for idx in continuations.indices {
-                continuations[idx].continuation.yield(())
-            }
+        // Copy continuations under lock then yield outside the sync
+        let current: [AsyncStream<Void>.Continuation] = lock.sync {
+            continuations.map { $0.continuation }
+        }
+        for cont in current {
+            cont.yield(())
         }
     }
 
