@@ -1,11 +1,20 @@
-Focused tests executed:
+FormFieldRow accessibility (D.3) verification
 
-- KizbaTests/FormFieldRowAccessibilityTests — 2 tests, 0 failures
+Commands executed:
 
-- KizbaTests/SourceGrepTests — 19 tests, 0 failures
+1) xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/FormFieldRowAccessibilityTests
+ - Result: 2 tests executed, 0 failures
 
-Full test suite:
+2) xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/SourceGrepTests
+ - Result: 19 tests executed, 0 failures
 
-- 718 tests executed, 9 skipped, 0 failures
+3) xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+ - Result: 718 tests executed, 9 skipped, 0 failures
 
-Commit: ec39ad9
+4) rg -n '\\bas!\\b' Kizba
+ - Result: no matches
+
+5) rg -n 'Logger.*stdin|print\\(.*stdin' Kizba
+ - Result: no matches
+
+Summary: All focused tests and full test suite passed. No banned patterns found.

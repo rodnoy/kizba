@@ -185,3 +185,13 @@ Next immediate action: D.3 — Accessibility smoke & review
 D.3 — FormFieldRow Dynamic Type Vertical Layout — COMPLETED
 
 Next immediate action: D.4 — Accessibility sweep review
+
+### D.3 verification
+
+- FormFieldRowAccessibilityTests: PASSED (2 tests, 0 failures)
+- SourceGrepTests: PASSED (19 tests, 0 failures)
+- Full suite: PASSED (718 tests, 9 skipped, 0 failures)
+- Grep bans: clean (no 'as!' or stdin-logging patterns found)
+
+Verification date: 2026-05-10
+Git HEAD: c090b81
