@@ -33,7 +33,7 @@ public struct EntryFormBody<Header: View, Footer: View>: View {
     @State private var generatePasswordModel: GeneratePasswordModel?
 
     /// Construct a body backed by `model`.
-    public init(
+    init(
         model: EntryFormModel,
         pathFieldEnabled: Bool,
         @ViewBuilder header: () -> Header,
