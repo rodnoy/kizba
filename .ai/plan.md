@@ -1,8 +1,8 @@
-# D.1 — SecretRevealField Accessibility Value
+# D.2 — KeyValueEditor Accessibility Improvements
 
 ## Goal
 
-Add `.accessibilityValue(isRevealed ? "Revealed" : "Hidden")` to the reveal/hide toggle button in `SecretRevealField` so VoiceOver announces the current state. Add one test to `SecretRevealFieldTests` verifying the pure helper that drives the value.
+Add per-row accessibility grouping to `KeyValueEditor` so VoiceOver treats each key/value/remove-button row as a single coherent element. Add a testable pure helper for the row label string and a deterministic unit test.
 
 ## Constraints
 
@@ -11,70 +11,78 @@ Add `.accessibilityValue(isRevealed ? "Revealed" : "Hidden")` to the reveal/hide
 - Inline styling banned in Presentation outside DesignSystem (this change IS in DesignSystem — OK).
 - All code/comments/commits in English.
 - `SWIFT_STRICT_CONCURRENCY = complete`.
+- Follow D.1 pattern: extract a `static` pure helper for testability; test the helper, not the view.
 
 ## Tasks
 
-### Task 1 — Add `.accessibilityValue` to the toggle button
+### Task 1 — Add accessibility modifiers to each row + extract static helper
 
-- **Objective:** VoiceOver announces "Revealed" or "Hidden" when the toggle button is focused.
-- **Files to modify:** `Kizba/Presentation/DesignSystem/Components/SecretRevealField.swift`
+- **Objective:** VoiceOver groups each metadata row (key field, value field, remove button) as one element and announces "Field row 1", "Field row 2", etc.
+- **Files to modify:** `Kizba/Presentation/DesignSystem/Components/KeyValueEditor.swift`
 - **Changes:**
-  1. On the reveal/hide `Button` (lines 51–57), add `.accessibilityValue(isRevealed ? "Revealed" : "Hidden")` after the existing `.accessibilityLabel(...)` modifier (line 57).
+  1. Change `ForEach(pairs)` to `ForEach(Array(pairs.enumerated()), id: \.element.id)` (or equivalent) to get the index.
+  2. On the `HStack` returned by `row(for:)`, add:
+     - `.accessibilityElement(children: .contain)`
+     - `.accessibilityLabel(KeyValueEditor.rowAccessibilityLabel(index: index))`
+  3. Update `row(for:)` signature to accept `index: Int` alongside `pair: Pair`.
+  4. Add a static pure helper in a `// MARK: - Pure helpers` section:
+     ```swift
+     static func rowAccessibilityLabel(index: Int) -> String {
+         "Field row \(index + 1)"
+     }
+     ```
 - **Implementation notes:**
-  - The button already has `.accessibilityLabel(isRevealed ? "Hide secret" : "Reveal secret")` — the label describes the ACTION; the new `.accessibilityValue` describes the current STATE. Both are needed for proper VoiceOver UX.
-  - No new static helper needed — the ternary is trivial and directly in the view body.
-- **Verification:** Project compiles. Existing `SecretRevealFieldTests` pass unchanged.
-- **Risks:** None. Additive-only modifier.
+  - The `index` parameter to `rowAccessibilityLabel` is 0-based; the helper adds 1 for the human-readable label. This matches the plan's `\(index + 1)` spec.
+  - `ForEach(Array(pairs.enumerated()), id: \.element.id)` is the idiomatic SwiftUI pattern for index+element iteration with stable identity. Alternative: `ForEach(pairs.indices, id: \.self)` with `pairs[index]` — but `.element.id` is safer for identity stability during reorder/delete.
+  - No behavior change to existing functionality (add/remove/edit pairs).
+- **Verification:** Project compiles. Existing tests pass.
+- **Risks:** None. Additive-only modifiers. `enumerated()` + `Array` is a trivial O(n) copy; metadata lists are small (< 50 rows).
 
-### Task 2 — Add `accessibilityValueText` static helper + test
+### Task 2 — Add unit test for `rowAccessibilityLabel`
 
-- **Objective:** Extract the accessibility value string into a testable static helper (same pattern as `displayText` and `maskedLength`) and add one test.
-- **Files to modify:**
-  - `Kizba/Presentation/DesignSystem/Components/SecretRevealField.swift`
-  - `KizbaTests/SecretRevealFieldTests.swift`
- - **Changes in `SecretRevealField.swift`:**
-   1. Add a static helper in the `// MARK: - Pure helpers` section:
-     ```swift
-     static func accessibilityValueText(isRevealed: Bool) -> String {
-         isRevealed ? "Revealed" : "Hidden"
-     }
-     ```
-   2. Update the `.accessibilityValue(...)` modifier from Task 1 to call `SecretRevealField.accessibilityValueText(isRevealed: isRevealed)`.
-- **Changes in `SecretRevealFieldTests.swift`:**
-  1. Add one test method:
-     ```swift
-     func testSecretRevealField_accessibilityValueText_reflectsRevealState() {
-         XCTAssertEqual(SecretRevealField.accessibilityValueText(isRevealed: true), "Revealed")
-         XCTAssertEqual(SecretRevealField.accessibilityValueText(isRevealed: false), "Hidden")
-     }
-     ```
- - **Verification:** `xcodebuild test -only-testing:KizbaTests/SecretRevealFieldTests` — all pass (existing + 1 new).
-- **Risks:** None. Pure function, no concurrency.
+- **Objective:** Deterministic test proving the label string is correct for representative indices.
+- **Files to add:** `KizbaTests/KeyValueEditorAccessibilityTests.swift`
+- **Test method:** `testRowAccessibilityLabel_returnsOneIndexedString`
+- **Test body:**
+  ```swift
+  import XCTest
+  @testable import Kizba
+
+  final class KeyValueEditorAccessibilityTests: XCTestCase {
+      func testRowAccessibilityLabel_returnsOneIndexedString() {
+          XCTAssertEqual(KeyValueEditor.rowAccessibilityLabel(index: 0), "Field row 1")
+          XCTAssertEqual(KeyValueEditor.rowAccessibilityLabel(index: 1), "Field row 2")
+          XCTAssertEqual(KeyValueEditor.rowAccessibilityLabel(index: 9), "Field row 10")
+      }
+  }
+  ```
+- **Verification:** `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/KeyValueEditorAccessibilityTests` — 1 test, 0 failures.
+- **Risks:** None. Pure function, no concurrency, no UI dependencies.
 
 ### Task 3 — Verify no regressions
 
 - **Objective:** Full suite green.
 - **Files to modify:** None.
 - **Verification:**
-  - Focused: `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/SecretRevealFieldTests`
+  - Focused: `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/KeyValueEditorAccessibilityTests`
   - SourceGrepTests: `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/SourceGrepTests`
   - Full suite: `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'` — all pass, 0 failures
-- **Success criteria:** Test count ≥ 715 (714 baseline + 1 new), 0 failures.
+- **Success criteria:** Test count ≥ 716 (715 baseline + 1 new), 0 failures.
 - **Risks:** None.
 
 ## Concurrency Notes
 
-No concurrency concerns. `SecretRevealField` is a plain SwiftUI `View` struct. The new static helper is a pure function. The `@Binding var isRevealed` is already MainActor-isolated by SwiftUI's view lifecycle.
+No concurrency concerns. `KeyValueEditor` is a plain SwiftUI `View` struct. The new static helper is a pure function. No actor boundaries crossed.
 
 ## Commit message
 
 ```
-feat(mvp3): add accessibilityValue to SecretRevealField toggle (D.1)
+feat(a11y): KeyValueEditor per-row accessibility grouping (D.2)
 
-Toggle button now announces "Revealed" / "Hidden" via
-.accessibilityValue so VoiceOver users hear the current state.
-Extracted accessibilityValueText(isRevealed:) static helper;
-one new test in SecretRevealFieldTests.
+Each metadata row is now an accessibility container with label
+"Field row N" so VoiceOver groups key/value/remove coherently.
+Extracted rowAccessibilityLabel(index:) static helper; one new
+test in KeyValueEditorAccessibilityTests.
 ```
 
 ## Suggested current step

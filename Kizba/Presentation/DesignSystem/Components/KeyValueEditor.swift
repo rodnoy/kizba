@@ -38,8 +38,8 @@ public struct KeyValueEditor: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: theme.spacing.sm) {
-            ForEach(pairs) { pair in
-                row(for: pair)
+            ForEach(Array(pairs.enumerated()), id: \.element.id) { index, pair in
+                row(for: pair, index: index)
             }
 
             Button {
@@ -51,7 +51,7 @@ public struct KeyValueEditor: View {
         }
     }
 
-    private func row(for pair: Pair) -> some View {
+    private func row(for pair: Pair, index: Int) -> some View {
         HStack(spacing: theme.spacing.sm) {
             TextField(keyPlaceholder, text: binding(for: pair, keyPath: \.key))
                 .textFieldStyle(.kizba)
@@ -69,6 +69,14 @@ public struct KeyValueEditor: View {
             .buttonStyle(.kizba(.ghost, size: .compact))
             .accessibilityLabel("Remove field")
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(KeyValueEditor.rowAccessibilityLabel(index: index))
+    }
+
+    // MARK: - Pure helpers
+
+    static func rowAccessibilityLabel(index: Int) -> String {
+        "Field row \(index + 1)"
     }
 
     /// Two-way binding into a single field of a single pair, scoped by
