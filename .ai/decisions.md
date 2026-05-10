@@ -385,6 +385,18 @@ All cells exceed thresholds with margin. Body AAA, action-fill AA, and color-ide
 - **676 tests total**; 8 skipped (1 D.3 known limitation + 7 PassWriteIntegrationTests when KIZBA_E2E off); 0 failures.
 - Phase H net: +16 tests across 3 sub-steps (H.1 model changes are tested by H.2's new EntryDetailReconciliationTests + H.2 extensions to EntryListReconciliationTests; H.3 was a regression check on G.6's existing tests).
 
+## 2026-05-10 — MVP 3
+
+- Manual DI via initializers; no DI framework.
+- Use `@Observable` for presentation models.
+- Enforce strict concurrency across targets (SWIFT_STRICT_CONCURRENCY = complete).
+- Zero third-party Swift packages in production.
+- Pass write strategy: `pass insert -m` (use -f to force overwrite).
+- Never log secret stdin/stdout; only record stdinByteCount.
+- Touch ID per-reveal toggle default = OFF (opt-in).
+- FSEvents auto-refresh is optional and gated by `KIZBA_FSEVENTS_TEST`.
+- Opt-in E2E gated by `KIZBA_E2E` env var.
+
 ### What's left in MVP 2
 
 Phase I — polish, a11y, Sequoia smoke, README, opt-in E2E green, final regression sweep.
