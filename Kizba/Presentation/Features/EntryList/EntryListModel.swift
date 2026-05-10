@@ -101,7 +101,7 @@ final class EntryListModel {
     /// `appState.anyWriteInFlight` lockout; for G.5 the delete
     /// pipeline is the only write that funnels through this model.
     var canDelete: Bool {
-        guard state.selectedEntryID != nil else { return false }
+        guard state.router.selectedEntryID != nil else { return false }
         return deletionState == .idle
     }
 
