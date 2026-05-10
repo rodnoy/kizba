@@ -37,6 +37,9 @@ struct AppEnvironment: Sendable {
     /// route through this collaborator. Always populated — there is
     /// no environment in which generation is unsupported.
     let passwordGenerator: any PasswordGenerating
+    /// Optional biometric authenticator. Injected in `live()` to the
+    /// LA-backed implementation. `nil` in preview/test wirings.
+    let biometricAuth: (any BiometricAuthenticating)?
 
     /// Binary discovery / locator service. `nil` in preview / unit-test
     /// wirings that have no real binaries to talk to.
@@ -72,12 +75,6 @@ struct AppEnvironment: Sendable {
         self.discovery = discovery
         self.invocationLog = invocationLog
     }
-}
-
-extension AppEnvironment {
-    // Optional biometric authenticator injected for production
-    // wiring. `nil` in preview/test environments by default.
-    let biometricAuth: (any BiometricAuthenticating)?
 }
 
 // MARK: - Factories
