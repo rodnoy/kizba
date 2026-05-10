@@ -8,9 +8,9 @@ Repository at HEAD `4cd0467`. MVP 2 shipped. Test suite: **692 tests, 8 skipped,
 
 ## Next immediate action
 
-**A.1 — Extract AsyncTestHelpers.**
+**A.1 — Extract AsyncTestHelpers.** — COMPLETED
 
-Create `KizbaTests/Fixtures/AsyncTestHelpers.swift` with shared `waitUntil` and `startObservation` helpers. Remove duplicates from 4 test files: `EntryListReconciliationTests`, `EntryDetailReconciliationTests`, `ConcurrentWriteLockoutTests`, `ActionHistoryTests`.
+`KizbaTests/Fixtures/AsyncTestHelpers.swift` created with shared `waitUntil` and `startObservation` helpers. Duplicates removed from `EntryListReconciliationTests`, `EntryDetailReconciliationTests`, `ConcurrentWriteLockoutTests`, `ActionHistoryTests`.
 
 After A.1: proceed to A.2 → A.3 → A.4 → A.5 in strict order.
 
