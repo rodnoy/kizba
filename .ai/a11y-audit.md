@@ -1,4 +1,4 @@
-# Kizba — Accessibility Audit (MVP 2 Phase I.3)
+# Kizba — Accessibility Audit (MVP 3 Phase F.1)
 
 This document captures the accessibility surface of Kizba as of MVP 2,
 and defines a manual checklist the developer should run before each
@@ -331,20 +331,23 @@ relevant accessibility features enabled.
   `GeneratePasswordSheet`.** The numeric label is rendered by a
   sibling `Text("\(model.length)")`; VoiceOver reads the stepper's
   default value (system-provided). Adding `.accessibilityValue("\(model.length) characters")`
-  would be one line.
+  would be one line. — REMAINS OPEN (MVP 4 candidate)
 - **`Toggle` and `Stepper` in Settings + GeneratePasswordSheet rely on
   system labels.** No explicit `.accessibilityLabel`. Acceptable
   because the visible `Text` is read; documented for completeness.
+  — REMAINS OPEN (MVP 4 candidate)
 - **`LoadingShimmer` is fully `accessibilityHidden(true)`.** VoiceOver
   users get no "loading…" announcement when the entry detail is
   fetching. Consider adding a manual announcement on transition into
   `.loading` state (e.g. via `accessibilityLabel("Loading entry")` on
   `LoadingPlaceholder`, or an `AccessibilityNotification.Announcement("Loading entry…")`
   from `EntryDetailModel` when the state transitions).
+  — REMAINS OPEN (MVP 4 candidate)
 - **System `confirmationDialog` (Delete, Reset to Defaults).** Trait
   presentation is system-provided; we have no test that asserts the
   destructive trait reaches the confirm button. Considered
   assumed-correct (system uses `Button(role: .destructive)`).
+  — REMAINS OPEN (MVP 4 candidate)
 
 ## Trivial fixes applied during this audit
 
@@ -373,3 +376,8 @@ relevant accessibility features enabled.
 10. Bump text size to "Larger Accessibility Size 5" via System Settings
     → Accessibility → Display → Text Size. Verify EntryList rows still
     render readable; Settings labels truncate (known Medium gap).
+
+## MVP 3 additions verified
+
+- **Touch ID toggle (Settings):** VoiceOver announces label + state; disabled state announced when biometrics unavailable; reachable via keyboard Tab.
+- **FSEvents auto-refresh:** Entry list updates automatically on external store change; no VoiceOver regression (new rows announced on focus).
