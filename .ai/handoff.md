@@ -64,3 +64,20 @@ find . -name .DS_Store -not -path '*/.git/*'
 - All code/comments/commits in English.
 - Inline styling banned in Presentation outside DesignSystem.
 - New grep rules: @Observable on Presentation models (A.2); no model constructors in sheet bodies (A.3).
+
+## Recent activity
+
+- A.3 — Sheet model constructor grep rule. — COMPLETED
+
+- `KizbaTests/SourceGrepTests.swift` updated with `testNoModelConstructorInSheetBody()`. Fixtures added under `Kizba/Presentation/SourceGrepFixtures/` to exercise the rule. Commit 5aa5384 (2026-05-10).
+
+Next immediate action: A.4 — Code-review checklist
+
+## A.4 status
+
+- A.4 — Code-review checklist — IN-PROGRESS
+
+Commit: <COMMIT_HASH_PLACEHOLDER>
+Date: 2026-05-10
+
+Next immediate action after A.4: A.5 — Regression sweep

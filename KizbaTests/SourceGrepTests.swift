@@ -391,6 +391,11 @@ final class SourceGrepTests: XCTestCase {
         // Iterate all swift files under Presentation
         for url in try Self.swiftFiles(under: presentationDir) {
             let name = url.lastPathComponent
+            // Exclude test fixtures from the main, repo-wide scan. The
+            // `SourceGrepFixtures` directory contains intentionally
+            // violating and allow-listed examples that are exercised by
+            // a dedicated fixture test below.
+            if url.pathComponents.contains("SourceGrepFixtures") { continue }
             // Only consider files whose filename ends with Model.swift
             guard name.hasSuffix("Model.swift") else { continue }
 
@@ -445,6 +450,10 @@ final class SourceGrepTests: XCTestCase {
 
         // Iterate all swift files under Presentation
         for url in try Self.swiftFiles(under: presentationDir) {
+            // Exclude fixtures from the general scan — they are checked
+            // explicitly by `testSourceGrepFixtures_expectRuleBehavior`.
+            if url.pathComponents.contains("SourceGrepFixtures") { continue }
+
             let contents = try String(contentsOf: url, encoding: .utf8)
 
             // If file contains an allow-list comment, record and skip
@@ -507,6 +516,75 @@ final class SourceGrepTests: XCTestCase {
                 + violations.joined(separator: "\n")
             )
         }
+    }
+
+    /// Dedicated fixture test: exercise the SourceGrepFixtures examples and
+    /// assert the expected rule behavior. The main scans exclude the
+    /// fixtures directory so that intentionally violating examples do not
+    /// fail the full suite.
+    func testSourceGrepFixtures_expectRuleBehavior() throws {
+        let fixturesDir = Self.repoRoot.appendingPathComponent(
+            "Kizba/Presentation/SourceGrepFixtures", isDirectory: true
+        )
+
+        var violations: [String] = []
+
+        for url in try Self.swiftFiles(under: fixturesDir) {
+            let contents = try String(contentsOf: url, encoding: .utf8)
+
+            // If file contains an allow-list comment, it should be
+            // skipped by the rule and not produce violations.
+            if contents.contains("// kizba:allow-sheet-init") { continue }
+
+            // Only consider files that declare a `final class ...Model`
+            // to mimic the production rule's scope.
+            let classPattern = #"final\s+class\s+\w+Model\b"#
+            let classRegex = try NSRegularExpression(pattern: classPattern, options: [])
+            let nsRange = NSRange(contents.startIndex..., in: contents)
+            guard classRegex.firstMatch(in: contents, options: [], range: nsRange) != nil else { continue }
+
+            // Look for model constructor usage inside presentation closure bodies
+            let sheetPattern = #"\.(?:sheet|popover|fullScreenCover)\s*\{([\s\S]*?)\}"#
+            let sheetRegex = try NSRegularExpression(pattern: sheetPattern, options: [.dotMatchesLineSeparators])
+            let initPattern = #"\b\w+Model\("#
+            let initRegex = try NSRegularExpression(pattern: initPattern, options: [])
+
+            let nsContents = contents as NSString
+            sheetRegex.enumerateMatches(in: contents, options: [], range: nsRange) { match, _, _ in
+                guard let match = match else { return }
+                let bodyRange = match.range(at: 1)
+                if bodyRange.location == NSNotFound { return }
+                let bodyNSString = nsContents.substring(with: bodyRange)
+                let bodyNSRange = NSRange(bodyNSString.startIndex..., in: bodyNSString)
+
+                initRegex.enumerateMatches(in: bodyNSString, options: [], range: bodyNSRange) { imatch, _, _ in
+                    guard let imatch = imatch else { return }
+                    let absoluteLocation = bodyRange.location + imatch.range.location
+                    let lineNumber = Self.lineNumber(of: absoluteLocation, in: contents)
+                    let lineRange = nsContents.lineRange(for: NSRange(location: absoluteLocation, length: 0))
+                    let lineText = nsContents.substring(with: lineRange).trimmingCharacters(in: .whitespacesAndNewlines)
+                    violations.append("\(url.path):\(lineNumber): \(lineText)")
+                }
+            }
+        }
+
+        // Expectations:
+        // - SheetInitViolation.swift must produce a violation containing `MyModel()` at line 10
+        // - SheetInitAllowed.swift is allow-listed and should not produce a violation
+        // - SheetInitSafe.swift should not produce a violation
+
+        let repo = Self.repoRoot.path
+        let violationPath = repo + "/Kizba/Presentation/SourceGrepFixtures/SheetInitViolation.swift"
+        let allowedPath = repo + "/Kizba/Presentation/SourceGrepFixtures/SheetInitAllowed.swift"
+        let safePath = repo + "/Kizba/Presentation/SourceGrepFixtures/SheetInitSafe.swift"
+
+        // Find whether violations include entries for each file
+        let violationHits = violations.filter { $0.contains(violationPath) }
+        XCTAssertFalse(violationHits.isEmpty, "Expected a violation in SheetInitViolation.swift, got: \(violations)")
+
+        // The allowed and safe fixtures must not appear in violations
+        XCTAssertFalse(violations.contains { $0.contains(allowedPath) }, "Allow-listed fixture should be skipped")
+        XCTAssertFalse(violations.contains { $0.contains(safePath) }, "Safe fixture should not produce a violation")
     }
 
     // MARK: - Engine
