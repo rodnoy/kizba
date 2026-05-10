@@ -172,6 +172,16 @@ public struct SettingsView: View {
         }
     }
 
+    private var securitySection: some View {
+        FormSection("Security") {
+            FormFieldRow(label: "Require Touch ID for reveal", helpText: "When enabled, revealing a password prompts for Touch ID / Face ID.") {
+                Toggle(isOn: $model.touchIDPerRevealEnabled) {
+                    Text("Require Touch ID for password reveal")
+                }
+            }
+        }
+    }
+
     private var actionsSection: some View {
         HStack(spacing: theme.spacing.md) {
             Spacer()
