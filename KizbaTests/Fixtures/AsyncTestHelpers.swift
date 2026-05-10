@@ -82,3 +82,16 @@ internal func waitUntil(
     }
     XCTFail("predicate did not become true in time", file: file, line: line)
 }
+
+/// Wait until an EntryFormModel has completed its initial loading and is
+/// in `.editing` state. Some tests need a small helper with this
+/// specific semantics beyond the generic `waitUntil`.
+@MainActor
+internal func waitUntilEditing(
+    model: EntryFormModel,
+    timeout: TimeInterval = 1.0,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) async {
+    await waitUntil({ model.state == .editing }, timeout: timeout, file: file, line: line)
+}
