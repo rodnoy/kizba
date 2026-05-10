@@ -30,24 +30,6 @@ final class EntryListReconciliationTests: XCTestCase {
 
     // MARK: - Helpers
 
-    /// Polls `predicate` on the MainActor until it returns `true` or
-    /// `timeout` seconds elapse. On timeout records an `XCTFail` so
-    /// the suite does not hang forever.
-    private func waitUntil(
-        _ predicate: @MainActor () -> Bool,
-        timeout: TimeInterval = 1.0,
-        message: String = "predicate did not become true in time",
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) async {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if predicate() { return }
-            try? await Task.sleep(nanoseconds: 10_000_000) // 10ms
-        }
-        XCTFail(message, file: file, line: line)
-    }
-
     /// Build an `AppEnvironment` whose `passManager` is the supplied
     /// double. The other collaborators are no-op fakes — the model
     /// under test only touches `passManager`.
@@ -78,15 +60,7 @@ final class EntryListReconciliationTests: XCTestCase {
     /// `MockPassManager` (continuation registration runs through a
     /// detached `Task`).
     private func startObservation(model: EntryListModel) async -> Task<Void, Never> {
-        let task = Task { await model.observeChanges() }
-        // Yield the main actor a few times so the subscription task
-        // can hop to the manager actor and register itself before the
-        // test starts mutating.
-        for _ in 0..<5 {
-            await Task.yield()
-        }
-        try? await Task.sleep(nanoseconds: 20_000_000) // 20ms safety margin
-        return task
+        await startObservation(model: model as AsyncObserving)
     }
 
     // MARK: - 1. .inserted re-lists

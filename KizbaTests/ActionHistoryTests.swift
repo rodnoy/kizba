@@ -238,14 +238,9 @@ final class ActionHistoryTests: XCTestCase {
         timeout seconds: TimeInterval,
         file: StaticString = #filePath,
         line: UInt = #line,
-        _ predicate: () -> Bool
+        _ predicate: @MainActor () -> Bool
     ) async {
-        let deadline = Date().addingTimeInterval(seconds)
-        while Date() < deadline {
-            if predicate() { return }
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        XCTFail("waitUntil timed out", file: file, line: line)
+        await waitUntil(timeout: seconds, file: file, line: line, predicate)
     }
 }
 

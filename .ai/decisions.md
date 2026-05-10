@@ -419,3 +419,42 @@ Phase I closes MVP 2. The next milestone is MVP 3 — see the "What's deferred" 
 - App Sandbox + helper tool.
 - `ScrubbingString` secure-string buffer.
 - Snapshot tests.
+
+## 2026-05-10 — MVP 3 (planning locked)
+
+The 20 architectural decisions for MVP 3 (planning phase, before any code). Items will be re-confirmed as resolutions in F.4 once implementation completes.
+
+### Scope
+- **MVP 3 = 5 features across 6 phases**: defense-in-depth, AppRouter+EntryFormBody refactor, FSEvents auto-refresh, a11y mediums, Touch ID per-reveal gate, polish.
+- **`pass git ...` deferred to MVP 4.** Conflict-resolution UX is its own release.
+- **Menu-bar / status item app surface deferred to MVP 4.** Global hotkey + lifecycle complexity warrants a separate MVP.
+- **App Sandbox stays deferred** (was deferred in MVP 1+2+3). Privileged helper for `Process` spawn is too large for MVP 3.
+
+### Architecture
+- **AppRouter extraction is the right shape.** `@Observable @MainActor final class AppRouter` owned by `AppState`. Holds: 5 `is*Presented` flags + `selectedFolder` + `selectedEntryID`. Exposes imperative API (`presentNewEntry()`, `dismissAll()`, `selectEntry(_:)`, etc.). Migration is staged via proxy properties → call-site updates → proxy removal.
+- **AppState keeps**: `searchQuery`, `isSidebarCollapsed`, `currentEntries`, `toastCenter`, `actionHistory`, `activeWriteOps`, `router`. `activeWriteOps` stays in AppState because it's about background work in flight (model concern), not presentation intent.
+- **EntryFormBody extraction is the right shape.** Generic over `Header`/`Footer` slots, `pathFieldEnabled: Bool` parameter. `NewEntrySheet` and `EditEntrySheet` become thin wrappers. The Generate sub-sheet wiring lives in `EntryFormBody` (consolidates the `@State`-held sub-model rule from MVP 2 post-ship learning).
+- **FSEvents emits ONLY `.bulk` events** from `LivePassManager` (no per-path delta in MVP 3). 350 ms trailing-edge debounce. Per-path delta is deferred — `.bulk` triggers a re-list which is fine for MVP 3.
+- **`StoreWatching` protocol is a separate seam from `LivePassManager`.** `FSEventsStoreWatcher` is the production impl; `FakeStoreWatcher` for tests; `LivePassManager` owns optional `StoreWatching` and translates events to `.bulk`.
+
+### Touch ID
+- **Touch ID gate is per-reveal**, NOT per-`pass show` (pinentry already gates), NOT app-launch (overkill).
+- **Default OFF** (opt-in toggle in Settings). Rationale: unboxing must Just Work; biometric unavailability is silent; opt-in keeps the contract that user explicitly requested the friction.
+- **`.deviceOwnerAuthenticationWithBiometrics`** policy (NOT `.deviceOwnerAuthentication` — no password fallback). If Touch ID unavailable when toggle ON, reveal silently bypasses the gate (documented).
+- **`BiometricAuthenticating` protocol stays free of `LAError`**, mapping happens inside `LocalAuthBiometricAuthenticator`. Domain remains free of `LocalAuthentication` import.
+- **`LAContext` is fresh per `authenticate(_:)` call** (no reuse, no warming). `LAContext` not Sendable; impl is `final class @unchecked Sendable`.
+
+### Defense-in-depth
+- **`SourceGrepTests` rule: every `Presentation/**/*Model.swift` with `final class …Model` MUST contain `@Observable`.** Allow-list via `// kizba:not-observable-model` marker. Catches the `SecretDraft` regression class.
+- **`SourceGrepTests` rule: forbid `*Model(` constructor inside `.sheet/.popover/.fullScreenCover { ... }` body.** Allow-list via `// kizba:allow-sheet-init` marker. Catches the model-recreation anti-pattern that bit the Generate sheet 3× in MVP 2 post-ship.
+- **`.onChange(of: enumWithAssoc)` rule is a code-review checklist item, NOT a grep test.** Too hard to grep correctly without semantic analysis. Captured in `.ai/code-review-checklist.md`.
+
+### Concurrency / threading
+- **`LAContext` not Sendable**; `LocalAuthBiometricAuthenticator` is `@unchecked Sendable` (fresh context per call ensures safety).
+- **`FSEventStreamRef` not Sendable**; `FSEventsStoreWatcher` is `@unchecked Sendable` (owns serial DispatchQueue; FSEvents callback runs there only).
+- **`AppRouter` is `@MainActor`** like `AppState`. No new concurrency concerns.
+
+### Test strategy
+- **Snapshot tests still OUT** (per existing decisions).
+- **Opt-in `KIZBA_FSEVENTS_TEST=1` env var** for FSEvents real-FS tests (CI-flaky). Existing `KIZBA_E2E=1` continues to gate `PassWriteIntegrationTests`.
+- **Net suite delta ~+50 tests** (692 → ~742). New fakes: `FakeStoreWatcher`, `FakeBiometricAuthenticator`. New helpers: `AsyncTestHelpers`.

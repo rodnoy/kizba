@@ -31,21 +31,6 @@ final class EntryDetailReconciliationTests: XCTestCase {
 
     // MARK: - Helpers
 
-    private func waitUntil(
-        _ predicate: @MainActor () -> Bool,
-        timeout: TimeInterval = 1.0,
-        message: String = "predicate did not become true in time",
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) async {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if predicate() { return }
-            try? await Task.sleep(nanoseconds: 10_000_000) // 10ms
-        }
-        XCTFail(message, file: file, line: line)
-    }
-
     private func makeEnvironment(passManager: any PassManaging) -> AppEnvironment {
         AppEnvironment(
             passManager: passManager,
@@ -60,12 +45,7 @@ final class EntryDetailReconciliationTests: XCTestCase {
     /// Spin up `model.observeChanges()` on a detached task and wait a
     /// short tick for the subscription to register with the manager.
     private func startObservation(model: EntryDetailModel) async -> Task<Void, Never> {
-        let task = Task { await model.observeChanges() }
-        for _ in 0..<5 {
-            await Task.yield()
-        }
-        try? await Task.sleep(nanoseconds: 20_000_000) // 20ms
-        return task
+        await startObservation(model: model as AsyncObserving)
     }
 
     /// Drive the detail model into `.loaded(_)` for `path` and wait

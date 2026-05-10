@@ -385,12 +385,7 @@ final class ConcurrentWriteLockoutTests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) async {
-        let deadline = Date().addingTimeInterval(seconds)
-        while Date() < deadline {
-            if predicate() { return }
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        XCTFail("Timed out waiting for predicate.", file: file, line: line)
+        await waitUntil(timeout: seconds, file: file, line: line, predicate)
     }
 
     private func waitUntilEditing(
@@ -402,7 +397,7 @@ final class ConcurrentWriteLockoutTests: XCTestCase {
         let deadline = Date().addingTimeInterval(seconds)
         while Date() < deadline {
             if model.state == .editing { return }
-            try? await Task.sleep(for: .milliseconds(10))
+            try? await Task.sleep(nanoseconds: 10_000_000)
         }
         XCTFail(
             "Timed out waiting for .editing; last state \(model.state)",
