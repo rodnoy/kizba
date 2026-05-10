@@ -210,3 +210,9 @@ Next immediate action: E.3 — Phase E (wiring into AppEnvironment)
 
 Verification date: 2026-05-10
 Git HEAD: c090b81
+
+## E.3 status
+
+- E.3 — Phase E (wiring into AppEnvironment) — COMPLETED — Verified via focused and full test runs on 2026-05-10
+
+Next immediate action: E.4 — (see .ai/plan.md for next step) 

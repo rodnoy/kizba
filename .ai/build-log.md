@@ -1,11 +1,16 @@
-LocalAuthBiometricAuthenticator (E.2)
+E.3 — Phase E (wiring into AppEnvironment)
 
-Focused tests: KizbaTests/LocalAuthBiometricAuthenticatorTests
-Command:
-xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/LocalAuthBiometricAuthenticatorTests
+Verification summary:
 
-Result: PASSED — 3 tests, 0 failures
+- Focused tests passed: KizbaTests/EntryDetailModelBiometricRevealTests (4 tests, 0 failures)
+- Focused tests passed: KizbaTests/SourceGrepTests (19 tests, 0 failures)
+- Full test suite: PASSED — 728 tests executed, 9 skipped, 0 failures
 
-Notes:
-- Mapping helpers exercised via unit tests. No evaluatePolicy system UI invoked in CI.
-- Minor compiler warnings unrelated to the new files observed during full-suite runs; focused tests passed.
+Raw xcodebuild outputs saved under the workspace user's derived logs; summarized above. No test failures.
+
+Grep checks:
+
+- as! matches: none
+- stdin/log matches: none
+
+Date: 2026-05-10
