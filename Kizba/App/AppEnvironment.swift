@@ -120,10 +120,15 @@ extension AppEnvironment {
         // scanner and `PASSWORD_STORE_DIR` env exported to `pass`
         // therefore always agree.
         let scanner = PasswordStoreScanner()
+        // Phase C.6: wire real FSEvents watcher into live wiring so the
+        // LivePassManager can observe external filesystem changes.
+        let storeWatcher = FSEventsStoreWatcher()
+
         let passManager = LivePassManager(
             scanner: scanner,
             passCLI: passCLI,
-            storeRootProvider: Self.makeStoreRootProvider(settings: settings)
+            storeRootProvider: Self.makeStoreRootProvider(settings: settings),
+            storeWatcher: storeWatcher
         )
 
         // Phase 7.2: production clipboard wiring. `ClipboardService()`
