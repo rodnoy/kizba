@@ -22,6 +22,9 @@ public final class SettingsModel {
     /// Non-optional clipboard clear delay. Defaults to 30 when the
     /// underlying store has no explicit value.
     public var clipboardClearDelaySeconds: Int
+    /// When true, require biometric authentication for each password
+    /// reveal in the detail view.
+    public var touchIDPerRevealEnabled: Bool
 
     /// Toggles while a discovery operation is in-flight.
     public private(set) var isDetectingBinaries: Bool = false
@@ -46,6 +49,7 @@ public final class SettingsModel {
 
         self.clipboardClearDelaySeconds = settings.value(for: SettingsKey<Int>(SettingsKeys.clipboardClearDelaySeconds))
             ?? SettingsKeys.defaultClipboardClearDelaySeconds
+        self.touchIDPerRevealEnabled = settings.value(for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled)) ?? false
     }
 
     // MARK: - Actions
@@ -57,6 +61,7 @@ public final class SettingsModel {
         settings.set(gpgBinaryOverride, for: SettingsKey<String>(SettingsKeys.gpgBinaryOverride))
         settings.set(pinentryBinaryOverride, for: SettingsKey<String>(SettingsKeys.pinentryBinaryOverride))
         settings.set(clipboardClearDelaySeconds, for: SettingsKey<Int>(SettingsKeys.clipboardClearDelaySeconds))
+        settings.set(touchIDPerRevealEnabled, for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled))
     }
 
     /// Remove override entries and restore the clipboard delay to the
@@ -71,6 +76,9 @@ public final class SettingsModel {
         // Reset clipboard delay to default and persist.
         clipboardClearDelaySeconds = SettingsKeys.defaultClipboardClearDelaySeconds
         settings.set(clipboardClearDelaySeconds, for: SettingsKey<Int>(SettingsKeys.clipboardClearDelaySeconds))
+        // Reset biometric reveal setting to default (false).
+        touchIDPerRevealEnabled = false
+        settings.removeValue(forKey: SettingsKeys.touchIDPerRevealEnabled)
 
         // Reflect cleared overrides in-memory as well.
         storePathOverride = nil
