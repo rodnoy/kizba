@@ -75,9 +75,9 @@ Next immediate action: A.4 — Code-review checklist
 
 ## A.4 status
 
-- A.4 — Code-review checklist — IN-PROGRESS
+- A.4 — Code-review checklist — COMPLETED
 
-Commit: <COMMIT_HASH_PLACEHOLDER>
+Commit: 158e628e15c57bd3442be4378fbc402704efb5ff
 Date: 2026-05-10
 
 Next immediate action after A.4: A.5 — Regression sweep
