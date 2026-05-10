@@ -120,4 +120,11 @@ Verification metadata:
 - Git HEAD: 7645f56
 - Date: 2026-05-10
 
-Next immediate action: C.1 — StoreWatching protocol
+Next immediate action: C.1 — StoreWatching protocol — IN PROGRESS
+
+### C.1 — StoreWatching protocol — COMPLETED
+
+- Commit: bc31866949a7d4107d91b52ced5095465e9c58ce
+- Date: 2026-05-10
+
+Next immediate action after C.1: C.2
