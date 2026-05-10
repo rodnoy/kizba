@@ -90,3 +90,23 @@ Commit: 70e88f7
 Date: 2026-05-10
 
 Next immediate action after B.1: B.2 — AppRouter call-site migration
+
+## B.2 — AppRouter call-site migration
+
+- Status: COMPLETED
+- Commits:
+  - feat(mvp3): migrate presentation call-sites to AppRouter (B.2) — b7c80ce
+  - fix(mvp3): make router-backed bindings mutable via Binding wrapper — c741098
+- Date: 2026-05-10
+
+Next immediate action after B.2: run focused verification tests and create/update .ai/build-log.md (and .ai/build-errors.md if needed).
+
+Verification run (this file updated after running tests):
+
+- Focused AppRouter tests: PASSED — 3 tests executed, 0 failures.
+- Full test suite: FAILED — 702 tests executed, 8 skipped, 20 failures.
+
+Verification metadata:
+
+- Git HEAD: c741098
+- Date: 2026-05-10

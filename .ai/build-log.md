@@ -8,7 +8,9 @@ Commands run:
 Summary:
 
 - AppRouter focused tests: 3 passed, 0 failed.
-- Full test suite: 702 tests executed, 8 skipped, 0 failures. All tests passed.
+ - Full test suite: 702 tests executed, 8 skipped, 20 failures (TEST FAILED).
 
 Relevant artifacts:
-- Commit: 70e88f7 — feat(mvp3): add AppRouter scaffold + inject router into AppState (B.1)
+ - Commit: 70e88f7 — feat(mvp3): add AppRouter scaffold + inject router into AppState (B.1)
+ - Git HEAD: c741098
+ - Date: 2026-05-10
