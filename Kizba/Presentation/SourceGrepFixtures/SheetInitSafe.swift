@@ -1,15 +1,11 @@
-import SwiftUI
+// Fixture: safe pattern — model created outside the sheet closure
+// This fixture demonstrates the safe pattern: model created outside
+// the closure. The test scanner should NOT flag this file.
 
-struct MyModelSafe { var title = "safe" }
+final class SafeModel {}
 
-struct SheetInitSafeView: View {
-    @State private var model = MyModelSafe()
-
-    var body: some View {
-        Text("Hello")
-            .sheet(isPresented: .constant(true)) {
-                // safe: model instance created outside the closure body
-                Text(model.title)
-            }
-    }
+let sheetSafeSnippet = """
+.sheet(isPresented: .constant(true)) {
+    Text("Safe")
 }
+"""

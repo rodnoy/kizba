@@ -1,14 +1,12 @@
-import SwiftUI
-
+// Fixture: allow-list — file contains allow-list comment and should be skipped
 // kizba:allow-sheet-init
+// This fixture is allow-listed and should be skipped by the test scanner.
+// kizba:allow-sheet-init
+
 final class AllowedModel {}
 
-struct SheetInitAllowedView: View {
-    var body: some View {
-        Text("Hello")
-            .sheet(isPresented: .constant(true)) {
-                EmptyView()
-                    .onAppear { _ = AllowedModel() }
-            }
-    }
+let sheetAllowedSnippet = """
+.sheet {
+    AllowedModel()
 }
+"""

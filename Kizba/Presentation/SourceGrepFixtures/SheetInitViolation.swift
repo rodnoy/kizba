@@ -1,13 +1,12 @@
-import SwiftUI
+// Fixture: violation — constructing model inside sheet closure
+// This fixture intentionally contains a sheet closure with a Model() call
+// to trigger the SourceGrepTests rule.
 
-final class ViolationModel {}
+final class MyModel {}
 
-struct SheetInitViolationView: View {
-    var body: some View {
-        Text("Hello")
-            .sheet(isPresented: .constant(true)) {
-                EmptyView()
-                    .onAppear { _ = ViolationModel() }
-            }
-    }
+let sheetViolationSnippet = """
+.sheet {
+    // This should be flagged by SourceGrepTests
+    MyModel()
 }
+"""

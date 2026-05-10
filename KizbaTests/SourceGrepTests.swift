@@ -503,7 +503,7 @@ final class SourceGrepTests: XCTestCase {
         if !violations.isEmpty {
             XCTFail(
                 "Found model constructor invocations inside sheet/popover/fullScreenCover bodies. "
-                + "Move model construction to parent view (use @StateObject/@State) or add `// kizba:allow-sheet-init` to opt out.\n"
+                + "Move model construction out of the closure (use @State/@StateObject or create the model outside) or add `// kizba:allow-sheet-init` to opt-out with justification.\n"
                 + violations.joined(separator: "\n")
             )
         }
