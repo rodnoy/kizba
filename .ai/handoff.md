@@ -178,4 +178,4 @@ D.1 — SecretRevealField Accessibility Value — COMPLETED
 - Notes: Added accessibilityValue modifier to the reveal toggle and a pure helper
   SecretRevealField.accessibilityValueText(isRevealed:) with unit test.
 
-Next action: D.2
+Next action: D.2 — run accessibility sweep & a11y smoke

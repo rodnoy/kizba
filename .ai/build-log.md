@@ -1,18 +1,16 @@
-LivePassManager FSEvents integration tests
+SecretRevealField accessibility change (D.1) verification
 
 Summary:
-- Focused tests (SecretRevealFieldTests): 13 passed, 0 failed
-- SourceGrepTests only: 19 passed
-- Full suite: 715 executed, 9 skipped, 0 failures
+- SecretRevealFieldAccessibilityTests: PASSED — 1 test, 0 failures
+- SecretRevealFieldTests: PASSED — 13 tests, 0 failures
+- SourceGrepTests (focused): PASSED — 19 tests, 0 failures
+- Full test suite: PASSED — 715 tests executed, 9 skipped, 0 failures
 
-Command outputs saved in CI logs; local xcodebuild run performed.
+Commands executed locally:
+- xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/SecretRevealFieldAccessibilityTests
+- xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/SourceGrepTests
+- xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+- rg -n '\\bas!\\b' Kizba || true
+- rg -n 'Logger.*stdin|print\\(.*stdin' Kizba || true
 
-Commands executed:
-- xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'  # full suite
-- KIZBA_FSEVENTS_TEST=1 xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/FSEventsStoreWatcherTests/testFSEventsEmitsOnRealFSChange  # opt-in real-FS (skipped)
-- xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/SourceGrepTests  # SourceGrepTests only
-
-Results (condensed):
-- Full suite: **PASSED** — 714 tests executed, 9 skipped, 0 failures
-- FSEvents real-FS opt-in test: **SKIPPED** (opt-in / environment gated)
-- SourceGrepTests: **PASSED** — 19 tests, 0 failures
+All checks passed locally. 
