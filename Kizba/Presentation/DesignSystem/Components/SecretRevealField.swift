@@ -55,6 +55,7 @@ public struct SecretRevealField: View {
                 }
                 .buttonStyle(.kizba(.ghost, size: .compact))
                 .accessibilityLabel(isRevealed ? "Hide secret" : "Reveal secret")
+                .accessibilityValue(SecretRevealField.accessibilityValueText(isRevealed: isRevealed))
 
                 Button(copyButtonLabel, action: onCopy)
                     .buttonStyle(.kizba(.ghost, size: .compact))
@@ -92,5 +93,10 @@ public struct SecretRevealField: View {
             return value
         }
         return String(repeating: "•", count: maskedLength(for: value))
+    }
+
+    /// Accessibility value string describing the current reveal state.
+    static func accessibilityValueText(isRevealed: Bool) -> String {
+        isRevealed ? "Revealed" : "Hidden"
     }
 }
