@@ -18,6 +18,8 @@ After A.1: proceed to A.2 → A.3 → A.4 → A.5 in strict order.
 
 `KizbaTests/SourceGrepTests.swift` updated with `testPresentationModelsRequireObservable()`. Fixtures added under `Kizba/Presentation/SourceGrepFixtures/` to exercise the rule. Commit 67f2ca45 (2026-05-10).
 
+Step bumped to 9.8 after completing Phase A.1 (AsyncTestHelpers) and A.2 (SourceGrepTests @Observable) — next action: A.3.
+
 ## Phase A task sequence
 
 1. **A.1** Extract AsyncTestHelpers (refactor, ~−60 LOC net)

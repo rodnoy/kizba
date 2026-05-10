@@ -1,170 +1,429 @@
-# Kizba — MVP 3 Phase A Micro-Plan
+# Kizba — MVP 3 Implementation Plan
 
-Defense-in-depth & test hygiene. 5 tasks, strict order A.1 → A.5.
+5 features across 6 phases. Baseline: HEAD `4cd0467`, 692 tests (8 skipped, 0 failures), release build green.
 
-Baseline: HEAD `4cd0467`, 692 tests (8 skipped, 0 failures), all grep bans clean.
+## Goal
+
+Ship MVP 3: defense-in-depth grep rules, AppRouter + EntryFormBody refactor, FSEvents auto-refresh, a11y medium-priority fixes, Touch ID per-reveal gate, polish + final regression sweep.
 
 ## Constraints
 
-- Zero third-party packages.
-- New grep rules go in `KizbaTests/SourceGrepTests.swift`.
-- Test suite must stay green after every task.
+- Zero third-party Swift packages.
+- macOS 14.0 deployment target, Swift 5.10, strict concurrency = complete.
+- Secret-bearing types NOT Codable / NOT CustomStringConvertible / NOT CustomDebugStringConvertible.
+- No stdout logging in Infrastructure/Shell/ or Infrastructure/Pass/.
+- Stdin never logged — only `stdinByteCount`.
+- `as!` banned in `Kizba/` source.
+- Inline styling banned in Presentation outside DesignSystem.
 - All code/comments/commits in English.
-- No code implementation in this plan — worker agents execute.
+- No `grep` in scripts — use `rg` (ripgrep).
+- Snapshot tests remain out of scope.
+- App Sandbox remains deferred.
+- `pass git` integration deferred to MVP 4.
+- Menu-bar / status item deferred to MVP 4.
+
+## Verification commands (apply after every task)
+
+```sh
+# Full suite
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+
+# SourceGrepTests only
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
+  -only-testing:KizbaTests/SourceGrepTests
+
+# Release build
+xcodebuild -scheme Kizba -project Kizba.xcodeproj -configuration Release -destination 'platform=macOS' build
+
+# Repo hygiene
+rg -n '\bas!' Kizba
+rg -n 'Logger.*stdin|print\(.*stdin' Kizba
+find . -name .DS_Store -not -path '*/.git/*'
+```
 
 ---
 
-## Task A.1 — Extract AsyncTestHelpers
+## Phase A — Defense-in-depth & test hygiene
 
-- **Objective:** Consolidate duplicated `startObservation(of:)` and `waitUntil(_:timeout:)` helpers from 4 test files into a single shared fixture.
-- **Files to create:**
-  - `KizbaTests/Fixtures/AsyncTestHelpers.swift` — two `internal` free functions (or an `enum AsyncTestHelpers` namespace):
-    - `func waitUntil(_ predicate: @MainActor () -> Bool, timeout: TimeInterval, message: String, file: StaticString, line: UInt) async` — polls every 10ms, XCTFail on timeout.
-    - `func startObservation<M>(model: M, observe: @escaping (M) async -> Void) async -> Task<Void, Never>` — spawns task, yields 5×, sleeps 20ms. Generic over model type; callers pass a closure like `{ await $0.observeChanges() }`.
-- **Files to modify:**
-  - `KizbaTests/EntryListReconciliationTests.swift` — remove private `waitUntil` (line ~36) and `startObservation` (line ~80); call shared versions.
-  - `KizbaTests/EntryDetailReconciliationTests.swift` — remove private `waitUntil` (line ~34) and `startObservation` (line ~62); call shared versions.
-  - `KizbaTests/ConcurrentWriteLockoutTests.swift` — remove private `waitUntil` (line ~382); call shared version. Keep `waitUntilEditing` if it has custom logic beyond `waitUntil`.
-  - `KizbaTests/ActionHistoryTests.swift` — remove private `waitUntil` (line ~237); call shared version.
-- **Verification:**
-  ```sh
-  # Exactly one definition of each helper
-  rg 'func waitUntil\(' KizbaTests --count-matches | grep -v ':0$'
-  # Should show only AsyncTestHelpers.swift:1 (plus any specialized wrappers)
-  
-  rg 'func startObservation' KizbaTests --count-matches | grep -v ':0$'
-  # Should show only AsyncTestHelpers.swift:1
-  
-  # Full suite green
-  xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-  ```
-- **DoD:** `rg 'func startObservation|func waitUntil' KizbaTests` returns one definition each (in AsyncTestHelpers.swift); all 4 consumer files import/call the shared version; suite ≥ 692 tests, 0 failures.
-- **Estimated LOC:** +60 new, −120 removed across 4 files. Net: −60.
-- **Risks:** `startObservation` signatures differ slightly across files (EntryListModel vs EntryDetailModel). The generic closure approach handles this. `waitUntilEditing` in ConcurrentWriteLockoutTests may need to stay as a thin wrapper.
+**Theme:** Harden the test suite with shared helpers and new grep rules; codify code-review checklist.
+
+### A.1 — Extract AsyncTestHelpers ✅ COMPLETED
+
+- **Objective:** Consolidate duplicated `waitUntil` and `startObservation` helpers from 4 test files into `KizbaTests/Fixtures/AsyncTestHelpers.swift`.
+- **Files to create:** `KizbaTests/Fixtures/AsyncTestHelpers.swift`
+- **Files to modify:** `EntryListReconciliationTests.swift`, `EntryDetailReconciliationTests.swift`, `ConcurrentWriteLockoutTests.swift`, `ActionHistoryTests.swift` — remove private duplicates, call shared versions.
+- **Verification:** `rg 'func waitUntil\(' KizbaTests --count-matches` → only AsyncTestHelpers.swift:1; `rg 'func startObservation' KizbaTests --count-matches` → only AsyncTestHelpers.swift:1; full suite ≥ 692 tests, 0 failures.
+- **DoD:** One definition of each helper; 4 consumer files updated; suite green.
+- **Risks:** `startObservation` signature differences across files — generic closure approach handles this.
 - **Commit:** `refactor(mvp3-a1): extract AsyncTestHelpers — consolidate waitUntil + startObservation`
 
----
+### A.2 — @Observable grep rule ✅ COMPLETED
 
-## Task A.2 — @Observable grep rule for *Model.swift
-
-- **Objective:** Add a SourceGrepTests rule ensuring every `Kizba/Presentation/**/*Model.swift` file containing `final class …Model` also contains `@Observable`. Prevents the MVP 2 post-ship regression where a model class lost its `@Observable` annotation.
-- **Files to modify:**
-  - `KizbaTests/SourceGrepTests.swift` — add test method `testObservableAnnotationOnPresentationModels()`:
-    1. Enumerate `*.swift` files under `Kizba/Presentation/` matching `*Model.swift` filename.
-    2. For each file, check if it contains `final class \w+Model` (regex).
-    3. If yes, assert the file also contains `@Observable` somewhere before or on the class declaration line.
-    4. Allow-list escape: if the file contains `// kizba:not-observable-model`, skip it.
-    5. Collect violations and `XCTFail` with file paths.
-- **Files to create:** None.
-- **Verification:**
-  ```sh
-  # Rule-only test
-  xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
-    -only-testing:KizbaTests/SourceGrepTests/testObservableAnnotationOnPresentationModels
-  
-  # Full suite still green
-  xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-  ```
-- **DoD:** New test method exists and passes; deliberately removing `@Observable` from any existing `*Model.swift` would cause the test to fail (verify mentally or via a temporary edit during development).
-- **DoD:** New test method exists and passes; deliberately removing `@Observable` from any existing `*Model.swift` would cause the test to fail (verify mentally or via a temporary edit during development).
-- **Completed:** A.2 implemented in commit 67f2ca45 (2026-05-10)
-- **Estimated LOC:** +40–50 lines in SourceGrepTests.swift.
-- **Risks:** False positives on non-view-model files named `*Model.swift` (e.g., domain model types). Mitigated by scoping to `Kizba/Presentation/` only and requiring `final class` pattern.
+- **Objective:** Add `testPresentationModelsRequireObservable()` to `SourceGrepTests` ensuring every `Kizba/Presentation/**/*Model.swift` with `final class …Model` also contains `@Observable`. Allow-list via `// kizba:not-observable-model`.
+- **Files to modify:** `KizbaTests/SourceGrepTests.swift`
+- **Verification:** Run SourceGrepTests only; full suite green.
+- **DoD:** New test method exists and passes; removing `@Observable` from any `*Model.swift` would fail the test.
+- **Risks:** False positives on non-view-model files — mitigated by scoping to `Kizba/Presentation/` and requiring `final class` pattern.
 - **Commit:** `test(mvp3-a2): SourceGrepTests — @Observable annotation rule for Presentation models`
 
----
+### A.3 — Sheet model constructor grep rule
 
-## Task A.3 — Sub-sheet model constructor grep rule
-
-- **Objective:** Add a SourceGrepTests rule forbidding model constructor calls (`\w+Model(`) inside `.sheet { }`, `.popover { }`, or `.fullScreenCover { }` closure bodies. Prevents the MVP 2 post-ship regression where `GeneratePasswordModel` was recreated on every sheet re-render.
-- **Files to modify:**
-  - `KizbaTests/SourceGrepTests.swift` — add test method `testNoModelConstructorInSheetBody()`:
-    1. Scan all `*.swift` files under `Kizba/Presentation/` (including DesignSystem — sheet hosts could be anywhere).
-    2. Strategy: multi-line scan. Find `.sheet {`, `.popover {`, `.fullScreenCover {` openers. Track brace depth. Within the closure body, flag any `\w+Model(` pattern.
-    3. Allow-list escape: lines containing `// kizba:allow-sheet-init` are skipped.
-    4. Collect violations and `XCTFail`.
-  - **Alternative simpler strategy** (recommended if multi-line brace tracking is fragile): line-by-line heuristic — flag any line in `Kizba/Presentation/**/*.swift` that contains BOTH a sheet/popover/fullScreenCover opener AND a `Model(` constructor on the same line or within a 5-line window. Document the heuristic limitation.
-- **Files to create:** None.
-- **Verification:**
-  ```sh
-  xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
-    -only-testing:KizbaTests/SourceGrepTests/testNoModelConstructorInSheetBody
-  
-  xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-  ```
-- **DoD:** New test method exists and passes on current codebase (no violations). The rule would catch `SomeModel(...)` inside a `.sheet { ... }` body.
-- **Estimated LOC:** +50–80 lines in SourceGrepTests.swift.
-- **Risks:** Brace-depth tracking in Swift source is inherently heuristic (strings, comments can contain braces). A simpler line-proximity heuristic may be more robust. The worker should choose the approach that reliably passes on the current codebase without false positives.
+- **Objective:** Add `testNoModelConstructorInSheetBody()` to `SourceGrepTests` forbidding `*Model(` constructor calls inside `.sheet { }`, `.popover { }`, `.fullScreenCover { }` closure bodies. Allow-list via `// kizba:allow-sheet-init`.
+- **Files to modify:** `KizbaTests/SourceGrepTests.swift`
+- **Verification:** Run SourceGrepTests only; full suite green.
+- **DoD:** New test method exists and passes on current codebase (no violations).
+- **Risks:** Brace-depth tracking is heuristic; a line-proximity approach may be more robust.
 - **Commit:** `test(mvp3-a3): SourceGrepTests — ban model constructors inside sheet/popover bodies`
 
----
+### A.4 — Code review checklist + AGENTS.md cross-link
 
-## Task A.4 — Code review checklist + AGENTS.md cross-link
-
-- **Objective:** Create `.ai/code-review-checklist.md` codifying manual review rules that are NOT automatable as grep tests. Cross-link from project agent instructions.
-- **Files to create:**
-  - `.ai/code-review-checklist.md` — contents:
-    1. `.onChange(of: enumWithAssociatedValue)` — use a derived `stateID: Int` instead (SwiftUI compares by identity, not equality, for enums with associated values; leads to missed or spurious firings).
-    2. `@State` sub-models in sheets — must be `@State private var` in the PARENT view, not constructed inside the `.sheet { }` body (A.3 grep catches constructor-in-body; this rule covers the design intent).
-    3. Toast messages must never contain secret material — only entry paths.
-    4. New secret-bearing types must NOT conform to Codable / CustomStringConvertible / CustomDebugStringConvertible.
-    5. `LAContext` must be fresh per `authenticate()` call — never reuse.
-- **Files to modify:**
-  - `.ai/AGENTS.md` or root `AGENTS.md` (if it exists) — add a line: `- Before merging, review against `.ai/code-review-checklist.md`.`
-  - If no `AGENTS.md` exists in the repo, create a minimal one at `.ai/AGENTS.md` with the cross-link.
-- **Verification:**
-  ```sh
-  # File exists
-  test -f .ai/code-review-checklist.md && echo OK
-  
-  # Cross-link present
-  rg 'code-review-checklist' .ai/
-  ```
-- **DoD:** `.ai/code-review-checklist.md` exists with ≥ 5 items; at least one `.ai/` file references it.
-- **Estimated LOC:** +30–40 lines (checklist) + 1–3 lines (cross-link).
-- **Risks:** None. Pure documentation.
+- **Objective:** Create `.ai/code-review-checklist.md` with ≥ 5 non-automatable review rules. Cross-link from `.ai/AGENTS.md`.
+- **Files to create:** `.ai/code-review-checklist.md`
+- **Files to modify:** `.ai/AGENTS.md` (or create minimal one with cross-link)
+- **Checklist items:**
+  1. `.onChange(of: enumWithAssociatedValue)` — use derived `stateID: Int` instead.
+  2. `@State` sub-models in sheets — must be `@State private var` in PARENT view.
+  3. Toast messages must never contain secret material.
+  4. New secret-bearing types must NOT conform to Codable / CustomStringConvertible / CustomDebugStringConvertible.
+  5. `LAContext` must be fresh per `authenticate()` call.
+- **Verification:** `test -f .ai/code-review-checklist.md && echo OK`; `rg 'code-review-checklist' .ai/`
+- **DoD:** File exists with ≥ 5 items; cross-link present.
 - **Commit:** `docs(mvp3-a4): add code-review-checklist.md + AGENTS.md cross-link`
 
----
+### A.5 — Phase A regression sweep
 
-## Task A.5 — Phase A regression sweep
-
-- **Objective:** Verify the full test suite, all grep bans, and repo hygiene after A.1–A.4.
-- **Files to modify:** None (verification only). Update `.ai/handoff.md` to mark Phase A complete.
-- **Verification:**
-  ```sh
-  # Full suite
-  xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-  
-  # SourceGrepTests specifically (includes new A.2 + A.3 rules)
-  xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
-    -only-testing:KizbaTests/SourceGrepTests
-  
-  # Repo-wide hygiene
-  rg -n '\bas!' Kizba
-  rg -n 'showSettingsWindow' Kizba
-  find . -name .DS_Store -not -path '*/.git/*'
-  rg -n 'Logger.*stdin|print\(.*stdin' Kizba
-  
-  # Release build
-  xcodebuild -scheme Kizba -project Kizba.xcodeproj -configuration Release -destination 'platform=macOS' build
-  ```
-- **DoD:** All commands exit 0; suite ≥ 692 tests, 0 failures; no grep ban violations; release build green. Phase A is complete; Phase B can begin.
-- **Estimated LOC:** 0 (verification + handoff update only).
-- **Risks:** None.
+- **Objective:** Verify full suite, all grep bans, repo hygiene, release build after A.1–A.4.
+- **Files to modify:** `.ai/handoff.md` (mark Phase A complete).
+- **Verification:** All verification commands exit 0; suite ≥ 692 tests, 0 failures.
+- **DoD:** Phase A complete; Phase B can begin.
 - **Commit:** `chore(mvp3-a5): Phase A regression sweep — all green`
 
+### Phase A DoD
+
+- `KizbaTests/Fixtures/AsyncTestHelpers.swift` exists; `waitUntil` and `startObservation` have exactly one definition each.
+- 2 new test methods in `SourceGrepTests`: `testPresentationModelsRequireObservable`, `testNoModelConstructorInSheetBody`.
+- `.ai/code-review-checklist.md` exists with ≥ 5 items.
+- Full suite ≥ 692 tests, 0 failures.
+- Release build green.
+- All existing + new grep bans clean.
+
 ---
 
-## Summary
+## Phase B — AppRouter + EntryFormBody refactor
 
-| Task | Title | Net LOC | New test methods |
-|------|-------|---------|-----------------|
-| A.1 | Extract AsyncTestHelpers | −60 | 0 (refactor) |
-| A.2 | @Observable grep rule | +45 | +1 |
-| A.3 | Sheet model constructor grep rule | +65 | +1 |
-| A.4 | Code review checklist | +35 | 0 |
-| A.5 | Regression sweep | 0 | 0 |
-| **Total** | | **+85** | **+2** |
+**Theme:** Extract navigation/presentation state into `AppRouter`; consolidate `NewEntrySheet` / `EditEntrySheet` into shared `EntryFormBody`.
 
-Phase A DoD: AsyncTestHelpers consolidated; 2 new grep rules in SourceGrepTests; `.ai/code-review-checklist.md` exists; full suite green; Phase B can begin.
+### B.1 — Extract AppRouter
+
+- **Objective:** Create `@Observable @MainActor final class AppRouter` owned by `AppState`. Move 5 `is*Presented` flags + `selectedFolder` + `selectedEntryID` from `AppState` into `AppRouter`. Expose imperative API: `presentNewEntry()`, `presentEditEntry()`, `presentMoveEntry()`, `presentDeleteConfirmation()`, `dismissAll()`, `selectEntry(_:)`, `selectFolder(_:)`.
+- **Files to create:** `Kizba/Presentation/AppRouter.swift`
+- **Files to modify:** `Kizba/Presentation/AppState.swift` — add `let router: AppRouter`; replace direct flag access with `router.*` proxy computed properties (temporary, removed in B.3). All view files and models referencing `appState.is*Presented` or `appState.selectedEntryID` — update to `appState.router.*`.
+- **Verification:** Full suite green; release build green.
+- **DoD:** `AppRouter` exists; `AppState.router` is the single owner; all presentation flags route through `AppRouter`.
+- **Risks:** Large mechanical diff across many view files. Stage via proxy properties to reduce blast radius.
+- **Commit:** `refactor(mvp3-b1): extract AppRouter from AppState`
+
+### B.2 — Extract EntryFormBody
+
+- **Objective:** Create `EntryFormBody<Header: View, Footer: View>` shared view component. `NewEntrySheet` and `EditEntrySheet` become thin wrappers providing header/footer slots and `pathFieldEnabled` parameter. Generate sub-sheet `@State` model lives in `EntryFormBody`.
+- **Files to create:** `Kizba/Presentation/Entries/EntryFormBody.swift`
+- **Files to modify:** `Kizba/Presentation/Entries/NewEntrySheet.swift`, `Kizba/Presentation/Entries/EditEntrySheet.swift` — reduce to thin wrappers.
+- **Verification:** Full suite green; release build green; both sheets render correctly (manual check).
+- **DoD:** `EntryFormBody` exists; `NewEntrySheet` and `EditEntrySheet` are ≤ 40 LOC each; Generate sub-sheet `@State` rule consolidated.
+- **Risks:** Generic view with slots can be tricky for SwiftUI type inference. Keep slot types concrete if needed.
+- **Commit:** `refactor(mvp3-b2): extract EntryFormBody — consolidate New/Edit sheet bodies`
+
+### B.3 — Remove AppState proxy properties
+
+- **Objective:** Remove temporary proxy computed properties from `AppState` that delegate to `AppRouter`. All call sites now use `appState.router.*` directly.
+- **Files to modify:** `Kizba/Presentation/AppState.swift`, any remaining call sites.
+- **Verification:** Full suite green; `rg 'appState\.is.*Presented' Kizba/Presentation` returns 0 hits (all routed through `appState.router`).
+- **DoD:** No proxy properties remain; `AppState` is clean.
+- **Commit:** `refactor(mvp3-b3): remove AppState proxy properties — AppRouter is canonical`
+
+### B.4 — Phase B regression sweep
+
+- **Objective:** Verify full suite, grep bans, release build after B.1–B.3.
+- **Files to modify:** `.ai/handoff.md`
+- **Verification:** All verification commands exit 0.
+- **DoD:** Phase B complete; Phase C can begin.
+- **Commit:** `chore(mvp3-b4): Phase B regression sweep — all green`
+
+### Phase B DoD
+
+- `AppRouter` owns all presentation flags and selection state.
+- `EntryFormBody` consolidates shared form layout; `NewEntrySheet` and `EditEntrySheet` are thin wrappers.
+- No proxy properties remain on `AppState`.
+- Full suite green; release build green.
+
+---
+
+## Phase C — FSEvents auto-refresh
+
+**Theme:** Watch the password store directory for external changes; emit `.bulk` events to trigger re-list.
+
+### C.1 — StoreWatching protocol + FakeStoreWatcher
+
+- **Objective:** Define `StoreWatching` protocol with `start(path:)`, `stop()`, `var events: AsyncStream<StoreWatchEvent>`. Create `FakeStoreWatcher` test double in `KizbaTests/Fixtures/`.
+- **Files to create:** `Kizba/Domain/Protocols/StoreWatching.swift`, `KizbaTests/Fixtures/FakeStoreWatcher.swift`
+- **Verification:** Compiles; existing suite green.
+- **DoD:** Protocol defined; fake compiles and is usable in tests.
+- **Risks:** None.
+- **Commit:** `feat(mvp3-c1): StoreWatching protocol + FakeStoreWatcher`
+
+### C.2 — FSEventsStoreWatcher implementation
+
+- **Objective:** Implement `FSEventsStoreWatcher: StoreWatching` using CoreServices `FSEventStream` API. 350 ms trailing-edge debounce. Emits `.changed` events (no per-path delta — all events map to `.bulk` downstream). `@unchecked Sendable` with internal serial `DispatchQueue`.
+- **Files to create:** `Kizba/Infrastructure/FSEvents/FSEventsStoreWatcher.swift`
+- **Verification:** Opt-in test gated by `KIZBA_FSEVENTS_TEST=1` env var; manual verification by touching a `.gpg` file in the store.
+- **DoD:** Watcher starts/stops cleanly; debounce works; events flow.
+- **Risks:** FSEvents callback is C-function-pointer based; requires careful bridging. `FSEventStreamRef` is not Sendable.
+- **Commit:** `feat(mvp3-c2): FSEventsStoreWatcher — CoreServices FSEventStream integration`
+
+### C.3 — Wire StoreWatching into LivePassManager
+
+- **Objective:** `LivePassManager` owns optional `StoreWatching`. On watcher events, call `scanner.invalidate(storeRoot:)` then emit `.bulk` to all `changes` subscribers. Wire in `AppEnvironment.live()`.
+- **Files to modify:** `Kizba/Infrastructure/Pass/LivePassManager.swift`, `Kizba/Presentation/AppEnvironment.swift`
+- **Verification:** Full suite green; manual test: `touch ~/.password-store/test.gpg` → list refreshes within ~500ms.
+- **DoD:** External FS changes trigger automatic re-list in the UI.
+- **Risks:** Debounce timing; ensure watcher stops on app termination.
+- **Commit:** `feat(mvp3-c3): wire StoreWatching into LivePassManager — auto-refresh on FS changes`
+
+### C.4 — FSEvents tests
+
+- **Objective:** Unit tests for debounce logic (using `FakeStoreWatcher`); opt-in integration test for real FSEvents (gated by `KIZBA_FSEVENTS_TEST=1`).
+- **Files to create:** `KizbaTests/FSEventsStoreWatcherTests.swift` (opt-in), `KizbaTests/LivePassManagerFSEventsTests.swift` (unit, using fake)
+- **Verification:** Unit tests run in default suite; integration tests skipped without env var.
+- **DoD:** ≥ 5 new tests covering start/stop/debounce/bulk-emission.
+- **Commit:** `test(mvp3-c4): FSEvents unit + opt-in integration tests`
+
+### C.5 — Phase C regression sweep
+
+- **Objective:** Verify full suite, grep bans, release build after C.1–C.4.
+- **Files to modify:** `.ai/handoff.md`
+- **Verification:** All verification commands exit 0.
+- **DoD:** Phase C complete; Phase D can begin.
+- **Commit:** `chore(mvp3-c5): Phase C regression sweep — all green`
+
+### Phase C DoD
+
+- `StoreWatching` protocol + `FSEventsStoreWatcher` + `FakeStoreWatcher` exist.
+- `LivePassManager` emits `.bulk` on FS changes with 350ms debounce.
+- Opt-in FSEvents integration test passes locally.
+- Full suite green; release build green.
+
+---
+
+## Phase D — Accessibility medium-priority fixes
+
+**Theme:** Address the 5 medium-priority gaps from `.ai/a11y-audit.md`.
+
+### D.1 — Audit and fix medium-priority a11y gaps
+
+- **Objective:** Address the 5 medium-priority accessibility gaps documented in `.ai/a11y-audit.md`:
+  1. VoiceOver labels for toolbar buttons (ensure all have `accessibilityLabel`).
+  2. Focus management after sheet dismissal (return focus to trigger).
+  3. Keyboard navigation in entry list (arrow keys + Enter to reveal).
+  4. Reduce Motion compliance for any remaining animations.
+  5. Dynamic Type support for custom text styles.
+- **Files to modify:** Various view files in `Kizba/Presentation/`.
+- **Verification:** Manual VoiceOver walkthrough; full suite green.
+- **DoD:** All 5 medium-priority gaps addressed; `.ai/a11y-audit.md` updated with resolution notes.
+- **Risks:** Some fixes may require SwiftUI workarounds on macOS 14.
+- **Commit:** `fix(mvp3-d1): address medium-priority a11y gaps from audit`
+
+### D.2 — A11y test coverage
+
+- **Objective:** Add test assertions for accessibility labels, traits, and hints where programmatically verifiable.
+- **Files to modify:** Existing test files or new `KizbaTests/AccessibilityTests.swift`.
+- **Verification:** Full suite green; new tests pass.
+- **DoD:** ≥ 5 new a11y-related test assertions.
+- **Commit:** `test(mvp3-d2): accessibility test coverage for medium-priority fixes`
+
+### D.3 — Phase D regression sweep
+
+- **Objective:** Verify full suite, grep bans, release build after D.1–D.2.
+- **Files to modify:** `.ai/handoff.md`
+- **Verification:** All verification commands exit 0.
+- **DoD:** Phase D complete; Phase E can begin.
+- **Commit:** `chore(mvp3-d3): Phase D regression sweep — all green`
+
+### Phase D DoD
+
+- All 5 medium-priority a11y gaps addressed.
+- `.ai/a11y-audit.md` updated.
+- ≥ 5 new a11y test assertions.
+- Full suite green; release build green.
+
+---
+
+## Phase E — Touch ID per-reveal gate
+
+**Theme:** Optional biometric authentication before secret reveal. Default OFF; opt-in via Settings toggle.
+
+### E.1 — BiometricAuthenticating protocol + FakeBiometricAuthenticator
+
+- **Objective:** Define `BiometricAuthenticating` protocol in `Domain/Protocols/` with `func authenticate(reason: String) async throws -> Bool` and `var isAvailable: Bool { get }`. Protocol stays free of `LAError` — mapping happens inside the implementation. Create `FakeBiometricAuthenticator` in `KizbaTests/Fixtures/`.
+- **Files to create:** `Kizba/Domain/Protocols/BiometricAuthenticating.swift`, `KizbaTests/Fixtures/FakeBiometricAuthenticator.swift`
+- **Verification:** Compiles; existing suite green.
+- **DoD:** Protocol defined; fake is configurable (success/failure/unavailable).
+- **Commit:** `feat(mvp3-e1): BiometricAuthenticating protocol + FakeBiometricAuthenticator`
+
+### E.2 — LocalAuthBiometricAuthenticator implementation
+
+- **Objective:** Implement `LocalAuthBiometricAuthenticator: BiometricAuthenticating` using `LocalAuthentication` framework. Fresh `LAContext` per `authenticate()` call. `@unchecked Sendable` (fresh context ensures safety). Maps `LAError` to domain errors internally.
+- **Files to create:** `Kizba/Infrastructure/Auth/LocalAuthBiometricAuthenticator.swift`
+- **Verification:** Manual test on device with Touch ID; unit tests use fake.
+- **DoD:** Implementation compiles; manual Touch ID prompt works.
+- **Risks:** `LAContext` is not Sendable; `@unchecked Sendable` wrapper documented.
+- **Commit:** `feat(mvp3-e2): LocalAuthBiometricAuthenticator — LAContext integration`
+
+### E.3 — Wire Touch ID into EntryDetailModel
+
+- **Objective:** Add `requireBiometricForReveal: Bool` setting to `SettingsStoring`. In `EntryDetailModel`, gate `revealSecret()` behind biometric check when setting is ON and biometric is available. Silent bypass when unavailable.
+- **Files to modify:** `Kizba/Domain/Protocols/SettingsStoring.swift`, `Kizba/Infrastructure/Settings/UserDefaultsSettingsStore.swift`, `Kizba/Presentation/Entries/EntryDetailModel.swift`, `Kizba/Presentation/AppEnvironment.swift`
+- **Verification:** Full suite green; manual test: enable Touch ID in Settings → reveal requires fingerprint.
+- **DoD:** Setting wired end-to-end; reveal gated; silent bypass when unavailable.
+- **Commit:** `feat(mvp3-e3): wire Touch ID gate into EntryDetailModel reveal flow`
+
+### E.4 — Settings UI for Touch ID toggle
+
+- **Objective:** Add Touch ID toggle to Settings view. Show availability status. Disable toggle when biometric hardware unavailable.
+- **Files to modify:** `Kizba/Presentation/Settings/SettingsView.swift`, `Kizba/Presentation/Settings/SettingsModel.swift`
+- **Verification:** Full suite green; manual verification in Settings.
+- **DoD:** Toggle visible; respects hardware availability.
+- **Commit:** `feat(mvp3-e4): Settings UI — Touch ID toggle with availability check`
+
+### E.5 — Touch ID tests
+
+- **Objective:** Unit tests for biometric gate in `EntryDetailModel` using `FakeBiometricAuthenticator`. Test cases: enabled+available+success → reveal; enabled+available+failure → no reveal; enabled+unavailable → silent bypass → reveal; disabled → reveal without prompt.
+- **Files to create:** `KizbaTests/BiometricRevealTests.swift`
+- **Verification:** Full suite green; ≥ 6 new tests.
+- **DoD:** All biometric gate paths covered.
+- **Commit:** `test(mvp3-e5): BiometricRevealTests — Touch ID gate unit tests`
+
+### E.6 — Phase E regression sweep
+
+- **Objective:** Verify full suite, grep bans, release build after E.1–E.5.
+- **Files to modify:** `.ai/handoff.md`
+- **Verification:** All verification commands exit 0.
+- **DoD:** Phase E complete; Phase F can begin.
+- **Commit:** `chore(mvp3-e6): Phase E regression sweep — all green`
+
+### Phase E DoD
+
+- `BiometricAuthenticating` protocol + `LocalAuthBiometricAuthenticator` + `FakeBiometricAuthenticator` exist.
+- Touch ID gate wired into `EntryDetailModel.revealSecret()`.
+- Settings toggle for Touch ID with availability check.
+- ≥ 6 new biometric gate tests.
+- Full suite green; release build green.
+
+---
+
+## Phase F — Polish & release
+
+**Theme:** Final polish, documentation, regression sweep, release preparation.
+
+### F.1 — README update for MVP 3
+
+- **Objective:** Update `README.md` with MVP 3 feature list, updated known limitations, updated deferrals section.
+- **Files to modify:** `README.md`
+- **Verification:** File reads correctly; no broken links.
+- **DoD:** README reflects MVP 3 state.
+- **Commit:** `docs(mvp3-f1): README — MVP 3 feature list and updates`
+
+### F.2 — Update .ai/a11y-audit.md
+
+- **Objective:** Mark medium-priority items as resolved; document any new gaps discovered during MVP 3; update low-priority items for MVP 4 consideration.
+- **Files to modify:** `.ai/a11y-audit.md`
+- **Verification:** File is internally consistent.
+- **DoD:** Audit reflects post-MVP 3 state.
+- **Commit:** `docs(mvp3-f2): a11y-audit — mark MVP 3 resolutions`
+
+### F.3 — Update .ai/sequoia-smoke.md
+
+- **Objective:** Add FSEvents and Touch ID entries to the Sequoia smoke checklist.
+- **Files to modify:** `.ai/sequoia-smoke.md`
+- **Verification:** File updated.
+- **DoD:** Checklist covers new MVP 3 surfaces.
+- **Commit:** `docs(mvp3-f3): sequoia-smoke — add FSEvents + Touch ID entries`
+
+### F.4 — Confirm decisions in .ai/decisions.md
+
+- **Objective:** Add MVP 3 resolution entries confirming or amending the 20 planning decisions from `2026-05-10 — MVP 3 (planning locked)`.
+- **Files to modify:** `.ai/decisions.md`
+- **Verification:** Decisions log is append-only and internally consistent.
+- **DoD:** All 20 planning decisions have resolution entries.
+- **Commit:** `docs(mvp3-f4): decisions — MVP 3 resolution entries`
+
+### F.5 — Opt-in E2E verification
+
+- **Objective:** Run full E2E suite with `KIZBA_E2E=1` and `KIZBA_FSEVENTS_TEST=1`. Verify all pass.
+- **Files to modify:** None (verification only).
+- **Verification:** All opt-in tests pass locally.
+- **DoD:** E2E green.
+- **Commit:** (no commit — verification only)
+
+### F.6 — Final regression sweep
+
+- **Objective:** Full suite, all grep bans, repo hygiene, release build. Mark MVP 3 complete.
+- **Files to modify:** `.ai/handoff.md`
+- **Verification:**
+  ```sh
+  xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+  xcodebuild -scheme Kizba -project Kizba.xcodeproj -configuration Release -destination 'platform=macOS' build
+  rg -n '\bas!' Kizba
+  rg -n 'Logger.*stdin|print\(.*stdin' Kizba
+  find . -name .DS_Store -not -path '*/.git/*'
+  ```
+- **DoD:** All commands exit 0; suite ≥ 742 tests, 0 failures; release build green; MVP 3 ships.
+- **Commit:** `chore(mvp3-f6): final regression sweep — MVP 3 ships`
+
+### Phase F DoD
+
+- README, a11y-audit, sequoia-smoke, decisions all updated.
+- E2E + FSEvents opt-in tests green.
+- Full suite ≥ 742 tests, 0 failures.
+- Release build green.
+- MVP 3 complete.
+
+---
+
+## Cross-cutting workstreams
+
+| Workstream | Applies to | Rule |
+|---|---|---|
+| Grep bans | Every task | `as!`, `Logger.*stdin`, `print(.*stdin` — 0 hits in `Kizba/` |
+| SourceGrepTests | A.2, A.3, and any new grep rules | Run after every task touching `Kizba/` source |
+| Security non-conformances | Any new types holding secrets | NOT Codable / NOT CustomStringConvertible / NOT CustomDebugStringConvertible |
+| Code review checklist | Every PR | Review against `.ai/code-review-checklist.md` |
+| Commit message format | Every commit | `type(mvp3-XX): description` |
+
+## Test plan
+
+| Phase | Expected new tests | Cumulative |
+|---|---|---|
+| A | +2 (grep rules) | ~694 |
+| B | +0 (refactor, existing tests cover) | ~694 |
+| C | +8 (FSEvents unit + integration) | ~702 |
+| D | +5 (a11y assertions) | ~707 |
+| E | +6 (biometric gate) | ~713 |
+| F | +0 (docs + verification) | ~713 |
+
+Note: Exact counts may vary; target is ≥ 742 total (692 baseline + ~50 net new per decisions.md).
+
+## Manual verification matrix
+
+| Surface | Verification |
+|---|---|
+| FSEvents auto-refresh | `touch ~/.password-store/test.gpg` → list refreshes within ~500ms |
+| Touch ID reveal gate | Enable in Settings → reveal entry → Touch ID prompt appears |
+| Touch ID unavailable bypass | Disable Touch ID in System Settings → reveal works without prompt |
+| VoiceOver toolbar buttons | All toolbar buttons announce labels |
+| Reduce Motion | Animations collapse to instant |
+| New/Edit sheet focus | Focus returns to trigger after dismissal |
+| AppRouter navigation | All sheets open/close correctly via router API |
+
+## Suggested current step
+
+**A.3 — Sheet model constructor grep rule.** A.1 and A.2 are completed. Proceed with A.3 → A.4 → A.5 to close Phase A, then Phase B.

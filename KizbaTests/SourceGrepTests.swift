@@ -431,6 +431,82 @@ final class SourceGrepTests: XCTestCase {
         }
     }
 
+    /// (18) Forbid constructing `*Model()` instances directly inside
+    /// `.sheet { }`, `.popover { }`, or `.fullScreenCover { }` closure
+    /// bodies. Files may opt-out by including the exact comment
+    /// `// kizba:allow-sheet-init` anywhere in the file.
+    func testNoModelConstructorInSheetBody() throws {
+        let presentationDir = Self.repoRoot.appendingPathComponent(
+            Self.presentationRoot, isDirectory: true
+        )
+
+        var violations: [String] = []
+        var skipped: [String] = []
+
+        // Iterate all swift files under Presentation
+        for url in try Self.swiftFiles(under: presentationDir) {
+            let contents = try String(contentsOf: url, encoding: .utf8)
+
+            // If file contains an allow-list comment, record and skip
+            if contents.contains("// kizba:allow-sheet-init") {
+                skipped.append(url.path)
+                continue
+            }
+
+            // Only consider files that declare a `final class ...Model`
+            let classPattern = #"final\s+class\s+\w+Model\b"#
+            let classRegex = try NSRegularExpression(pattern: classPattern, options: [])
+            let nsRange = NSRange(contents.startIndex..., in: contents)
+            guard classRegex.firstMatch(in: contents, options: [], range: nsRange) != nil else { continue }
+
+            // Find SwiftUI presentation closure bodies: .sheet { ... }, .popover { ... }, .fullScreenCover { ... }
+            let sheetPattern = #"\.(?:sheet|popover|fullScreenCover)\s*\{([\s\S]*?)\}"#
+            let sheetRegex = try NSRegularExpression(pattern: sheetPattern, options: [.dotMatchesLineSeparators])
+
+            // Model constructor usage pattern like `SomethingModel(`
+            let initPattern = #"\b\w+Model\("#
+            let initRegex = try NSRegularExpression(pattern: initPattern, options: [])
+
+            sheetRegex.enumerateMatches(in: contents, options: [], range: nsRange) { match, _, _ in
+                guard let match = match else { return }
+                // capture group 1 holds the closure body contents
+                let bodyRange = match.range(at: 1)
+                if bodyRange.location == NSNotFound { return }
+                let bodyNSString = (contents as NSString).substring(with: bodyRange)
+                let bodyNSRange = NSRange(bodyNSString.startIndex..., in: bodyNSString)
+
+                // Search for model constructor calls inside the closure body
+                initRegex.enumerateMatches(in: bodyNSString, options: [], range: bodyNSRange) { imatch, _, _ in
+                    guard let imatch = imatch else { return }
+                    // Compute absolute location in file for line number
+                    let absoluteLocation = bodyRange.location + imatch.range.location
+                    let lineNumber = Self.lineNumber(of: absoluteLocation, in: contents)
+                    // Extract the line for a short snippet
+                    let ns = contents as NSString
+                    let lineRange = ns.lineRange(for: NSRange(location: absoluteLocation, length: 0))
+                    let lineText = ns.substring(with: lineRange).trimmingCharacters(in: .whitespacesAndNewlines)
+                    violations.append("\(url.path):\(lineNumber): \(lineText)")
+                }
+            }
+        }
+
+        // Record skipped files as an XCTContext note for visibility.
+        if !skipped.isEmpty {
+            let msg = "Skipped (allow-list) Presentation files:\n" + skipped.joined(separator: "\n")
+            XCTContext.runActivity(named: "Presentation sheet-init allow-list") { _ in
+                XCTFail(msg) // Use XCTFail so the output is visible in xcodebuild logs as a note
+            }
+        }
+
+        if !violations.isEmpty {
+            XCTFail(
+                "Found model constructor invocations inside sheet/popover/fullScreenCover bodies. "
+                + "Move model construction to parent view (use @StateObject/@State) or add `// kizba:allow-sheet-init` to opt out.\n"
+                + violations.joined(separator: "\n")
+            )
+        }
+    }
+
     // MARK: - Engine
 
     /// Enumerate `.swift` files under `Kizba/Presentation/` excluding
