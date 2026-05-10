@@ -68,6 +68,41 @@ final class EntryDetailModel {
     /// detachment.
     private var changeSubscriptionTask: Task<Void, Never>?
 
+    // MARK: - Password reveal gating
+
+    /// Attempt to reveal the password, gated by the biometric setting
+    /// and the injected authenticator. When the setting is off, or no
+    /// authenticator is injected, reveal immediately. If biometrics are
+    /// available, present the prompt and reveal only on success.
+    public func requestReveal() async {
+        // Fast-path: already revealed — no-op.
+        guard !isPasswordRevealed else { return }
+
+        let requireBio = environment.settings
+            .value(for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled)) ?? false
+
+        guard requireBio, let auth = environment.biometricAuth else {
+            // Setting disabled or no authenticator injected: reveal.
+            isPasswordRevealed = true
+            return
+        }
+
+        switch auth.isAvailable() {
+        case .available:
+            let result = await auth.authenticate(reason: "Reveal password")
+            switch result {
+            case .success:
+                isPasswordRevealed = true
+            case .cancelled, .failed(_):
+                isPasswordRevealed = false
+            }
+        case .unavailable(_):
+            // Graceful fallback when device reports biometrics
+            // unavailable: reveal immediately.
+            isPasswordRevealed = true
+        }
+    }
+
     init(environment: AppEnvironment, state: AppState) {
         self.environment = environment
         self.appState = state
