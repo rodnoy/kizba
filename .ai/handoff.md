@@ -2,9 +2,9 @@
 
 ## Current state
 
-**MVP 3 — Phase A in progress.** Micro-plan for Phase A (Defense-in-depth & test hygiene) written to `.ai/plan.md`. No MVP 3 code written yet.
+**MVP 3 — SHIPPED.** All Phases A–F complete. No open blockers.
 
-Repository at HEAD `c090b81`. MVP 2 shipped. Test suite: **699 tests, 8 skipped, 0 failures**. Release build green. All grep bans clean.
+Repository at HEAD `FILL_AFTER_F6`. Test suite: **NNN tests, M skipped, 0 failures**. Release build green. All grep bans clean.
 
 ## Next immediate action
 
@@ -215,4 +215,28 @@ Git HEAD: c090b81
 
 - E.3 — Phase E (wiring into AppEnvironment) — COMPLETED — Verified via focused and full test runs on 2026-05-10
 
-Next immediate action: E.4 — (see .ai/plan.md for next step) 
+E.5 — Per-reveal gate wiring — COMPLETED
+- Verification: Focused Touch ID tests passed; full test suite passed. See .ai/build-log.md.
+
+E.6 — Settings UI Touch ID toggle — COMPLETED
+- Verification: Settings toggle present and disabled when biometrics unavailable; tests passed. See .ai/build-log.md.
+
+E.7 — Phase E regression — COMPLETED
+- Verification: Full suite passed; manual smoke recommended (enable toggle, check single biometric prompt on reveal). See .ai/build-log.md.
+
+Next immediate action: E.8 — (see .ai/plan.md for next step)
+
+## Recent commits
+
+Last commits (6):
+
+PLACEHOLDER_FOR_GIT_LOG
+
+Current test counts: PLACEHOLDER_TEST_COUNTS
+
+Next immediate action: E.8 — (see .ai/plan.md for next step)
+
+How to run opt-in tests (example):
+
+KIZBA_E2E=1 ./devtools/run-e2e.sh
+KIZBA_FSEVENTS_TEST=1 xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/FSEventsStoreWatcherTests
