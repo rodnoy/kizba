@@ -212,6 +212,192 @@ Tasks 1 and 2 can be done together (single edit pass). Task 3 is verification on
 
 ---
 
+# E.2 — LocalAuthBiometricAuthenticator
+
+## Goal
+
+Add the production `LocalAuthentication`-backed implementation of `BiometricAuthenticating`. The class lives in `Infrastructure/Auth/` and maps all `LAError` codes to the domain enums declared in E.1. No `LAError` or `LAContext` type leaks into the public API.
+
+## Constraints
+
+- Zero third-party dependencies.
+- `import LocalAuthentication` only in the Infrastructure file, never in Domain.
+- All `LAError` codes mapped to domain enums; no `LAError` in public API.
+- `SWIFT_STRICT_CONCURRENCY = complete`.
+- All code/comments in English.
+- Protocol file in `Domain/Protocols/` is NOT modified.
+
+## Tasks
+
+### Task 1 — Create LocalAuthBiometricAuthenticator.swift
+
+- **Objective:** Production implementation conforming to `BiometricAuthenticating`.
+- **File to add:** `Kizba/Infrastructure/Auth/LocalAuthBiometricAuthenticator.swift`
+- **Class declaration:**
+  ```swift
+  import Foundation
+  import LocalAuthentication
+
+  final class LocalAuthBiometricAuthenticator: BiometricAuthenticating, @unchecked Sendable {
+      // No stored state. LAContext created per-call.
+  }
+  ```
+- **`@unchecked Sendable` rationale:** The class has no mutable stored properties. `LAContext` is created fresh per method call (stack-local), never shared. The class is safe to use from any isolation domain.
+
+- **Method: `isAvailable() -> BiometricAvailability`**
+  1. Create a fresh `LAContext()`.
+  2. Call `context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)`.
+  3. If `true`, return `.available`.
+  4. If `false`, map the `NSError` via a static helper `mapUnavailableReason(_:)` and return `.unavailable(reason)`.
+
+- **Method: `authenticate(reason: String) async -> BiometricResult`**
+  1. Create a fresh `LAContext()`.
+  2. Use `withCheckedContinuation` to bridge `evaluatePolicy(_:localizedReason:reply:)`:
+     ```swift
+     let result = await withCheckedContinuation { continuation in
+         context.evaluatePolicy(
+             .deviceOwnerAuthenticationWithBiometrics,
+             localizedReason: reason
+         ) { success, error in
+             if success {
+                 continuation.resume(returning: BiometricResult.success)
+             } else if let error = error as? LAError {
+                 continuation.resume(returning: Self.mapAuthError(error))
+             } else {
+                 continuation.resume(returning: .failed(.unknown))
+             }
+         }
+     }
+     return result
+     ```
+  3. Return the result.
+
+- **Static mapping helpers (internal visibility for testability):**
+
+  1. `static func mapUnavailableReason(_ error: NSError?) -> BiometricUnavailableReason`
+     - `nil` → `.unknown`
+     - Cast to `LAError`, then switch on `.code`:
+       - `.biometryNotEnrolled` → `.notEnrolled`
+       - `.biometryNotAvailable` → `.hardwareUnavailable`
+       - `.passcodeNotSet` → `.passcodeNotSet`
+       - `.biometryLockout` → `.userDisabled`
+       - `default` → `.unknown`
+
+  2. `static func mapAuthError(_ error: LAError) -> BiometricResult`
+     - Switch on `error.code`:
+       - `.userCancel` → `.cancelled`
+       - `.authenticationFailed` → `.failed(.userFailed)`
+       - `.systemCancel` → `.failed(.systemCancel)`
+       - `.appCancel` → `.failed(.appCancel)`
+       - `.invalidContext` → `.failed(.invalidContext)`
+       - `default` → `.failed(.unknown)`
+
+- **Concurrency notes:**
+  - `LAContext` is created on the stack per call. No shared mutable state.
+  - `withCheckedContinuation` (not `withCheckedThrowingContinuation`) because the method is non-throwing; errors are mapped to `BiometricResult`.
+  - The `reply` closure from `evaluatePolicy` is called on an arbitrary queue by LocalAuthentication; `withCheckedContinuation` handles the hop back.
+
+- **Verification:** Project compiles. `rg 'LAError|LAContext' Kizba/Domain/` returns zero matches.
+- **Risks:** None. Additive file, no existing code touched.
+
+### Task 2 — Add LocalAuthBiometricAuthenticatorTests.swift
+
+- **Objective:** Test the two static mapping helpers exhaustively using `NSError` construction. Do NOT test `isAvailable()` or `authenticate()` directly (they require a real Secure Enclave).
+- **File to add:** `KizbaTests/LocalAuthBiometricAuthenticatorTests.swift`
+- **Test class:** `LocalAuthBiometricAuthenticatorTests`
+- **Test methods:**
+
+  1. `testMapUnavailableReason_nil_returnsUnknown`
+     - `XCTAssertEqual(LocalAuthBiometricAuthenticator.mapUnavailableReason(nil), .unknown)`
+
+  2. `testMapUnavailableReason_biometryNotEnrolled_returnsNotEnrolled`
+     - Construct `NSError(domain: LAError.errorDomain, code: LAError.Code.biometryNotEnrolled.rawValue)`
+     - Assert `.notEnrolled`
+
+  3. `testMapUnavailableReason_biometryNotAvailable_returnsHardwareUnavailable`
+     - Code: `.biometryNotAvailable.rawValue` → `.hardwareUnavailable`
+
+  4. `testMapUnavailableReason_passcodeNotSet_returnsPasscodeNotSet`
+     - Code: `.passcodeNotSet.rawValue` → `.passcodeNotSet`
+
+  5. `testMapUnavailableReason_biometryLockout_returnsUserDisabled`
+     - Code: `.biometryLockout.rawValue` → `.userDisabled`
+
+  6. `testMapUnavailableReason_unknownCode_returnsUnknown`
+     - Code: `9999` → `.unknown`
+
+  7. `testMapAuthError_userCancel_returnsCancelled`
+     - `LAError(.userCancel)` → `.cancelled`
+
+  8. `testMapAuthError_authenticationFailed_returnsFailedUserFailed`
+     - `LAError(.authenticationFailed)` → `.failed(.userFailed)`
+
+  9. `testMapAuthError_systemCancel_returnsFailedSystemCancel`
+     - `LAError(.systemCancel)` → `.failed(.systemCancel)`
+
+  10. `testMapAuthError_appCancel_returnsFailedAppCancel`
+      - `LAError(.appCancel)` → `.failed(.appCancel)`
+
+  11. `testMapAuthError_invalidContext_returnsFailedInvalidContext`
+      - `LAError(.invalidContext)` → `.failed(.invalidContext)`
+
+  12. `testMapAuthError_unknownCode_returnsFailedUnknown`
+      - `LAError(.notInteractive)` (arbitrary non-mapped code) → `.failed(.unknown)`
+
+- **NSError construction pattern for `mapUnavailableReason` tests:**
+  ```swift
+  let error = NSError(domain: LAError.errorDomain, code: LAError.Code.biometryNotEnrolled.rawValue)
+  XCTAssertEqual(
+      LocalAuthBiometricAuthenticator.mapUnavailableReason(error),
+      .notEnrolled
+  )
+  ```
+
+- **LAError construction pattern for `mapAuthError` tests:**
+  ```swift
+  XCTAssertEqual(
+      LocalAuthBiometricAuthenticator.mapAuthError(LAError(.userCancel)),
+      .cancelled
+  )
+  ```
+
+- **Verification:** `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/LocalAuthBiometricAuthenticatorTests` — 12 tests, 0 failures.
+- **Risks:** None. Pure function tests, no Secure Enclave interaction.
+
+### Task 3 — Verify no regressions
+
+- **Objective:** Full suite green, SourceGrepTests pass (including E.1's `testNoLocalAuthenticationImportInDomain`).
+- **Verification:**
+  - Focused: `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/LocalAuthBiometricAuthenticatorTests`
+  - SourceGrepTests: `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/SourceGrepTests`
+  - Full suite: `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'` — 0 failures
+- **Success criteria:** All existing tests pass + 12 new tests. SourceGrepTests `testNoLocalAuthenticationImportInDomain` still green (import is in Infrastructure, not Domain).
+- **Risks:** None.
+
+## Concurrency & Ownership Notes
+
+- **LAContext per-call:** Every call to `isAvailable()` and `authenticate(reason:)` creates a fresh `LAContext()`. No `LAContext` is stored as a property. This avoids invalidation issues (LAContext becomes invalid after use) and eliminates shared mutable state.
+- **`@unchecked Sendable`:** Justified because the class has zero stored properties. If stored properties are ever added, this must be revisited.
+- **`withCheckedContinuation`:** Used (not `withCheckedThrowingContinuation`) because the protocol method is non-throwing. The continuation is resumed exactly once in all code paths (success, LAError, unexpected error).
+- **No `Task` spawning:** The `evaluatePolicy` callback-based API is bridged directly via continuation. No detached tasks needed.
+
+## Commit message
+
+```
+feat(mvp3): add LocalAuthBiometricAuthenticator (E.2)
+
+Production BiometricAuthenticating implementation using
+LocalAuthentication framework. LAContext created per-call;
+LAError codes mapped to domain enums via static helpers.
+12 mapping tests covering all error code branches.
+```
+
+## Suggested current step
+
+Tasks 1 and 2 in a single pass. Task 3 is verification only.
+
+---
+
 # D.3 — FormFieldRow Dynamic Type Vertical Layout
 
 ## Goal
