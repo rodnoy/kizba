@@ -101,12 +101,23 @@ Next immediate action after B.1: B.2 — AppRouter call-site migration
 
 Next immediate action after B.2: run focused verification tests and create/update .ai/build-log.md (and .ai/build-errors.md if needed).
 
+## Phase B progress
+
+- **B.4 — EntryFormBody extraction** — COMPLETED
+
+- Commit: 7645f56
+- Date: 2026-05-10
+
+Next immediate action after B.4: B.5 — Phase B regression — COMPLETED
+
 Verification run (this file updated after running tests):
 
 - Focused AppRouter tests: PASSED — 3 tests executed, 0 failures.
-- Full test suite: FAILED — 702 tests executed, 8 skipped, 20 failures.
+- Full test suite: PASSED — 704 tests executed, 8 skipped, 0 failures.
 
 Verification metadata:
 
-- Git HEAD: c741098
+- Git HEAD: 7645f56
 - Date: 2026-05-10
+
+Next immediate action: C.1 — StoreWatching protocol
