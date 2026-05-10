@@ -4,7 +4,7 @@
 
 **MVP 3 — Phase A in progress.** Micro-plan for Phase A (Defense-in-depth & test hygiene) written to `.ai/plan.md`. No MVP 3 code written yet.
 
-Repository at HEAD `4cd0467`. MVP 2 shipped. Test suite: **692 tests, 8 skipped, 0 failures**. Release build green. All grep bans clean.
+Repository at HEAD `c090b81`. MVP 2 shipped. Test suite: **699 tests, 8 skipped, 0 failures**. Release build green. All grep bans clean.
 
 ## Next immediate action
 
@@ -80,4 +80,8 @@ Next immediate action: A.4 — Code-review checklist
 Commit: 158e628e15c57bd3442be4378fbc402704efb5ff
 Date: 2026-05-10
 
-Next immediate action after A.4: A.5 — Regression sweep
+Next immediate action after A.4: A.5 — Regression sweep — COMPLETED
+
+Recent verification: focused test and full test suite executed; all tests passed. Commit c090b81 (2026-05-10) updated CodeReviewChecklistTests to improve path discovery for .ai/code-review-checklist.md.
+
+Next immediate action: B.1 — AppRouter scaffold
