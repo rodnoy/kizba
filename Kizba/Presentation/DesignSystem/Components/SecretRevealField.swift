@@ -14,19 +14,56 @@ public struct SecretRevealField: View {
     @Binding private var isRevealed: Bool
     private let onCopy: @MainActor () -> Void
     private let copyButtonLabel: String
+    /// Optional biometric authenticator used to gate per-reveal prompts.
+    private let biometricAuthenticator: (any BiometricAuthenticating)?
+    /// When true, reveal actions are gated by the authenticator when
+    /// available. Defaults to `false` for backwards compatibility.
+    private let gateEnabled: Bool
 
     public init(
         value: String,
         label: String? = nil,
         isRevealed: Binding<Bool>,
         onCopy: @escaping @MainActor () -> Void,
-        copyButtonLabel: String = "Copy"
+        copyButtonLabel: String = "Copy",
+        biometricAuthenticator: (any BiometricAuthenticating)? = nil,
+        gateEnabled: Bool = false
     ) {
         self.value = value
         self.label = label
         self._isRevealed = isRevealed
         self.onCopy = onCopy
         self.copyButtonLabel = copyButtonLabel
+        self.biometricAuthenticator = biometricAuthenticator
+        self.gateEnabled = gateEnabled
+    }
+
+    // MARK: - Async gating helper
+
+    /// Internal helper that encapsulates the async gating logic for a
+    /// reveal attempt. Returns `true` when the caller should set the
+    /// binding to revealed. Swallows underlying errors and treats them
+    /// as failures/cancellations per the UI contract.
+    internal static func attemptReveal(biometricAuthenticator: (any BiometricAuthenticating)?, gateEnabled: Bool) async -> Bool {
+        // Fast-path: gate disabled -> reveal immediately.
+        guard gateEnabled else { return true }
+
+        // If no authenticator injected, reveal immediately.
+        guard let auth = biometricAuthenticator else { return true }
+
+        switch auth.isAvailable() {
+        case .available:
+            let result = await auth.authenticate(reason: "Reveal password")
+            switch result {
+            case .success:
+                return true
+            case .cancelled, .failed(_):
+                return false
+            }
+        case .unavailable(_):
+            // Graceful fallback: reveal when biometrics unavailable.
+            return true
+        }
     }
 
     @Environment(\.theme) private var theme
@@ -49,7 +86,19 @@ public struct SecretRevealField: View {
                     .accessibilityLabel(isRevealed ? value : "Hidden secret")
 
                 Button {
-                    isRevealed.toggle()
+                    // Reveal transitions are gated when enabled. Re-masking
+                    // (setting to false) is always immediate.
+                    if isRevealed {
+                        // Currently revealed — user wants to hide. Immediate.
+                        isRevealed = false
+                    } else {
+                        Task {
+                            let shouldReveal = await Self.attemptReveal(biometricAuthenticator: biometricAuthenticator, gateEnabled: gateEnabled)
+                            if shouldReveal {
+                                isRevealed = true
+                            }
+                        }
+                    }
                 } label: {
                     Image(systemName: isRevealed ? "eye.slash" : "eye")
                 }

@@ -110,7 +110,9 @@ struct EntryDetailView: View {
                     },
                     onCopyNotes: {
                         Task { await model.copyNotes() }
-                    }
+                    },
+                    biometricAuthenticator: environment.biometricAuth,
+                    gateEnabled: environment.settings.value(for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled)) ?? false
                 )
             case .failed(let error):
                 FailedView(error: error, environment: environment)
@@ -303,6 +305,8 @@ private struct LoadedSecretView: View {
     /// ``EntryDetailModel/copyNotes()`` so the toast can be labelled
     /// `"Notes copied"`.
     let onCopyNotes: @MainActor () -> Void
+    let biometricAuthenticator: (any BiometricAuthenticating)?
+    let gateEnabled: Bool
 
     @Environment(\.theme) private var theme
 
@@ -313,7 +317,9 @@ private struct LoadedSecretView: View {
                     value: secret.password,
                     label: "Password",
                     isRevealed: $isRevealed,
-                    onCopy: onCopyPassword
+                    onCopy: onCopyPassword,
+                    biometricAuthenticator: biometricAuthenticator,
+                    gateEnabled: gateEnabled
                 )
                 .accessibilityIdentifier("password-reveal-field")
 
