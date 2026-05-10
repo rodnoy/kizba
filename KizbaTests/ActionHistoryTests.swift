@@ -87,7 +87,7 @@ final class ActionHistoryTests: XCTestCase {
         let history = makeHistory()
         history.record(.move(from: "a", to: "b"), expiresAfter: .milliseconds(50))
         XCTAssertNotNil(history.pending)
-        await KizbaTests.waitUntil(timeout: 1.0) { history.pending == nil }
+        await waitUntil({ history.pending == nil }, timeout: 1.0)
         XCTAssertNil(history.pending)
     }
 

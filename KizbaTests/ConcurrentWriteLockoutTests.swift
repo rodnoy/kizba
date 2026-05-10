@@ -379,16 +379,6 @@ final class ConcurrentWriteLockoutTests: XCTestCase {
 
     // MARK: - Helpers
 
-    private func waitUntil(
-        timeout seconds: TimeInterval,
-        predicate: @MainActor () -> Bool,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) async {
-        // Disambiguate to the module-level helper
-        await KizbaTests.waitUntil(timeout: seconds, file: file, line: line, predicate)
-    }
-
     private func waitUntilEditing(
         model: EntryFormModel,
         timeout seconds: TimeInterval,
