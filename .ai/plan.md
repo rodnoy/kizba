@@ -66,6 +66,8 @@ Baseline: HEAD `4cd0467`, 692 tests (8 skipped, 0 failures), all grep bans clean
   xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
   ```
 - **DoD:** New test method exists and passes; deliberately removing `@Observable` from any existing `*Model.swift` would cause the test to fail (verify mentally or via a temporary edit during development).
+- **DoD:** New test method exists and passes; deliberately removing `@Observable` from any existing `*Model.swift` would cause the test to fail (verify mentally or via a temporary edit during development).
+- **Completed:** A.2 implemented in commit 67f2ca45 (2026-05-10)
 - **Estimated LOC:** +40–50 lines in SourceGrepTests.swift.
 - **Risks:** False positives on non-view-model files named `*Model.swift` (e.g., domain model types). Mitigated by scoping to `Kizba/Presentation/` only and requiring `final class` pattern.
 - **Commit:** `test(mvp3-a2): SourceGrepTests — @Observable annotation rule for Presentation models`

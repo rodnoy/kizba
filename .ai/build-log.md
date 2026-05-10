@@ -1,15 +1,14 @@
 Commands run:
 
-- rg -n "func startObservation|func waitUntil" || true
-- xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/AsyncTestHelpersTests
-- rg -n '\bas!' Kizba
-- rg -n 'Logger.*stdin|print\(.*stdin' Kizba
-- rg -n 'func startObservation|func waitUntil' KizbaTests || true
+- xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/SourceGrepTests
+- rg -n '\\bas!' Kizba
+- rg -n 'Logger.*stdin|print\\(.*stdin' Kizba
+- rg -n 'kizba:not-observable-model' || true
 
-Status:
+High-level result:
 
-- AsyncTestHelpersTests: PASS (2 tests)
-- Repo grep bans: clean
-- Single definitions of helpers: present in KizbaTests/Fixtures/AsyncTestHelpers.swift
+- SourceGrepTests only: PASSED (17 tests, 0 failures) — new test testPresentationModelsRequireObservable executed and passed.
+- Repo grep hygiene checks: no matches for force-cast or stdin-logging bans; opt-out comment found in fixture.
 
-Overall: A.1 completed successfully (tests green for new smoke tests).
+Commit: 67f2ca45b074fb77bf8f30e32f569846b433413d
+Date: 2026-05-10

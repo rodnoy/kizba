@@ -14,6 +14,10 @@ Repository at HEAD `4cd0467`. MVP 2 shipped. Test suite: **692 tests, 8 skipped,
 
 After A.1: proceed to A.2 → A.3 → A.4 → A.5 in strict order.
 
+**A.2 — @Observable grep rule.** — COMPLETED
+
+`KizbaTests/SourceGrepTests.swift` updated with `testPresentationModelsRequireObservable()`. Fixtures added under `Kizba/Presentation/SourceGrepFixtures/` to exercise the rule. Commit 67f2ca45 (2026-05-10).
+
 ## Phase A task sequence
 
 1. **A.1** Extract AsyncTestHelpers (refactor, ~−60 LOC net)
