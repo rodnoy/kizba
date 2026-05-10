@@ -4,7 +4,7 @@ import XCTest
 @MainActor
 final class EntryDetailModelBiometricRevealTests: XCTestCase {
 
-    func makeModel(settings: any SettingsStoring = MutableSettingsStore(), biometric: (any BiometricAuthenticating)? = nil) -> EntryDetailModel {
+    func makeModel(settings: any SettingsStoring = AppEnvironment.InMemorySettingsStore(), biometric: (any BiometricAuthenticating)? = nil) -> EntryDetailModel {
         let env = AppEnvironment(
             passManager: NullPassManager(),
             clipboard: FakeClipboardServicing(),
