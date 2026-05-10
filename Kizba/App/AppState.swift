@@ -92,6 +92,11 @@ final class AppState {
     /// inverse via `PassManaging`.
     let actionHistory: ActionHistory
 
+    /// Centralised router owning presentation flags and selection
+    /// helpers. Introduced in MVP 3 Phase B.1 as a migration target
+    /// for presentation state.
+    let router: AppRouter = AppRouter()
+
     /// Whether the `NewEntrySheet` is presented. Owned by `AppState`
     /// so any surface in the main window can request the sheet —
     /// the toolbar `+` button on `EntryListView`, the `Entry > New
