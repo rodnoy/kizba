@@ -14,8 +14,7 @@ final class AppStateTests: XCTestCase {
 
     func testInit_defaultsAreEmpty() {
         let state = AppState()
-
-        XCTAssertNil(state.selectedEntryID)
+        XCTAssertNil(state.router.selectedEntryID)
         XCTAssertEqual(state.searchQuery, "")
         XCTAssertFalse(state.isSidebarCollapsed)
         XCTAssertTrue(state.currentEntries.isEmpty)
@@ -24,13 +23,12 @@ final class AppStateTests: XCTestCase {
     func testInit_acceptsExplicitValues() {
         let entries = [PassEntry(path: "work/aws/root")]
         let state = AppState(
-            selectedEntryID: "work/aws/root",
             searchQuery: "aws",
             isSidebarCollapsed: true,
             currentEntries: entries
         )
 
-        XCTAssertEqual(state.selectedEntryID, "work/aws/root")
+        XCTAssertEqual(state.router.selectedEntryID, "work/aws/root")
         XCTAssertEqual(state.searchQuery, "aws")
         XCTAssertTrue(state.isSidebarCollapsed)
         XCTAssertEqual(state.currentEntries, entries)
@@ -38,13 +36,13 @@ final class AppStateTests: XCTestCase {
 
     func testSelectedEntryID_isMutable() {
         let state = AppState()
-        XCTAssertNil(state.selectedEntryID)
+        XCTAssertNil(state.router.selectedEntryID)
 
-        state.selectedEntryID = "personal/email/gmail"
-        XCTAssertEqual(state.selectedEntryID, "personal/email/gmail")
+        state.router.selectedEntryID = "personal/email/gmail"
+        XCTAssertEqual(state.router.selectedEntryID, "personal/email/gmail")
 
-        state.selectedEntryID = nil
-        XCTAssertNil(state.selectedEntryID)
+        state.router.selectedEntryID = nil
+        XCTAssertNil(state.router.selectedEntryID)
     }
 
     func testSearchQuery_isMutable() {

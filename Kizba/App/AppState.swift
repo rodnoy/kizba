@@ -58,10 +58,10 @@ public enum ActiveWriteOp: Sendable, Hashable {
 @MainActor
 final class AppState {
 
-    /// Currently selected entry's identity, or `nil` when nothing is
-    /// selected. Matches `PassEntry.ID` (which is `String` — the
-    /// `pass`-style relative path).
-    var selectedEntryID: PassEntry.ID?
+    /// NOTE: presentation flags and selection are now owned by
+    /// ``AppRouter`` mounted at ``router``. AppState no longer
+    /// declares selection or presentation proxy properties — views
+    /// and view models must read/write `state.router.*` instead.
 
     /// Live search query bound to the sidebar's search field.
     var searchQuery: String
@@ -74,10 +74,7 @@ final class AppState {
     /// Refreshed by the listing pipeline (Phase 4); empty until then.
     var currentEntries: [PassEntry]
 
-    /// Currently selected top-level folder name (e.g. `"work"`), or
-    /// `nil` when no folder is selected. Drives the middle (entry
-    /// list) column.
-    var selectedFolder: String?
+    // selection is owned by `router` (see above)
 
     /// App-wide toast coordinator. Owned (not optional) so view
     /// models can post toasts via `appState.toastCenter.post(...)`
@@ -95,56 +92,9 @@ final class AppState {
     /// Centralised router owning presentation flags and selection
     /// helpers. Introduced in MVP 3 Phase B.1 as a migration target
     /// for presentation state.
-    let router: AppRouter = AppRouter()
+    var router: AppRouter = AppRouter()
 
-    /// Whether the `NewEntrySheet` is presented. Owned by `AppState`
-    /// so any surface in the main window can request the sheet —
-    /// the toolbar `+` button on `EntryListView`, the `Entry > New
-    /// Entry…` menu item (⌘N), or any future affordance — without
-    /// each one threading its own `@State` Bool. The sheet is
-    /// hosted by `EntryListView` (the natural anchor for a
-    /// "create" affordance in the entry list column).
-    var isNewEntrySheetPresented: Bool
-
-    /// Whether the `EditEntrySheet` is presented (Phase G.2). Owned
-    /// by `AppState` so the toolbar `✎` button on `EntryDetailView`
-    /// and the `Entry > Edit Entry…` menu item (⌘E) can both flip
-    /// the same flag without threading per-surface `@State`. The
-    /// sheet is hosted by `EntryDetailView` (the natural anchor for
-    /// editing the currently-selected entry); presenting is gated
-    /// at the call site on ``selectedEntryID`` being non-nil.
-    var isEditEntrySheetPresented: Bool
-
-    /// Whether the `InPlaceGenerateSheet` is presented (Phase G.3).
-    /// Owned by `AppState` so the toolbar 🎲 button on
-    /// `EntryDetailView` and the `Entry > Regenerate Password` menu
-    /// item (⌘⌥G) can both flip the same flag without threading
-    /// per-surface `@State`. The sheet is hosted by `EntryDetailView`
-    /// (the natural anchor for an action targeting the currently-
-    /// selected entry); presenting is gated at the call site on
-    /// ``selectedEntryID`` being non-nil.
-    var isRegenerateSheetPresented: Bool
-
-    /// Whether the `MoveEntrySheet` is presented (Phase G.4). Owned
-    /// by `AppState` so the toolbar ↔ button on `EntryListView` and
-    /// the `Entry > Move Entry…` menu item (⌘⇧M) can both flip the
-    /// same flag without threading per-surface `@State`. The sheet
-    /// is hosted by `EntryListView` (move is a list-column action,
-    /// per the architect's plan); presenting is gated at the call
-    /// site on ``selectedEntryID`` being non-nil.
-    var isMoveSheetPresented: Bool
-
-    /// Whether the destructive delete confirmation dialog is
-    /// presented (Phase G.5). Owned by `AppState` so the toolbar 🗑
-    /// button on `EntryListView`, the `Entry > Delete Entry` menu
-    /// item (⌫) and any future affordance can all flip the same
-    /// flag without threading per-surface `@State`. The dialog is
-    /// hosted by `EntryListView` via the C.1
-    /// `destructiveConfirmation` modifier; presenting is gated at
-    /// the call site on ``selectedEntryID`` being non-nil. Unlike
-    /// the other write surfaces this is a confirmation dialog (not
-    /// a sheet) — see `DestructiveConfirmation.swift`.
-    var isDeleteConfirmationPresented: Bool
+    // presentation flags are owned by `router` (see above)
 
     /// Set of in-flight write operations (Phase G.6). Each write
     /// model calls ``beginWrite(_:)`` when it enters its
@@ -193,30 +143,18 @@ final class AppState {
     /// `AppState(passManager:)` is meaningful at app launch.
     init(
         passManager: any PassManaging,
-        selectedEntryID: PassEntry.ID? = nil,
         searchQuery: String = "",
         isSidebarCollapsed: Bool = false,
         currentEntries: [PassEntry] = [],
-        selectedFolder: String? = nil,
-        toastCenter: ToastCenter = ToastCenter(),
-        isNewEntrySheetPresented: Bool = false,
-        isEditEntrySheetPresented: Bool = false,
-        isRegenerateSheetPresented: Bool = false,
-        isMoveSheetPresented: Bool = false,
-        isDeleteConfirmationPresented: Bool = false
+        toastCenter: ToastCenter = ToastCenter()
     ) {
-        self.selectedEntryID = selectedEntryID
         self.searchQuery = searchQuery
         self.isSidebarCollapsed = isSidebarCollapsed
         self.currentEntries = currentEntries
-        self.selectedFolder = selectedFolder
         self.toastCenter = toastCenter
         self.actionHistory = ActionHistory(passManager: passManager)
-        self.isNewEntrySheetPresented = isNewEntrySheetPresented
-        self.isEditEntrySheetPresented = isEditEntrySheetPresented
-        self.isRegenerateSheetPresented = isRegenerateSheetPresented
-        self.isMoveSheetPresented = isMoveSheetPresented
-        self.isDeleteConfirmationPresented = isDeleteConfirmationPresented
+        // `router` already initialised to a fresh `AppRouter()`; it
+        // owns selection and presentation state.
     }
 
     #if DEBUG
@@ -227,31 +165,17 @@ final class AppState {
     /// MUST use the designated initialiser with the real manager
     /// from ``AppEnvironment``.
     convenience init(
-        selectedEntryID: PassEntry.ID? = nil,
         searchQuery: String = "",
         isSidebarCollapsed: Bool = false,
         currentEntries: [PassEntry] = [],
-        selectedFolder: String? = nil,
-        toastCenter: ToastCenter = ToastCenter(),
-        isNewEntrySheetPresented: Bool = false,
-        isEditEntrySheetPresented: Bool = false,
-        isRegenerateSheetPresented: Bool = false,
-        isMoveSheetPresented: Bool = false,
-        isDeleteConfirmationPresented: Bool = false
+        toastCenter: ToastCenter = ToastCenter()
     ) {
         self.init(
             passManager: MockPassManager(entries: [], secrets: [:]),
-            selectedEntryID: selectedEntryID,
             searchQuery: searchQuery,
             isSidebarCollapsed: isSidebarCollapsed,
             currentEntries: currentEntries,
-            selectedFolder: selectedFolder,
-            toastCenter: toastCenter,
-            isNewEntrySheetPresented: isNewEntrySheetPresented,
-            isEditEntrySheetPresented: isEditEntrySheetPresented,
-            isRegenerateSheetPresented: isRegenerateSheetPresented,
-            isMoveSheetPresented: isMoveSheetPresented,
-            isDeleteConfirmationPresented: isDeleteConfirmationPresented
+            toastCenter: toastCenter
         )
     }
     #endif
