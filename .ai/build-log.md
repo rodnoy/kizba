@@ -1,16 +1,17 @@
-E.3 — Phase E (wiring into AppEnvironment)
+Short summary: Stale build-errors cleared. Focused EntryDetailModelBiometricRevealTests passed (4 tests, 0 failures). Full test suite passed.
 
-Verification summary:
+Commands ran:
+  xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/EntryDetailModelBiometricRevealTests
+  xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
 
-- Focused tests passed: KizbaTests/EntryDetailModelBiometricRevealTests (4 tests, 0 failures)
-- Focused tests passed: KizbaTests/SourceGrepTests (19 tests, 0 failures)
-- Full test suite: PASSED — 728 tests executed, 9 skipped, 0 failures
+Git HEAD: 8e8402ac42bc3da26242df4b93e6a6a6f3bb6de1
 
-Raw xcodebuild outputs saved under the workspace user's derived logs; summarized above. No test failures.
+Final test counts: Executed 728 tests, 9 skipped, 0 failed
 
-Grep checks:
+Focused test output:
+  Test Suite 'EntryDetailModelBiometricRevealTests' passed at 2026-05-10 22:45:01.154.
+    Executed 4 tests, with 0 failures (0 unexpected) in 0.012 (0.014) seconds
 
-- as! matches: none
-- stdin/log matches: none
-
-Date: 2026-05-10
+Full suite output:
+  Test Suite 'KizbaTests.xctest' passed at 2026-05-10 22:53:27.243.
+    Executed 728 tests, with 9 tests skipped and 0 failures (0 unexpected) in 492.909 (494.175) seconds
