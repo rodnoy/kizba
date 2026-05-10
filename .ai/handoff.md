@@ -128,3 +128,10 @@ Next immediate action: C.1 — StoreWatching protocol — IN PROGRESS
 - Date: 2026-05-10
 
 Next immediate action after C.1: C.2
+
+### C.2 — Stabilize FakeStoreWatcher tests — COMPLETED
+
+- Commit: 4bfb007
+- Date: 2026-05-10
+
+Short note: Stabilized FakeStoreWatcherTests by registering XCTestExpectation signals from subscriber Tasks to ensure continuations are present before simulateChange() is invoked. Tests now use async expectation helpers (`fulfillment(of:timeout:)`) and call start/stop appropriately.
