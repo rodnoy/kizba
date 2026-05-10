@@ -1,3 +1,124 @@
+# E.1 — BiometricAuthenticating Domain Protocol
+
+## Goal
+
+Add a pure domain protocol `BiometricAuthenticating` with associated enums (`BiometricAvailability`, `BiometricUnavailableReason`, `BiometricResult`, `BiometricFailureReason`) to `Kizba/Domain/Protocols/`. No `LocalAuthentication` import. All types `Sendable` and `Equatable`.
+
+## Constraints
+
+- Zero third-party dependencies.
+- No `import LocalAuthentication` in the protocol file.
+- No `LAError` or any LA type exposure.
+- All enums and protocol: `Sendable, Equatable` (protocol inherits `Sendable`; enums conform to both).
+- `SWIFT_STRICT_CONCURRENCY = complete`.
+- All code/comments in English.
+- Protocol lives in `Domain/Protocols/` per architecture decision.
+
+## Tasks
+
+### Task 1 — Create BiometricAuthenticating.swift
+
+- **Objective:** Define the protocol and all 4 supporting enums in a single file.
+- **File to add:** `Kizba/Domain/Protocols/BiometricAuthenticating.swift`
+- **Public API:**
+  ```swift
+  // BiometricAuthenticating.swift
+  // Kizba
+
+  import Foundation
+
+  // MARK: - Enums
+
+  enum BiometricUnavailableReason: Sendable, Equatable {
+      case notEnrolled
+      case hardwareUnavailable
+      case passcodeNotSet
+      case userDisabled
+      case unknown
+  }
+
+  enum BiometricAvailability: Sendable, Equatable {
+      case available
+      case unavailable(BiometricUnavailableReason)
+  }
+
+  enum BiometricFailureReason: Sendable, Equatable {
+      case userFailed
+      case systemCancel
+      case appCancel
+      case invalidContext
+      case unknown
+  }
+
+  enum BiometricResult: Sendable, Equatable {
+      case success
+      case cancelled
+      case failed(BiometricFailureReason)
+  }
+
+  // MARK: - Protocol
+
+  protocol BiometricAuthenticating: Sendable {
+      func isAvailable() -> BiometricAvailability
+      func authenticate(reason: String) async -> BiometricResult
+  }
+  ```
+- **Concurrency notes:**
+  - Protocol inherits `Sendable` — conforming types must be actors or `Sendable` structs/classes.
+  - `authenticate(reason:)` is `async` (not throwing) — errors mapped to `BiometricResult.failed(...)` by implementations.
+  - `isAvailable()` is synchronous — implementations cache or query cheaply.
+- **Verification:** Project compiles (`xcodebuild build`). No `LocalAuthentication` import in file.
+- **Risks:** None. Additive file, no existing code touched.
+
+### Task 2 — Add BiometricAuthenticatingTests.swift
+
+- **Objective:** Compile-time and deterministic runtime tests proving enums are Equatable, protocol is conformable by a fake.
+- **File to add:** `KizbaTests/BiometricAuthenticatingTests.swift`
+- **Test class:** `BiometricAuthenticatingTests`
+- **Test methods:**
+  1. `testEnumsAreEquatable` — assert equality/inequality for each enum (e.g., `.available == .available`, `.unavailable(.notEnrolled) != .unavailable(.hardwareUnavailable)`, `.success != .cancelled`, `.failed(.userFailed) == .failed(.userFailed)`).
+  2. `testFakeCanConformToProtocol` — define a private `FakeBiometricAuth: BiometricAuthenticating` struct inside the test, call both methods, assert expected return values.
+  3. `testAllUnavailableReasonsDistinct` — put all 5 `BiometricUnavailableReason` cases in an array, assert `Set(array).count == 5` (requires Hashable — if not Hashable, use pairwise `!=` assertions instead; enums with no associated values auto-synthesize Hashable when Equatable, so Set works for the leaf enum).
+- **Verification:** `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/BiometricAuthenticatingTests` — 3 tests, 0 failures.
+- **Risks:** None. Pure value types, no concurrency in tests.
+
+### Task 3 — Add SourceGrepTests rule for no LocalAuthentication import
+
+- **Objective:** Prevent `import LocalAuthentication` from appearing in `Kizba/Domain/`.
+- **File to modify:** `KizbaTests/SourceGrepTests.swift`
+- **New test method:** `testNoLocalAuthenticationImportInDomain`
+- **Logic:** Scan all `.swift` files under `Kizba/Domain/` for regex `import\s+LocalAuthentication`; assert zero matches.
+- **Verification:** `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/SourceGrepTests/testNoLocalAuthenticationImportInDomain` — 1 test, 0 failures.
+- **Risks:** None. Additive grep rule.
+
+### Task 4 — Verify no regressions
+
+- **Objective:** Full suite green.
+- **Verification:**
+  - Focused: `xcodebuild test ... -only-testing:KizbaTests/BiometricAuthenticatingTests`
+  - SourceGrepTests: `xcodebuild test ... -only-testing:KizbaTests/SourceGrepTests`
+  - Full suite: `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'` — 0 failures
+- **Success criteria:** All existing tests pass + 4 new tests (3 biometric + 1 grep rule).
+- **Risks:** None.
+
+## Commit message
+
+```
+feat(mvp3): add BiometricAuthenticating domain protocol (E.1)
+
+Introduce BiometricAuthenticating protocol and supporting enums
+(BiometricAvailability, BiometricResult, BiometricUnavailableReason,
+BiometricFailureReason) in Domain/Protocols/. All Sendable + Equatable.
+No LocalAuthentication import — LA coupling stays in Infrastructure.
+Three new tests + one SourceGrepTests rule.
+```
+
+## Suggested current step
+
+Tasks 1–3 in a single pass. Task 4 is verification only.
+
+---
+
 # D.2 — KeyValueEditor Accessibility Improvements
 
 ## Goal

@@ -1,20 +1,20 @@
-FormFieldRow accessibility (D.3) verification
+Focused tests: KizbaTests/BiometricAuthenticatingTests
 
-Commands executed:
+Command:
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/BiometricAuthenticatingTests
 
-1) xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/FormFieldRowAccessibilityTests
- - Result: 2 tests executed, 0 failures
+Result: PASSED — 3 tests, 0 failures
 
-2) xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/SourceGrepTests
- - Result: 19 tests executed, 0 failures
+SourceGrepTests (no-local-auth import rule)
 
-3) xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
- - Result: 718 tests executed, 9 skipped, 0 failures
+Command:
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/SourceGrepTests/testNoLocalAuthenticationImportInDomain
 
-4) rg -n '\\bas!\\b' Kizba
- - Result: no matches
+Result: PASSED — 0 tests (no matches), 0 failures
 
-5) rg -n 'Logger.*stdin|print\\(.*stdin' Kizba
- - Result: no matches
+Full suite
 
-Summary: All focused tests and full test suite passed. No banned patterns found.
+Command:
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+
+Result: PASSED — 721 tests, 9 skipped, 0 failures

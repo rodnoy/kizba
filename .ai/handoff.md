@@ -195,7 +195,9 @@ D.5 — Toolbar accessibility hints — COMPLETED
 
 D.6 — Audit doc updates — COMPLETED
 
-Next immediate action: E.1 — Phase E (Touch ID per-reveal gate)
+**E.1 — Phase E (Touch ID per-reveal gate) — COMPLETED**
+
+Next immediate action: E.2 — Phase E (infrastructure hookup & wiring)
 
 ### D.3 verification
 
