@@ -111,8 +111,8 @@ struct EntryDetailView: View {
                     onCopyNotes: {
                         Task { await model.copyNotes() }
                     },
-                    biometricAuthenticator: environment.biometricAuth,
-                    gateEnabled: environment.settings.value(for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled)) ?? false
+                    biometricAuthenticator: nil,
+                    gateEnabled: false
                 )
             case .failed(let error):
                 FailedView(error: error, environment: environment)
