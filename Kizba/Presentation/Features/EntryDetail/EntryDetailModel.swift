@@ -308,7 +308,7 @@ final class EntryDetailModel {
     /// displayed entry. See ``observeChanges()`` for the full rule
     /// table.
     private func handle(_ event: StoreChange) {
-        let current = appState.selectedEntryID
+        let current = appState.router.selectedEntryID
 
         switch event {
         case .updated(let path):
@@ -322,7 +322,7 @@ final class EntryDetailModel {
 
         case .removed(let path):
             guard let current, current == path else { return }
-            // The list-side handler clears `appState.selectedEntryID`
+            // The list-side handler clears `router.selectedEntryID`
             // independently; this branch deals with the detail-only
             // state. Cancel any in-flight load and reset to idle so
             // the UI stops showing a body whose entry no longer

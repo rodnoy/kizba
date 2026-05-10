@@ -183,7 +183,7 @@ final class EntryFormModelEditTests: XCTestCase {
 
         // Selection unchanged — Phase H still owns selection rules,
         // and edit explicitly does NOT call setSelection.
-        XCTAssertEqual(appState.selectedEntryID, "some/other/path")
+        XCTAssertEqual(appState.router.selectedEntryID, "some/other/path")
     }
 
     func testSave_editMode_clearsForceOverwriteFlag() async {

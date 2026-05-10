@@ -48,14 +48,14 @@ final class EntryDetailReconciliationTests: XCTestCase {
 
     /// Drive the detail model into `.loaded(_)` for `path` and wait
     /// for the load to complete. Mirrors the production view's
-    /// `.onChange(of: state.selectedEntryID, initial: true)`
+    /// `.onChange(of: state.router.selectedEntryID, initial: true)`
     /// handler.
     private func loadEntry(
         _ path: String,
         on model: EntryDetailModel,
         appState: AppState
     ) async {
-        appState.selectedEntryID = path
+        appState.router.selectedEntryID = path
         model.handleSelectionChange(path)
         await waitUntil(
             {

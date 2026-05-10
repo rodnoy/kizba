@@ -307,7 +307,7 @@ final class EntryListReconciliationTests: XCTestCase {
         )
 
         // Selection set imperatively by EntryFormModel.applySuccess.
-        XCTAssertEqual(state.selectedEntryID, "new/from-form")
+        XCTAssertEqual(state.router.selectedEntryID, "new/from-form")
 
         // Success toast posted by the form model.
         XCTAssertEqual(state.toastCenter.visible?.severity, .success)
@@ -325,7 +325,7 @@ final class EntryListReconciliationTests: XCTestCase {
         )
         let env = makeEnvironment(passManager: manager)
         let state = AppState()
-        state.selectedEntryID = "x"
+        state.router.selectedEntryID = "x"
         let model = EntryListModel(environment: env, state: state)
         await model.refresh()
 
@@ -338,7 +338,7 @@ final class EntryListReconciliationTests: XCTestCase {
         try? await manager.remove(entry)
 
         await waitUntil(
-            { state.selectedEntryID == nil },
+            { state.router.selectedEntryID == nil },
             message: "selection on removed entry was not cleared"
         )
     }
@@ -356,7 +356,7 @@ final class EntryListReconciliationTests: XCTestCase {
         )
         let env = makeEnvironment(passManager: manager)
         let state = AppState()
-        state.selectedEntryID = "y"
+        state.router.selectedEntryID = "y"
         let model = EntryListModel(environment: env, state: state)
         await model.refresh()
 
@@ -374,7 +374,7 @@ final class EntryListReconciliationTests: XCTestCase {
             { !model.allEntries.contains(where: { $0.path == "x" }) },
             message: "removed entry never disappeared from list"
         )
-        XCTAssertEqual(state.selectedEntryID, "y")
+        XCTAssertEqual(state.router.selectedEntryID, "y")
     }
 
     // .moved of selected → selection follows.
@@ -386,7 +386,7 @@ final class EntryListReconciliationTests: XCTestCase {
         )
         let env = makeEnvironment(passManager: manager)
         let state = AppState()
-        state.selectedEntryID = "x"
+        state.router.selectedEntryID = "x"
         let model = EntryListModel(environment: env, state: state)
         await model.refresh()
 
@@ -399,7 +399,7 @@ final class EntryListReconciliationTests: XCTestCase {
         _ = try? await manager.move(from: x, to: "y", force: false)
 
         await waitUntil(
-            { state.selectedEntryID == "y" },
+            { state.router.selectedEntryID == "y" },
             message: "selection did not follow moved entry"
         )
     }
@@ -417,7 +417,7 @@ final class EntryListReconciliationTests: XCTestCase {
         )
         let env = makeEnvironment(passManager: manager)
         let state = AppState()
-        state.selectedEntryID = "y"
+        state.router.selectedEntryID = "y"
         let model = EntryListModel(environment: env, state: state)
         await model.refresh()
 
@@ -433,7 +433,7 @@ final class EntryListReconciliationTests: XCTestCase {
             { model.allEntries.contains(where: { $0.path == "z" }) },
             message: "moved entry never appeared at new path"
         )
-        XCTAssertEqual(state.selectedEntryID, "y")
+        XCTAssertEqual(state.router.selectedEntryID, "y")
     }
 
     // .inserted does NOT mutate selection from the centralised handler.
@@ -441,7 +441,7 @@ final class EntryListReconciliationTests: XCTestCase {
         let manager = MockPassManager(entries: [], secrets: [:])
         let env = makeEnvironment(passManager: manager)
         let state = AppState()
-        state.selectedEntryID = nil
+        state.router.selectedEntryID = nil
         let model = EntryListModel(environment: env, state: state)
         await model.refresh()
 
@@ -467,7 +467,7 @@ final class EntryListReconciliationTests: XCTestCase {
             message: "inserted entry never appeared in list"
         )
         XCTAssertNil(
-            state.selectedEntryID,
+            state.router.selectedEntryID,
             "centralised handler must not set selection on .inserted"
         )
     }
@@ -485,7 +485,7 @@ final class EntryListReconciliationTests: XCTestCase {
         )
         let env = makeEnvironment(passManager: manager)
         let state = AppState()
-        state.selectedEntryID = "y"
+        state.router.selectedEntryID = "y"
         let model = EntryListModel(environment: env, state: state)
         await model.refresh()
 
@@ -506,7 +506,7 @@ final class EntryListReconciliationTests: XCTestCase {
         try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
 
         XCTAssertEqual(
-            state.selectedEntryID,
+            state.router.selectedEntryID,
             "y",
             ".bulk cleared a selection that survives the snapshot"
         )
@@ -529,7 +529,7 @@ final class EntryListReconciliationTests: XCTestCase {
         // never let this happen in a running app, but it lets us
         // assert the centralised handler's "clear if non-surviving"
         // rule deterministically.
-        state.selectedEntryID = "z"
+        state.router.selectedEntryID = "z"
         let model = EntryListModel(environment: env, state: state)
         await model.refresh()
 
@@ -542,7 +542,7 @@ final class EntryListReconciliationTests: XCTestCase {
         await manager.emitBulk()
 
         await waitUntil(
-            { state.selectedEntryID == nil },
+            { state.router.selectedEntryID == nil },
             message: ".bulk did not clear a non-surviving selection"
         )
     }

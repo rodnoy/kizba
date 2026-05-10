@@ -80,9 +80,9 @@ final class EntryListDeleteTests: XCTestCase {
         )
         let env = makeEnvironment(passManager: manager)
         let state = AppState(
-            passManager: manager,
-            selectedEntryID: select
+            passManager: manager
         )
+        state.router.selectedEntryID = select
         let model = EntryListModel(environment: env, state: state)
         return (model, state, manager)
     }
@@ -92,14 +92,14 @@ final class EntryListDeleteTests: XCTestCase {
     func testInitialState_isIdle_andCannotDeleteWithoutSelection() {
         let (model, state, _) = makeModelAndState(select: nil)
         XCTAssertEqual(model.deletionState, .idle)
-        XCTAssertNil(state.selectedEntryID)
+        XCTAssertNil(state.router.selectedEntryID)
         XCTAssertFalse(model.canDelete)
     }
 
     func testCanDelete_isTrue_whenSelectionPresentAndIdle() {
         let (model, state, _) = makeModelAndState(select: targetPath)
         XCTAssertEqual(model.deletionState, .idle)
-        XCTAssertNotNil(state.selectedEntryID)
+        XCTAssertNotNil(state.router.selectedEntryID)
         XCTAssertTrue(model.canDelete)
     }
 
@@ -115,7 +115,7 @@ final class EntryListDeleteTests: XCTestCase {
         // Sanity preconditions.
         let pre = try await manager.listEntries().map(\.path)
         XCTAssertEqual(pre, [targetPath])
-        XCTAssertEqual(state.selectedEntryID, targetPath)
+        XCTAssertEqual(state.router.selectedEntryID, targetPath)
 
         await model.deleteEntry(at: targetPath)
 
@@ -127,7 +127,7 @@ final class EntryListDeleteTests: XCTestCase {
         XCTAssertFalse(post.contains(targetPath))
 
         // Selection cleared.
-        XCTAssertNil(state.selectedEntryID)
+        XCTAssertNil(state.router.selectedEntryID)
 
         // ActionHistory recorded the inverse.
         guard let pending = state.actionHistory.pending else {
@@ -198,7 +198,7 @@ final class EntryListDeleteTests: XCTestCase {
         XCTAssertEqual(model.deletionState, .idle)
 
         // Selection unchanged (no successful delete to follow).
-        XCTAssertEqual(state.selectedEntryID, targetPath)
+        XCTAssertEqual(state.router.selectedEntryID, targetPath)
 
         // No undo recorded.
         XCTAssertNil(state.actionHistory.pending)
@@ -235,7 +235,7 @@ final class EntryListDeleteTests: XCTestCase {
 
         XCTAssertEqual(model.deletionState, .idle)
         // Selection unchanged.
-        XCTAssertEqual(state.selectedEntryID, targetPath)
+        XCTAssertEqual(state.router.selectedEntryID, targetPath)
         // No undo recorded — the destructive op did not complete.
         XCTAssertNil(state.actionHistory.pending)
 
@@ -269,7 +269,7 @@ final class EntryListDeleteTests: XCTestCase {
         XCTAssertTrue(listed.contains(otherPath))
 
         // Selection preserved.
-        XCTAssertEqual(state.selectedEntryID, otherPath)
+        XCTAssertEqual(state.router.selectedEntryID, otherPath)
 
         // Toast / undo still posted (delete itself succeeded).
         XCTAssertNotNil(state.toastCenter.visible)

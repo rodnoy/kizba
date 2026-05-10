@@ -141,7 +141,7 @@ final class MoveEntryModelTests: XCTestCase {
         XCTAssertTrue(listed.contains(newValidPath))
 
         // Selection follows the entry to its new path.
-        XCTAssertEqual(state.selectedEntryID, newValidPath)
+        XCTAssertEqual(state.router.selectedEntryID, newValidPath)
 
         // ActionHistory records the inverse move.
         guard let pending = state.actionHistory.pending else {
@@ -175,7 +175,7 @@ final class MoveEntryModelTests: XCTestCase {
             ]
         )
         // Sanity: selection starts unset.
-        XCTAssertNil(state.selectedEntryID)
+        XCTAssertNil(state.router.selectedEntryID)
 
         model.newPath = collisionPath
         model.save()
@@ -198,7 +198,7 @@ final class MoveEntryModelTests: XCTestCase {
         XCTAssertNil(state.actionHistory.pending)
 
         // Selection unchanged.
-        XCTAssertNil(state.selectedEntryID)
+        XCTAssertNil(state.router.selectedEntryID)
 
         // Manager-side: both entries still present.
         let listed = try await manager.listEntries().map { $0.path }
@@ -243,7 +243,7 @@ final class MoveEntryModelTests: XCTestCase {
         XCTAssertEqual(postSecret.password, "old")
 
         // Selection follows.
-        XCTAssertEqual(state.selectedEntryID, collisionPath)
+        XCTAssertEqual(state.router.selectedEntryID, collisionPath)
 
         // forceMove is reset on success (defensive).
         XCTAssertFalse(model.forceMove)
@@ -309,7 +309,7 @@ final class MoveEntryModelTests: XCTestCase {
         XCTAssertEqual(model.state, .idle)
         XCTAssertNil(state.toastCenter.visible)
         XCTAssertNil(state.actionHistory.pending)
-        XCTAssertNil(state.selectedEntryID)
+        XCTAssertNil(state.router.selectedEntryID)
     }
 
     func testHandleDismissal_cancelsInFlightSave_andDropsCompletion() async throws {
@@ -337,7 +337,7 @@ final class MoveEntryModelTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(300))
         XCTAssertNil(state.toastCenter.visible)
         XCTAssertNil(state.actionHistory.pending)
-        XCTAssertNil(state.selectedEntryID)
+        XCTAssertNil(state.router.selectedEntryID)
     }
 
     // MARK: - Non-recoverable error toast
@@ -376,7 +376,7 @@ final class MoveEntryModelTests: XCTestCase {
 
         // No ActionHistory record, no selection change.
         XCTAssertNil(state.actionHistory.pending)
-        XCTAssertNil(state.selectedEntryID)
+        XCTAssertNil(state.router.selectedEntryID)
     }
 
     // MARK: - Generation counter

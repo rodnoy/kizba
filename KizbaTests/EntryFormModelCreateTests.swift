@@ -125,7 +125,7 @@ final class EntryFormModelCreateTests: XCTestCase {
 
         // Selection follows the new entry (Phase F.5 behaviour
         // wired here).
-        XCTAssertEqual(appState.selectedEntryID, "newentry")
+        XCTAssertEqual(appState.router.selectedEntryID, "newentry")
 
         // Defensive: forceOverwrite reset to false on success.
         XCTAssertFalse(model.forceOverwrite)
@@ -159,7 +159,7 @@ final class EntryFormModelCreateTests: XCTestCase {
         XCTAssertNil(appState.toastCenter.visible)
 
         // Selection unchanged; entry not overwritten.
-        XCTAssertNil(appState.selectedEntryID)
+        XCTAssertNil(appState.router.selectedEntryID)
     }
 
     // MARK: - Save with force overwrite
@@ -201,7 +201,7 @@ final class EntryFormModelCreateTests: XCTestCase {
         // forceOverwrite reset on success (defensive).
         XCTAssertFalse(model.forceOverwrite)
 
-        XCTAssertEqual(appState.selectedEntryID, "existing/path")
+        XCTAssertEqual(appState.router.selectedEntryID, "existing/path")
     }
 
     // MARK: - Save with non-recoverable error

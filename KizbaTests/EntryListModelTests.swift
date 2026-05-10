@@ -35,17 +35,17 @@ final class EntryListModelTests: XCTestCase {
         let model = EntryListModel(environment: env, state: state)
         await model.refresh()
 
-        state.selectedFolder = "work"
+        state.router.selectedFolder = "work"
 
         let filtered = model.entries
         XCTAssertEqual(filtered.count, 8)
         XCTAssertTrue(filtered.allSatisfy { $0.path.hasPrefix("work/") })
 
-        state.selectedFolder = "archive"
+        state.router.selectedFolder = "archive"
         XCTAssertEqual(model.entries.count, 5)
         XCTAssertTrue(model.entries.allSatisfy { $0.path.hasPrefix("archive/") })
 
-        state.selectedFolder = "personal"
+        state.router.selectedFolder = "personal"
         XCTAssertEqual(model.entries.count, 7)
         XCTAssertTrue(model.entries.allSatisfy { $0.path.hasPrefix("personal/") })
     }
@@ -67,7 +67,7 @@ final class EntryListModelTests: XCTestCase {
         XCTAssertEqual(model.entries.count, 2)
 
         // Combined folder + search filter.
-        state.selectedFolder = "personal"
+        state.router.selectedFolder = "personal"
         state.searchQuery = "wifi"
         let wifi = model.entries
         XCTAssertEqual(wifi.count, 2)
@@ -93,7 +93,7 @@ final class EntryListModelTests: XCTestCase {
         // Sit in `work` (8 entries). The query "personal" matches the
         // 7 personal/* entries AND `work/github/personal-token` — 8
         // total. A folder-scoped search would return just 1.
-        state.selectedFolder = "work"
+        state.router.selectedFolder = "work"
         state.searchQuery = "personal"
 
         let results = model.entries
@@ -110,7 +110,7 @@ final class EntryListModelTests: XCTestCase {
         let model = EntryListModel(environment: env, state: state)
         await model.refresh()
 
-        state.selectedFolder = "personal"
+        state.router.selectedFolder = "personal"
         state.searchQuery = ""
 
         let results = model.entries
@@ -124,15 +124,15 @@ final class EntryListModelTests: XCTestCase {
         let model = EntryListModel(environment: env, state: state)
         await model.refresh()
 
-        XCTAssertNil(state.selectedEntryID)
+        XCTAssertNil(state.router.selectedEntryID)
 
         let target = model.allEntries.first { $0.path == "work/aws/root" }
         XCTAssertNotNil(target)
         model.select(entryID: target?.id)
 
-        XCTAssertEqual(state.selectedEntryID, "work/aws/root")
+        XCTAssertEqual(state.router.selectedEntryID, "work/aws/root")
 
         model.select(entryID: nil)
-        XCTAssertNil(state.selectedEntryID)
+        XCTAssertNil(state.router.selectedEntryID)
     }
 }
