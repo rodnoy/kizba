@@ -143,4 +143,8 @@ Short note: Stabilized FakeStoreWatcherTests by registering XCTestExpectation si
 
 Added `Kizba/Infrastructure/Store/FSEventsStoreWatcher.swift` (actor-backed FSEvents watcher with DispatchQueue confinement, debounced emits) and opt-in test `KizbaTests/FSEventsStoreWatcherTests.swift` (skipped by default). Build verification passed: full suite 708 tests, 9 skipped, 0 failures.
 
-Next immediate action after C.3: C.4
+### C.4 — TempStoreFixture — COMPLETED
+
+- Added `KizbaTests/Fixtures/TempStoreFixture.swift`: test-only helper (instance + static API) for creating and mutating temporary stores used by FSEvents and scanner tests. Minimal Foundation-only implementation; includes write/touch/delete/remove helpers and legacy instance methods (`createStandardLayout`, `createEmptyStore`, `cleanup`) used by existing tests.
+
+Next immediate action after C.4: C.5

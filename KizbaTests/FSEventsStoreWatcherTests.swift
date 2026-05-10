@@ -7,8 +7,7 @@ final class FSEventsStoreWatcherTests: XCTestCase {
     func testFSEventsEmitsOnRealFSChange() async throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["KIZBA_FSEVENTS_TEST"] == "1", "Opt-in")
 
-        let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent("kizba-fsevents-\(UUID())")
-        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        let tmpDir = try TempStoreFixture.createTempStore(prefix: "kizba-fsevents-")
 
         let watcher = FSEventsStoreWatcher()
         await watcher.start(at: tmpDir)
@@ -24,16 +23,17 @@ final class FSEventsStoreWatcherTests: XCTestCase {
             }
         }
 
-        // Give the registration a moment.
+        // Give the registration a moment and then mutate the store from a Task.
         try await Task.sleep(nanoseconds: 50_000_000) // 50ms
 
-        // Create a file inside tmpDir to trigger FSEvents.
-        let file = tmpDir.appendingPathComponent("touch.txt")
-        try "hello".write(to: file, atomically: true, encoding: .utf8)
+        Task {
+            // Create a file inside tmpDir to trigger FSEvents.
+            let _ = try TempStoreFixture.writeFile(store: tmpDir, relativePath: "touch.txt", contents: Data("hello".utf8))
+        }
 
         wait(for: [exp], timeout: 1.0)
 
         await watcher.stop()
-        try FileManager.default.removeItem(at: tmpDir)
+        try TempStoreFixture.removeTempStore(store: tmpDir)
     }
 }

@@ -1,113 +1,114 @@
-//
-//  TempStoreFixture.swift
-//  KizbaTests
-//
-//  Deterministic on-disk fixture for password-store tests
-//  (Phase 6.4). Builds a fixed directory layout under a unique
-//  temporary directory so that scanner / lister tests can assert
-//  exact, repeatable expectations without ad-hoc per-test wiring.
-//
-//  ## Contract
-//
-//  - `init(name:)` creates a unique temp directory under
-//    `FileManager.default.temporaryDirectory`.
-//  - `createStandardLayout()` writes a fixed set of files with
-//    deterministic names. File contents are short ASCII placeholders
-//    (`"fixture"`); no real secrets are ever written.
-//  - `createEmptyStore()` ensures the root exists and is empty.
-//  - `cleanup()` removes the entire temp directory tree. Tests are
-//    expected to call `cleanup()` from a `defer` block.
-//
-//  The fixture is intentionally synchronous and uses
-//  `FileManager.default` directly — the same approach used by the
-//  scanner under test.
-//
-
 import Foundation
 
-/// A deterministic, throw-free temporary password-store fixture.
-///
-/// The fixture is a value type: each test instantiates its own copy
-/// with its own unique temp root, so parallel test execution is safe.
+// Test-only helper for creating and mutating a temporary store on disk.
+// Provides a minimal, synchronous API used by opt-in FSEvents tests.
+// Keep implementation Foundation-only to avoid test target coupling.
 struct TempStoreFixture {
+    // Instance-backed helper retained for older tests that expect
+    // a TempStoreFixture value with `root`, `createStandardLayout()`,
+    // `createEmptyStore()` and `cleanup()` instance methods.
 
-    /// Absolute file URL to the fixture's temporary root directory.
+    /// The root URL of the temporary store instance.
     let root: URL
 
-    /// Creates a unique temporary directory under
-    /// `FileManager.default.temporaryDirectory`. The directory is
-    /// created eagerly so that `root` is always usable.
-    ///
-    /// - Parameter name: a human-readable prefix for the temp folder
-    ///   name. A UUID suffix guarantees uniqueness regardless of `name`.
-    init(name: String = "temp-store-fixture") {
-        let unique = "\(name)-\(UUID().uuidString)"
-        self.root = FileManager.default.temporaryDirectory
-            .appendingPathComponent(unique, isDirectory: true)
-        // Best-effort eager creation. Tests that need to assert a
-        // missing root build their target URL by appending to `root`.
-        try? FileManager.default.createDirectory(
-            at: root,
-            withIntermediateDirectories: true
-        )
+    /// Create and return an instance bound to a unique dir under tmp.
+    /// Non-throwing initializer for historical tests that expect
+    /// `TempStoreFixture()` to succeed without `try`.
+    init(prefix: String = "kizba-tempstore-") {
+        let uuid = UUID().uuidString
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(prefix + uuid)
+        try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        self.root = dir
     }
 
-    // MARK: - Layouts
-
-    /// Writes the canonical mixed layout used by scanner tests.
-    ///
-    /// Layout (relative to `root`):
-    ///
-    /// - `pass.gpg`
-    /// - `personal/two.gpg`
-    /// - `personal/work/one.gpg`
-    /// - `work/entry.gpg`
-    /// - `archive/old.gpg`
-    /// - `.gpg-id`                   (marker, must be ignored)
-    /// - `.git/ignored.gpg`          (under `.git`, must be ignored)
-    /// - `readme.txt`                (non-`.gpg`, must be ignored)
-    /// - `スペース dir/entry name ☃.gpg` (unicode + spaces)
-    func createStandardLayout() throws {
-        try writeFile("pass.gpg")
-        try writeFile("personal/two.gpg")
-        try writeFile("personal/work/one.gpg")
-        try writeFile("work/entry.gpg")
-        try writeFile("archive/old.gpg")
-        try writeFile(".gpg-id", contents: "fixture@example.com")
-        try writeFile(".git/ignored.gpg")
-        try writeFile("readme.txt")
-        try writeFile("スペース dir/entry name ☃.gpg")
-    }
-
-    /// Ensures the root exists and contains no entries.
-    func createEmptyStore() throws {
-        if FileManager.default.fileExists(atPath: root.path) {
-            try FileManager.default.removeItem(at: root)
-        }
-        try FileManager.default.createDirectory(
-            at: root,
-            withIntermediateDirectories: true
-        )
-    }
-
-    /// Removes the temporary directory tree. Idempotent: safe to call
-    /// even if the root has already been removed.
+    /// Remove the temporary store created by this instance.
     func cleanup() {
-        if FileManager.default.fileExists(atPath: root.path) {
-            try? FileManager.default.removeItem(at: root)
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    /// Create an empty store directory (no entries).
+    func createEmptyStore() throws {
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    }
+
+    /// Create a standard test layout containing a mix of entries,
+    /// hidden files, and ignorable artifacts (.gpg-id, .git, readme).
+    func createStandardLayout() throws {
+        try createEmptyStore()
+
+        func write(_ rel: String, contents: String = "fixture") throws {
+            let url = root.appendingPathComponent(rel)
+            let folder = url.deletingLastPathComponent()
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try Data(contents.utf8).write(to: url, options: .atomic)
+        }
+
+        // Entries (gpg files) matching expectations in tests
+        try write("archive/old.gpg")
+        try write("pass.gpg")
+        try write("personal/two.gpg")
+        try write("personal/work/one.gpg")
+        try write("work/entry.gpg")
+        try write("スペース dir/entry name ☃.gpg")
+
+        // Ignored metadata and VCS
+        try write(".gpg-id", contents: "keyid")
+        try FileManager.default.createDirectory(at: root.appendingPathComponent(".git"), withIntermediateDirectories: true)
+        try write("readme.txt", contents: "This is a README and not a .gpg file")
+
+        // Extra ignored file
+        try write("ignored_file.tmp", contents: "ignore")
+    }
+
+    // MARK: - Static convenience API (for FSEvents tests)
+
+    /// Create a unique temporary directory and return its URL.
+    /// The directory is created under FileManager.default.temporaryDirectory.
+    /// Caller is responsible for removing it via `removeTempStore` when done.
+    static func createTempStore(prefix: String = "kizba-tempstore-") throws -> URL {
+        let uuid = UUID().uuidString
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(prefix + uuid)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    /// Write a file at the given relative path (create intermediate dirs).
+    /// Returns the file URL written.
+    static func writeFile(store: URL, relativePath: String, contents: Data) throws -> URL {
+        let fileURL = store.appendingPathComponent(relativePath)
+        let folder = fileURL.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try contents.write(to: fileURL, options: .atomic)
+        return fileURL
+    }
+
+    /// Touch a file (create empty file if it does not exist).
+    /// Returns the touched file URL.
+    static func touch(store: URL, relativePath: String) throws -> URL {
+        let fileURL = store.appendingPathComponent(relativePath)
+        let folder = fileURL.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        if !FileManager.default.fileExists(atPath: fileURL.path) {
+            try Data().write(to: fileURL, options: .atomic)
+        } else {
+            // Update modification date by writing zero-length data atomically.
+            try Data().write(to: fileURL, options: .atomic)
+        }
+        return fileURL
+    }
+
+    /// Delete the file at relative path if it exists.
+    static func delete(store: URL, relativePath: String) throws {
+        let fileURL = store.appendingPathComponent(relativePath)
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            try FileManager.default.removeItem(at: fileURL)
         }
     }
 
-    // MARK: - Helpers
-
-    /// Writes a deterministic placeholder file at the given relative
-    /// path, creating intermediate directories as needed.
-    private func writeFile(_ relativePath: String, contents: String = "fixture") throws {
-        let url = root.appendingPathComponent(relativePath)
-        try FileManager.default.createDirectory(
-            at: url.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try Data(contents.utf8).write(to: url)
+    /// Remove the entire temporary store directory recursively.
+    static func removeTempStore(store: URL) throws {
+        if FileManager.default.fileExists(atPath: store.path) {
+            try FileManager.default.removeItem(at: store)
+        }
     }
 }
