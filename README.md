@@ -18,6 +18,9 @@ MVP 2 ships a complete read + write surface over `pass(1)`:
 - **Delete** entries (⌫) with confirmation dialog + 10-second Undo.
 - **Diagnostics** (⌘⌥D) — sanitized invocation log; no secret content ever recorded.
 
+- **FSEvents auto-refresh** — external changes to `~/.password-store` (e.g., from the CLI) are detected automatically via FSEvents; no manual ⌘R needed.
+- **Touch ID gate** (opt-in) — require biometric authentication before revealing secrets. Disabled by default; enable in Settings. Requires a Mac with Touch ID or Apple Watch unlock.
+
 ## Visual identity
 
 Five-color pastel palette (Pink Orchid · Pastel Petal · Blush Pop · Icy Blue · Sky Blue) used as
@@ -114,6 +117,8 @@ What Kizba **does not**:
   documented as a deferred MVP 3 candidate.
 - **No FSEvents auto-refresh.** External writes to `~/.password-store` (e.g., from the CLI in
   another terminal) require a manual ⌘R to reflect.
+
+Note: Both Touch ID per-reveal toggle and FSEvents auto-refresh are opt-in and testable via environment variables: `KIZBA_E2E` and `KIZBA_FSEVENTS_TEST`.
 - **`pass insert` over piped stdin always overwrites silently** (`pass`'s `yesno()` returns 0
   when stdin is not a TTY). Kizba enforces collision-confirmation in the UI before passing
   `force: true`; the contract is verified at the unit-test level via stderr fixture mappings
