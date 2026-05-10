@@ -8,21 +8,22 @@ import CoreServices
 private actor ContinuationStore {
     var continuations: [UUID: AsyncStream<Void>.Continuation] = [:]
 
-    func addContinuation(_ id: UUID, _ cont: AsyncStream<Void>.Continuation) {
+    // Async API per design requirements.
+    func addContinuation(_ id: UUID, _ cont: AsyncStream<Void>.Continuation) async {
         continuations[id] = cont
     }
 
-    func removeContinuation(_ id: UUID) {
+    func removeContinuation(_ id: UUID) async {
         continuations.removeValue(forKey: id)
     }
 
-    func emitAll() {
+    func emitAll() async {
         for (_, cont) in continuations {
             cont.yield(())
         }
     }
 
-    func finishAll() {
+    func finishAll() async {
         for (_, cont) in continuations {
             cont.finish()
         }
@@ -56,7 +57,10 @@ public final class FSEventsStoreWatcher: StoreWatching, @unchecked Sendable {
             debounceTimer?.cancel()
             debounceTimer = nil
         }
-        Task { await store.finishAll() }
+        // Use a detached Task to avoid capturing `self`'s lifetime in a closure that outlives deinit.
+        Task.detached { [store] in
+            await store.finishAll()
+        }
     }
 
     // Multi-subscriber AsyncStream. Each registration registers its continuation with the actor.
@@ -91,7 +95,8 @@ public final class FSEventsStoreWatcher: StoreWatching, @unchecked Sendable {
             let paths = [storeRoot.path] as CFArray
 
             // Client info pointer: pass unretained self.
-            let info = Unmanaged.passUnretained(self).toOpaque()
+            // Build the FSEventStreamContext with the unretained self pointer.
+            var context = FSEventStreamContext(version: 0, info: Unmanaged.passUnretained(self).toOpaque(), retain: nil, release: nil, copyDescription: nil)
 
             // Callback
             let callback: FSEventStreamCallback = { (_streamRef, clientCallBackInfo, numEvents, eventPaths, eventFlags, eventIds) in
@@ -103,7 +108,7 @@ public final class FSEventsStoreWatcher: StoreWatching, @unchecked Sendable {
 
             let flags = FSEventStreamCreateFlags(kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagNoDefer)
 
-            let stream = FSEventStreamCreate(kCFAllocatorDefault, callback, info, paths, FSEventStreamEventId(kFSEventStreamEventIdSinceNow), 0, flags)
+            let stream = FSEventStreamCreate(kCFAllocatorDefault, callback, &context, paths, FSEventStreamEventId(kFSEventStreamEventIdSinceNow), 0, flags)
             guard let stream = stream else { return }
 
             // Set dispatch queue; the callback will now be invoked on `queue`.

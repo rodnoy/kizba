@@ -135,3 +135,12 @@ Next immediate action after C.1: C.2
 - Date: 2026-05-10
 
 Short note: Stabilized FakeStoreWatcherTests by registering XCTestExpectation signals from subscriber Tasks to ensure continuations are present before simulateChange() is invoked. Tests now use async expectation helpers (`fulfillment(of:timeout:)`) and call start/stop appropriately.
+
+### C.3 — FSEventsStoreWatcher — COMPLETED
+
+- Commit: 9505f54
+- Date: 2026-05-10
+
+Added `Kizba/Infrastructure/Store/FSEventsStoreWatcher.swift` (actor-backed FSEvents watcher with DispatchQueue confinement, debounced emits) and opt-in test `KizbaTests/FSEventsStoreWatcherTests.swift` (skipped by default). Build verification passed: full suite 708 tests, 9 skipped, 0 failures.
+
+Next immediate action after C.3: C.4
