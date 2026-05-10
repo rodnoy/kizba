@@ -161,4 +161,10 @@ Next immediate action after C.4: C.5
 - Date: 2026-05-10
 - Notes: `AppEnvironment.live()` now instantiates `FSEventsStoreWatcher()` and passes it into `LivePassManager(..., storeWatcher:)`. Previews and tests that use `preview()` keep existing behaviour (no watcher injected).
 
-Next immediate action: C.7
+Next immediate action: C.7 — Phase C regression (verification)
+
+### C.7 — Phase C regression — IN PROGRESS
+
+Planned verification: run full test suite and opt-in FSEvents smoke; ensure grep bans hold. Local run performed — full suite PASSED. See .ai/build-log.md for condensed results.
+
+When Phase C regression completes: mark C.7 — COMPLETED and set next action to D.1.
