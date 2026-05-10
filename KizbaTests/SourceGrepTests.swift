@@ -493,8 +493,10 @@ final class SourceGrepTests: XCTestCase {
         // Record skipped files as an XCTContext note for visibility.
         if !skipped.isEmpty {
             let msg = "Skipped (allow-list) Presentation files:\n" + skipped.joined(separator: "\n")
-            XCTContext.runActivity(named: "Presentation sheet-init allow-list") { _ in
-                XCTFail(msg) // Use XCTFail so the output is visible in xcodebuild logs as a note
+            XCTContext.runActivity(named: "Presentation sheet-init allow-list") { activity in
+                let attachment = XCTAttachment(string: msg)
+                attachment.lifetime = .keepAlways
+                activity.add(attachment)
             }
         }
 
