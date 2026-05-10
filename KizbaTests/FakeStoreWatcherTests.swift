@@ -33,12 +33,12 @@ final class FakeStoreWatcherTests: XCTestCase {
         }
 
         // Wait until the subscriber task has started and registered.
-        wait(for: [ready], timeout: 0.5)
+        await fulfillment(of: [ready], timeout: 0.5)
 
         await watcher.start(at: tmp)
         watcher.simulateChange()
 
-        wait(for: [observed], timeout: 1.0)
+        await fulfillment(of: [observed], timeout: 1.0)
 
         task.cancel()
         await watcher.stop()
@@ -70,12 +70,12 @@ final class FakeStoreWatcherTests: XCTestCase {
         }
 
         // Ensure both subscribers have started and registered their continuations
-        wait(for: [ready1, ready2], timeout: 0.5)
+        await fulfillment(of: [ready1, ready2], timeout: 0.5)
 
         await watcher.start(at: tmp)
         watcher.simulateChange()
 
-        wait(for: [observed1, observed2], timeout: 1.0)
+        await fulfillment(of: [observed1, observed2], timeout: 1.0)
 
         t1.cancel()
         t2.cancel()
