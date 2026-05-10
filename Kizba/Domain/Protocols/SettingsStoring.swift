@@ -98,6 +98,8 @@ public enum SettingsKeys {
     public nonisolated static let gpgBinaryOverride = "gpgBinaryOverride"
     public nonisolated static let pinentryBinaryOverride = "pinentryBinaryOverride"
     public nonisolated static let clipboardClearDelaySeconds = "clipboardClearDelaySeconds"
+    /// Toggle that requires biometric authentication on each password reveal.
+    public nonisolated static let touchIDPerRevealEnabled = "touchIDPerRevealEnabled"
     /// When true, require biometric authentication (Touch ID / Face ID)
     /// for each password reveal in the detail view.
     public nonisolated static let touchIDPerRevealEnabled = "touchIDPerRevealEnabled"

@@ -6,7 +6,7 @@ final class EntryDetailModelBiometricRevealTests: XCTestCase {
 
     func makeModel(settings: any SettingsStoring = AppEnvironment.InMemorySettingsStore(), biometric: (any BiometricAuthenticating)? = nil) -> EntryDetailModel {
         let env = AppEnvironment(
-            passManager: NullPassManager(),
+            passManager: MockPassManager.preview(),
             clipboard: FakeClipboardServicing(),
             settings: settings,
             passwordGenerator: LivePasswordGenerator(),

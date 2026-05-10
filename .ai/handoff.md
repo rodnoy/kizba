@@ -197,7 +197,9 @@ D.6 — Audit doc updates — COMPLETED
 
 **E.1 — Phase E (Touch ID per-reveal gate) — COMPLETED**
 
-Next immediate action: E.2 — Phase E (infrastructure hookup & wiring)
+E.2 — LocalAuthBiometricAuthenticator — COMPLETED
+
+Next immediate action: E.3 — Phase E (wiring into AppEnvironment)
 
 ### D.3 verification
 

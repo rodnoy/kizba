@@ -1,516 +1,173 @@
-# E.1 — BiometricAuthenticating Domain Protocol
+# E.3 — Settings + Injection for Touch ID Per-Reveal
 
 ## Goal
 
-Add a pure domain protocol `BiometricAuthenticating` with associated enums (`BiometricAvailability`, `BiometricUnavailableReason`, `BiometricResult`, `BiometricFailureReason`) to `Kizba/Domain/Protocols/`. No `LocalAuthentication` import. All types `Sendable` and `Equatable`.
+Add a persistent Bool setting `requireBiometricReveal` (default `false`), inject `BiometricAuthenticating` into `AppEnvironment`, and gate password reveal in `EntryDetailModel` behind biometric auth when the setting is enabled. Deterministic tests via `FakeBiometricAuthenticator`.
 
 ## Constraints
 
 - Zero third-party dependencies.
-- No `import LocalAuthentication` in the protocol file.
-- No `LAError` or any LA type exposure.
-- All enums and protocol: `Sendable, Equatable` (protocol inherits `Sendable`; enums conform to both).
+- No `as!`, no stdin logging (existing grep bans).
+- Code/comments/commits in English.
+- Never call `LAContext.evaluatePolicy` in tests.
+- Follow existing patterns: `SettingsKeys` constants, `AppEnvironment` manual DI, `InMemorySettingsStore` for tests.
 - `SWIFT_STRICT_CONCURRENCY = complete`.
-- All code/comments in English.
-- Protocol lives in `Domain/Protocols/` per architecture decision.
 
 ## Tasks
 
-### Task 1 — Create BiometricAuthenticating.swift
+### Task 1 — Add `requireBiometricReveal` setting key + default
 
-- **Objective:** Define the protocol and all 4 supporting enums in a single file.
-- **File to add:** `Kizba/Domain/Protocols/BiometricAuthenticating.swift`
-- **Public API:**
+- **Objective:** Register the new Bool key in `SettingsKeys` with default `false`.
+- **Files to modify:**
+  - `Kizba/Domain/Protocols/SettingsStoring.swift` — add `public nonisolated static let requireBiometricReveal = "requireBiometricReveal"` and `public nonisolated static let defaultRequireBiometricReveal: Bool = false` to `SettingsKeys`.
+  - `Kizba/Infrastructure/Settings/UserDefaultsSettingsStore.swift` — register the default in `init()` alongside the existing `clipboardClearDelaySeconds` registration.
+- **Why minimal:** Two single-line additions to existing enum + one line in existing init.
+- **Verification:** Project compiles. `rg 'requireBiometricReveal' Kizba/` shows exactly the expected files.
+- **Commit:** `feat(mvp3): add requireBiometricReveal settings key (E.3.1)`
+
+### Task 2 — Add `FakeBiometricAuthenticator` test fixture
+
+- **Objective:** Shared test double for `BiometricAuthenticating` that returns configurable results without touching LocalAuthentication.
+- **File to add:** `KizbaTests/Fixtures/FakeBiometricAuthenticator.swift`
+- **Core shape:**
   ```swift
-  // BiometricAuthenticating.swift
-  // Kizba
+  // Deterministic BiometricAuthenticating double for unit tests.
+  // Never calls LAContext — safe for CI.
+  struct FakeBiometricAuthenticator: BiometricAuthenticating {
+      var availability: BiometricAvailability = .available
+      var authResult: BiometricResult = .success
 
-  import Foundation
-
-  // MARK: - Enums
-
-  enum BiometricUnavailableReason: Sendable, Equatable {
-      case notEnrolled
-      case hardwareUnavailable
-      case passcodeNotSet
-      case userDisabled
-      case unknown
-  }
-
-  enum BiometricAvailability: Sendable, Equatable {
-      case available
-      case unavailable(BiometricUnavailableReason)
-  }
-
-  enum BiometricFailureReason: Sendable, Equatable {
-      case userFailed
-      case systemCancel
-      case appCancel
-      case invalidContext
-      case unknown
-  }
-
-  enum BiometricResult: Sendable, Equatable {
-      case success
-      case cancelled
-      case failed(BiometricFailureReason)
-  }
-
-  // MARK: - Protocol
-
-  protocol BiometricAuthenticating: Sendable {
-      func isAvailable() -> BiometricAvailability
-      func authenticate(reason: String) async -> BiometricResult
+      func isAvailable() -> BiometricAvailability { availability }
+      func authenticate(reason: String) async -> BiometricResult { authResult }
   }
   ```
-- **Concurrency notes:**
-  - Protocol inherits `Sendable` — conforming types must be actors or `Sendable` structs/classes.
-  - `authenticate(reason:)` is `async` (not throwing) — errors mapped to `BiometricResult.failed(...)` by implementations.
-  - `isAvailable()` is synchronous — implementations cache or query cheaply.
-- **Verification:** Project compiles (`xcodebuild build`). No `LocalAuthentication` import in file.
-- **Risks:** None. Additive file, no existing code touched.
+- **Why minimal:** Single file, no production code touched.
+- **Verification:** Project compiles.
+- **Commit:** `test: add FakeBiometricAuthenticator fixture (E.3.2)`
 
-### Task 2 — Add BiometricAuthenticatingTests.swift
+### Task 3 — Inject `BiometricAuthenticating` into `AppEnvironment`
 
-- **Objective:** Compile-time and deterministic runtime tests proving enums are Equatable, protocol is conformable by a fake.
-- **File to add:** `KizbaTests/BiometricAuthenticatingTests.swift`
-- **Test class:** `BiometricAuthenticatingTests`
-- **Test methods:**
-  1. `testEnumsAreEquatable` — assert equality/inequality for each enum (e.g., `.available == .available`, `.unavailable(.notEnrolled) != .unavailable(.hardwareUnavailable)`, `.success != .cancelled`, `.failed(.userFailed) == .failed(.userFailed)`).
-  2. `testFakeCanConformToProtocol` — define a private `FakeBiometricAuth: BiometricAuthenticating` struct inside the test, call both methods, assert expected return values.
-  3. `testAllUnavailableReasonsDistinct` — put all 5 `BiometricUnavailableReason` cases in an array, assert `Set(array).count == 5` (requires Hashable — if not Hashable, use pairwise `!=` assertions instead; enums with no associated values auto-synthesize Hashable when Equatable, so Set works for the leaf enum).
-- **Verification:** `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/BiometricAuthenticatingTests` — 3 tests, 0 failures.
-- **Risks:** None. Pure value types, no concurrency in tests.
-
-### Task 3 — Add SourceGrepTests rule for no LocalAuthentication import
-
-- **Objective:** Prevent `import LocalAuthentication` from appearing in `Kizba/Domain/`.
-- **File to modify:** `KizbaTests/SourceGrepTests.swift`
-- **New test method:** `testNoLocalAuthenticationImportInDomain`
-- **Logic:** Scan all `.swift` files under `Kizba/Domain/` for regex `import\s+LocalAuthentication`; assert zero matches.
-- **Verification:** `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/SourceGrepTests/testNoLocalAuthenticationImportInDomain` — 1 test, 0 failures.
-- **Risks:** None. Additive grep rule.
-
-### Task 4 — Verify no regressions
-
-- **Objective:** Full suite green.
-- **Verification:**
-  - Focused: `xcodebuild test ... -only-testing:KizbaTests/BiometricAuthenticatingTests`
-  - SourceGrepTests: `xcodebuild test ... -only-testing:KizbaTests/SourceGrepTests`
-  - Full suite: `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'` — 0 failures
-- **Success criteria:** All existing tests pass + 4 new tests (3 biometric + 1 grep rule).
-- **Risks:** None.
-
-## Commit message
-
-```
-feat(mvp3): add BiometricAuthenticating domain protocol (E.1)
-
-Introduce BiometricAuthenticating protocol and supporting enums
-(BiometricAvailability, BiometricResult, BiometricUnavailableReason,
-BiometricFailureReason) in Domain/Protocols/. All Sendable + Equatable.
-No LocalAuthentication import — LA coupling stays in Infrastructure.
-Three new tests + one SourceGrepTests rule.
-```
-
-## Suggested current step
-
-Tasks 1–3 in a single pass. Task 4 is verification only.
-
----
-
-# D.2 — KeyValueEditor Accessibility Improvements
-
-## Goal
-
-Add per-row accessibility grouping to `KeyValueEditor` so VoiceOver treats each key/value/remove-button row as a single coherent element. Add a testable pure helper for the row label string and a deterministic unit test.
-
-## Constraints
-
-- Zero third-party dependencies.
-- No refactoring of unrelated code.
-- Inline styling banned in Presentation outside DesignSystem (this change IS in DesignSystem — OK).
-- All code/comments/commits in English.
-- `SWIFT_STRICT_CONCURRENCY = complete`.
-- Follow D.1 pattern: extract a `static` pure helper for testability; test the helper, not the view.
-
-## Tasks
-
-### Task 1 — Add accessibility modifiers to each row + extract static helper
-
-- **Objective:** VoiceOver groups each metadata row (key field, value field, remove button) as one element and announces "Field row 1", "Field row 2", etc.
-- **Files to modify:** `Kizba/Presentation/DesignSystem/Components/KeyValueEditor.swift`
+- **Objective:** Add an optional `biometricAuth` property to `AppEnvironment`. Wire `LocalAuthBiometricAuthenticator()` in `live()`, `nil` in `preview()`.
+- **File to modify:** `Kizba/App/AppEnvironment.swift`
 - **Changes:**
-  1. Change `ForEach(pairs)` to `ForEach(Array(pairs.enumerated()), id: \.element.id)` (or equivalent) to get the index.
-  2. On the `HStack` returned by `row(for:)`, add:
-     - `.accessibilityElement(children: .contain)`
-     - `.accessibilityLabel(KeyValueEditor.rowAccessibilityLabel(index: index))`
-  3. Update `row(for:)` signature to accept `index: Int` alongside `pair: Pair`.
-  4. Add a static pure helper in a `// MARK: - Pure helpers` section:
+  1. Add property: `let biometricAuth: (any BiometricAuthenticating)?`
+  2. Add parameter to `init`: `biometricAuth: (any BiometricAuthenticating)? = nil` (default nil keeps all existing call sites compiling).
+  3. In `live()`: pass `biometricAuth: LocalAuthBiometricAuthenticator()` to the constructor (add to the return statement).
+  4. In `preview()`: omit (defaults to nil).
+- **Why minimal:** One new stored property + one init parameter with default + one line in `live()`. All existing test/preview constructions compile unchanged due to default `nil`.
+- **Verification:** Project compiles. `rg 'biometricAuth' Kizba/App/AppEnvironment.swift` shows the new wiring.
+- **Commit:** `feat(mvp3): inject BiometricAuthenticating into AppEnvironment (E.3.3)`
+
+### Task 4 — Gate password reveal in `EntryDetailModel`
+
+- **Objective:** When `requireBiometricReveal` is `true` AND biometric auth is available, intercept the reveal toggle via a new async method `requestReveal()`. If auth succeeds, set `isPasswordRevealed = true`. If it fails/cancels, leave it `false`.
+- **File to modify:** `Kizba/Presentation/Features/EntryDetail/EntryDetailModel.swift`
+- **Changes:**
+  1. Add method:
      ```swift
-     static func rowAccessibilityLabel(index: Int) -> String {
-         "Field row \(index + 1)"
-     }
-     ```
-- **Implementation notes:**
-  - The `index` parameter to `rowAccessibilityLabel` is 0-based; the helper adds 1 for the human-readable label. This matches the plan's `\(index + 1)` spec.
-  - `ForEach(Array(pairs.enumerated()), id: \.element.id)` is the idiomatic SwiftUI pattern for index+element iteration with stable identity. Alternative: `ForEach(pairs.indices, id: \.self)` with `pairs[index]` — but `.element.id` is safer for identity stability during reorder/delete.
-  - No behavior change to existing functionality (add/remove/edit pairs).
-- **Verification:** Project compiles. Existing tests pass.
-- **Risks:** None. Additive-only modifiers. `enumerated()` + `Array` is a trivial O(n) copy; metadata lists are small (< 50 rows).
+     /// Attempt to reveal the password, gated by the biometric
+     /// setting. When the setting is off or biometrics unavailable,
+     /// reveals immediately. Otherwise prompts for biometric auth
+     /// and reveals only on success.
+     func requestReveal() async {
+         guard !isPasswordRevealed else { return }
 
-### Task 2 — Add unit test for `rowAccessibilityLabel`
+         let requireBio = environment.settings
+             .value(for: SettingsKey<Bool>(SettingsKeys.requireBiometricReveal))
+             ?? SettingsKeys.defaultRequireBiometricReveal
 
-- **Objective:** Deterministic test proving the label string is correct for representative indices.
-- **Files to add:** `KizbaTests/KeyValueEditorAccessibilityTests.swift`
-- **Test method:** `testRowAccessibilityLabel_returnsOneIndexedString`
-- **Test body:**
-  ```swift
-  import XCTest
-  @testable import Kizba
+         guard requireBio,
+               let auth = environment.biometricAuth,
+               auth.isAvailable() == .available
+         else {
+             isPasswordRevealed = true
+             return
+         }
 
-  final class KeyValueEditorAccessibilityTests: XCTestCase {
-      func testRowAccessibilityLabel_returnsOneIndexedString() {
-          XCTAssertEqual(KeyValueEditor.rowAccessibilityLabel(index: 0), "Field row 1")
-          XCTAssertEqual(KeyValueEditor.rowAccessibilityLabel(index: 1), "Field row 2")
-          XCTAssertEqual(KeyValueEditor.rowAccessibilityLabel(index: 9), "Field row 10")
-      }
-  }
-  ```
-- **Verification:** `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/KeyValueEditorAccessibilityTests` — 1 test, 0 failures.
-- **Risks:** None. Pure function, no concurrency, no UI dependencies.
-
-### Task 3 — Verify no regressions
-
-- **Objective:** Full suite green.
-- **Files to modify:** None.
-- **Verification:**
-  - Focused: `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/KeyValueEditorAccessibilityTests`
-  - SourceGrepTests: `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/SourceGrepTests`
-  - Full suite: `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'` — all pass, 0 failures
-- **Success criteria:** Test count ≥ 716 (715 baseline + 1 new), 0 failures.
-- **Risks:** None.
-
-## Concurrency Notes
-
-No concurrency concerns. `KeyValueEditor` is a plain SwiftUI `View` struct. The new static helper is a pure function. No actor boundaries crossed.
-
-## Commit message
-
-```
-feat(a11y): KeyValueEditor per-row accessibility grouping (D.2)
-
-Each metadata row is now an accessibility container with label
-"Field row N" so VoiceOver groups key/value/remove coherently.
-Extracted rowAccessibilityLabel(index:) static helper; one new
-test in KeyValueEditorAccessibilityTests.
-```
-
-## Suggested current step
-
-Tasks 1 and 2 can be done together (single edit pass). Task 3 is verification only.
-
----
-
-# E.2 — LocalAuthBiometricAuthenticator
-
-## Goal
-
-Add the production `LocalAuthentication`-backed implementation of `BiometricAuthenticating`. The class lives in `Infrastructure/Auth/` and maps all `LAError` codes to the domain enums declared in E.1. No `LAError` or `LAContext` type leaks into the public API.
-
-## Constraints
-
-- Zero third-party dependencies.
-- `import LocalAuthentication` only in the Infrastructure file, never in Domain.
-- All `LAError` codes mapped to domain enums; no `LAError` in public API.
-- `SWIFT_STRICT_CONCURRENCY = complete`.
-- All code/comments in English.
-- Protocol file in `Domain/Protocols/` is NOT modified.
-
-## Tasks
-
-### Task 1 — Create LocalAuthBiometricAuthenticator.swift
-
-- **Objective:** Production implementation conforming to `BiometricAuthenticating`.
-- **File to add:** `Kizba/Infrastructure/Auth/LocalAuthBiometricAuthenticator.swift`
-- **Class declaration:**
-  ```swift
-  import Foundation
-  import LocalAuthentication
-
-  final class LocalAuthBiometricAuthenticator: BiometricAuthenticating, @unchecked Sendable {
-      // No stored state. LAContext created per-call.
-  }
-  ```
-- **`@unchecked Sendable` rationale:** The class has no mutable stored properties. `LAContext` is created fresh per method call (stack-local), never shared. The class is safe to use from any isolation domain.
-
-- **Method: `isAvailable() -> BiometricAvailability`**
-  1. Create a fresh `LAContext()`.
-  2. Call `context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)`.
-  3. If `true`, return `.available`.
-  4. If `false`, map the `NSError` via a static helper `mapUnavailableReason(_:)` and return `.unavailable(reason)`.
-
-- **Method: `authenticate(reason: String) async -> BiometricResult`**
-  1. Create a fresh `LAContext()`.
-  2. Use `withCheckedContinuation` to bridge `evaluatePolicy(_:localizedReason:reply:)`:
-     ```swift
-     let result = await withCheckedContinuation { continuation in
-         context.evaluatePolicy(
-             .deviceOwnerAuthenticationWithBiometrics,
-             localizedReason: reason
-         ) { success, error in
-             if success {
-                 continuation.resume(returning: BiometricResult.success)
-             } else if let error = error as? LAError {
-                 continuation.resume(returning: Self.mapAuthError(error))
-             } else {
-                 continuation.resume(returning: .failed(.unknown))
-             }
+         let result = await auth.authenticate(reason: "Reveal password")
+         if result == .success {
+             isPasswordRevealed = true
          }
      }
-     return result
      ```
-  3. Return the result.
+- **Why minimal:** One new method. Does NOT change `isPasswordRevealed` property visibility or `SecretRevealField`. The view layer will call this method instead of directly toggling the binding.
+- **Verification:** Project compiles.
+- **Commit:** `feat(mvp3): gate password reveal behind biometric auth (E.3.4)`
 
-- **Static mapping helpers (internal visibility for testability):**
+### Task 5 — Wire `requestReveal()` in `EntryDetailView`
 
-  1. `static func mapUnavailableReason(_ error: NSError?) -> BiometricUnavailableReason`
-     - `nil` → `.unknown`
-     - Cast to `LAError`, then switch on `.code`:
-       - `.biometryNotEnrolled` → `.notEnrolled`
-       - `.biometryNotAvailable` → `.hardwareUnavailable`
-       - `.passcodeNotSet` → `.passcodeNotSet`
-       - `.biometryLockout` → `.userDisabled`
-       - `default` → `.unknown`
-
-  2. `static func mapAuthError(_ error: LAError) -> BiometricResult`
-     - Switch on `error.code`:
-       - `.userCancel` → `.cancelled`
-       - `.authenticationFailed` → `.failed(.userFailed)`
-       - `.systemCancel` → `.failed(.systemCancel)`
-       - `.appCancel` → `.failed(.appCancel)`
-       - `.invalidContext` → `.failed(.invalidContext)`
-       - `default` → `.failed(.unknown)`
-
-- **Concurrency notes:**
-  - `LAContext` is created on the stack per call. No shared mutable state.
-  - `withCheckedContinuation` (not `withCheckedThrowingContinuation`) because the method is non-throwing; errors are mapped to `BiometricResult`.
-  - The `reply` closure from `evaluatePolicy` is called on an arbitrary queue by LocalAuthentication; `withCheckedContinuation` handles the hop back.
-
-- **Verification:** Project compiles. `rg 'LAError|LAContext' Kizba/Domain/` returns zero matches.
-- **Risks:** None. Additive file, no existing code touched.
-
-### Task 2 — Add LocalAuthBiometricAuthenticatorTests.swift
-
-- **Objective:** Test the two static mapping helpers exhaustively using `NSError` construction. Do NOT test `isAvailable()` or `authenticate()` directly (they require a real Secure Enclave).
-- **File to add:** `KizbaTests/LocalAuthBiometricAuthenticatorTests.swift`
-- **Test class:** `LocalAuthBiometricAuthenticatorTests`
-- **Test methods:**
-
-  1. `testMapUnavailableReason_nil_returnsUnknown`
-     - `XCTAssertEqual(LocalAuthBiometricAuthenticator.mapUnavailableReason(nil), .unknown)`
-
-  2. `testMapUnavailableReason_biometryNotEnrolled_returnsNotEnrolled`
-     - Construct `NSError(domain: LAError.errorDomain, code: LAError.Code.biometryNotEnrolled.rawValue)`
-     - Assert `.notEnrolled`
-
-  3. `testMapUnavailableReason_biometryNotAvailable_returnsHardwareUnavailable`
-     - Code: `.biometryNotAvailable.rawValue` → `.hardwareUnavailable`
-
-  4. `testMapUnavailableReason_passcodeNotSet_returnsPasscodeNotSet`
-     - Code: `.passcodeNotSet.rawValue` → `.passcodeNotSet`
-
-  5. `testMapUnavailableReason_biometryLockout_returnsUserDisabled`
-     - Code: `.biometryLockout.rawValue` → `.userDisabled`
-
-  6. `testMapUnavailableReason_unknownCode_returnsUnknown`
-     - Code: `9999` → `.unknown`
-
-  7. `testMapAuthError_userCancel_returnsCancelled`
-     - `LAError(.userCancel)` → `.cancelled`
-
-  8. `testMapAuthError_authenticationFailed_returnsFailedUserFailed`
-     - `LAError(.authenticationFailed)` → `.failed(.userFailed)`
-
-  9. `testMapAuthError_systemCancel_returnsFailedSystemCancel`
-     - `LAError(.systemCancel)` → `.failed(.systemCancel)`
-
-  10. `testMapAuthError_appCancel_returnsFailedAppCancel`
-      - `LAError(.appCancel)` → `.failed(.appCancel)`
-
-  11. `testMapAuthError_invalidContext_returnsFailedInvalidContext`
-      - `LAError(.invalidContext)` → `.failed(.invalidContext)`
-
-  12. `testMapAuthError_unknownCode_returnsFailedUnknown`
-      - `LAError(.notInteractive)` (arbitrary non-mapped code) → `.failed(.unknown)`
-
-- **NSError construction pattern for `mapUnavailableReason` tests:**
+- **Objective:** Replace the direct `$model.isPasswordRevealed` binding on the reveal toggle with a custom binding that calls `requestReveal()` on the true→reveal transition.
+- **File to modify:** `Kizba/Presentation/Features/EntryDetail/EntryDetailView.swift`
+- **Change:** Replace `isRevealed: $model.isPasswordRevealed` with a proxy `Binding<Bool>`:
   ```swift
-  let error = NSError(domain: LAError.errorDomain, code: LAError.Code.biometryNotEnrolled.rawValue)
-  XCTAssertEqual(
-      LocalAuthBiometricAuthenticator.mapUnavailableReason(error),
-      .notEnrolled
-  )
-  ```
-
-- **LAError construction pattern for `mapAuthError` tests:**
-  ```swift
-  XCTAssertEqual(
-      LocalAuthBiometricAuthenticator.mapAuthError(LAError(.userCancel)),
-      .cancelled
-  )
-  ```
-
-- **Verification:** `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/LocalAuthBiometricAuthenticatorTests` — 12 tests, 0 failures.
-- **Risks:** None. Pure function tests, no Secure Enclave interaction.
-
-### Task 3 — Verify no regressions
-
-- **Objective:** Full suite green, SourceGrepTests pass (including E.1's `testNoLocalAuthenticationImportInDomain`).
-- **Verification:**
-  - Focused: `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/LocalAuthBiometricAuthenticatorTests`
-  - SourceGrepTests: `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/SourceGrepTests`
-  - Full suite: `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'` — 0 failures
-- **Success criteria:** All existing tests pass + 12 new tests. SourceGrepTests `testNoLocalAuthenticationImportInDomain` still green (import is in Infrastructure, not Domain).
-- **Risks:** None.
-
-## Concurrency & Ownership Notes
-
-- **LAContext per-call:** Every call to `isAvailable()` and `authenticate(reason:)` creates a fresh `LAContext()`. No `LAContext` is stored as a property. This avoids invalidation issues (LAContext becomes invalid after use) and eliminates shared mutable state.
-- **`@unchecked Sendable`:** Justified because the class has zero stored properties. If stored properties are ever added, this must be revisited.
-- **`withCheckedContinuation`:** Used (not `withCheckedThrowingContinuation`) because the protocol method is non-throwing. The continuation is resumed exactly once in all code paths (success, LAError, unexpected error).
-- **No `Task` spawning:** The `evaluatePolicy` callback-based API is bridged directly via continuation. No detached tasks needed.
-
-## Commit message
-
-```
-feat(mvp3): add LocalAuthBiometricAuthenticator (E.2)
-
-Production BiometricAuthenticating implementation using
-LocalAuthentication framework. LAContext created per-call;
-LAError codes mapped to domain enums via static helpers.
-12 mapping tests covering all error code branches.
-```
-
-## Suggested current step
-
-Tasks 1 and 2 in a single pass. Task 3 is verification only.
-
----
-
-# D.3 — FormFieldRow Dynamic Type Vertical Layout
-
-## Goal
-
-When the user's Dynamic Type size is `.accessibility1` or larger, `FormFieldRow` switches from a horizontal layout (label | control) to a vertical layout (label above control) so content is not clipped or truncated. Extract a testable pure helper for the layout decision.
-
-## Constraints
-
-- Zero third-party dependencies.
-- Inline styling banned in Presentation outside DesignSystem (this change IS in DesignSystem — OK).
-- All code/comments/commits in English.
-- `SWIFT_STRICT_CONCURRENCY = complete`.
-- Follow D.1/D.2 pattern: extract a `static` pure helper; test the helper, not the view.
-- Preserve existing behavior for all non-accessibility Dynamic Type sizes.
-
-## Tasks
-
-### Task 1 — Extract static helper + update body layout
-
-- **Objective:** `FormFieldRow` reads `@Environment(\.dynamicTypeSize)` and uses a vertical `VStack(alignment: .leading)` layout (label on top, control below) when `dynamicTypeSize >= .accessibility1`. For smaller sizes, the existing `HStack` layout is preserved unchanged.
-- **Files to modify:** `Kizba/Presentation/DesignSystem/Components/FormFieldRow.swift`
-- **Changes:**
-  1. Add `@Environment(\.dynamicTypeSize) private var dynamicTypeSize` to `FormFieldRow`.
-  2. Add a `// MARK: - Pure helpers` section with:
-     ```swift
-     static func shouldUseVerticalLayout(_ size: DynamicTypeSize) -> Bool {
-         size >= .accessibility1
-     }
-     ```
-  3. In `body`, branch on `Self.shouldUseVerticalLayout(dynamicTypeSize)`:
-     - **Vertical path** (`true`): Replace the `HStack` with a `VStack(alignment: .leading, spacing: theme.spacing.xs)` containing:
-       - `Text(label)` — same font/color, but NO fixed width, alignment `.leading`, `accessibilityHidden(true)`.
-       - `control()` — `frame(maxWidth: .infinity, alignment: .leading)`, `.accessibilityLabel(label)`.
-     - **Horizontal path** (`false`): Existing `HStack` code unchanged.
-  4. In `helperText(_:color:)`, when vertical layout is active, drop the leading `Spacer` (no label column to align with) — helper text starts at leading edge.
-- **Implementation notes:**
-  - `DynamicTypeSize` conforms to `Comparable` in SwiftUI (macOS 14+), so `>=` works directly.
-  - The outer `VStack` wrapping error/help text stays as-is in both paths.
-  - The `formFieldRowLabelWidth` private constant is still used in the horizontal path; no change needed.
-- **Verification:** Project compiles. Existing tests pass. Visual check: in Xcode preview, set Dynamic Type to `.accessibility1` and confirm vertical layout.
-- **Risks:** Low. Additive branching; horizontal path is byte-for-byte identical to current code.
-
-### Task 2 — Add unit test for `shouldUseVerticalLayout`
-
-- **Objective:** Deterministic test proving the helper returns `true` for accessibility sizes and `false` for standard sizes.
-- **Files to add:** `KizbaTests/FormFieldRowAccessibilityTests.swift`
-- **Test class:** `FormFieldRowAccessibilityTests`
-- **Test methods:**
-  1. `testShouldUseVerticalLayout_standardSizes_returnsFalse` — assert `false` for `.xSmall`, `.small`, `.medium`, `.large`, `.xLarge`, `.xxLarge`, `.xxxLarge`.
-  2. `testShouldUseVerticalLayout_accessibilitySizes_returnsTrue` — assert `true` for `.accessibility1`, `.accessibility2`, `.accessibility3`, `.accessibility4`, `.accessibility5`.
-- **Test body sketch:**
-  ```swift
-  import XCTest
-  import SwiftUI
-  @testable import Kizba
-
-  final class FormFieldRowAccessibilityTests: XCTestCase {
-      func testShouldUseVerticalLayout_standardSizes_returnsFalse() {
-          let standard: [DynamicTypeSize] = [
-              .xSmall, .small, .medium, .large,
-              .xLarge, .xxLarge, .xxxLarge
-          ]
-          for size in standard {
-              XCTAssertFalse(
-                  FormFieldRow<EmptyView>.shouldUseVerticalLayout(size),
-                  "\(size) should use horizontal layout"
-              )
+  isRevealed: Binding(
+      get: { model.isPasswordRevealed },
+      set: { newValue in
+          if newValue {
+              Task { await model.requestReveal() }
+          } else {
+              model.isPasswordRevealed = false
           }
       }
-
-      func testShouldUseVerticalLayout_accessibilitySizes_returnsTrue() {
-          let accessibility: [DynamicTypeSize] = [
-              .accessibility1, .accessibility2, .accessibility3,
-              .accessibility4, .accessibility5
-          ]
-          for size in accessibility {
-              XCTAssertTrue(
-                  FormFieldRow<EmptyView>.shouldUseVerticalLayout(size),
-                  "\(size) should use vertical layout"
-              )
-          }
-      }
-  }
+  )
   ```
-- **Verification:** `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/FormFieldRowAccessibilityTests` — 2 tests, 0 failures.
-- **Risks:** None. Pure function, no concurrency, no UI dependencies. `FormFieldRow<EmptyView>` is the canonical way to reference the static method on a generic type.
+- **Why minimal:** ~6 lines changed in one call site. `SecretRevealField` is NOT modified. The hide direction (true→false) remains instant. `NewEntrySheet` and `EditEntrySheet` are NOT affected (they use local `@State` — no biometric gate needed for entries being created/edited).
+- **Verification:** Project compiles.
+- **Commit:** `feat(mvp3): wire biometric reveal gate in EntryDetailView (E.3.5)`
 
-### Task 3 — Verify no regressions
+### Task 6 — Add `requireBiometricReveal` to `SettingsModel` + `SettingsView`
 
-- **Objective:** Full suite green.
+- **Objective:** Expose the toggle in the Settings UI so the user can enable/disable it.
+- **Files to modify:**
+  - `Kizba/Presentation/Features/Settings/SettingsModel.swift` — add `public var requireBiometricReveal: Bool` property, read in `init`, persist in `save()`, reset in `resetToDefaults()`.
+  - `Kizba/Presentation/Features/Settings/SettingsView.swift` — add a `Toggle` row in the Security section (or create one if absent).
+- **Why minimal:** Follows the exact pattern of `clipboardClearDelaySeconds` — read/save/reset cycle.
+- **Verification:** Project compiles. Settings window shows the toggle.
+- **Commit:** `feat(mvp3): add Touch ID per-reveal toggle to Settings (E.3.6)`
+
+### Task 7 — Add deterministic tests
+
+- **Objective:** Test `requestReveal()` logic without touching LocalAuthentication.
+- **File to add:** `KizbaTests/EntryDetailModelBiometricTests.swift`
+- **Test methods:**
+  1. `testRequestReveal_settingOff_revealsImmediately` — setting `false`, call `requestReveal()`, assert `isPasswordRevealed == true`.
+  2. `testRequestReveal_settingOn_biometricSuccess_reveals` — setting `true`, fake returns `.success`, assert revealed.
+  3. `testRequestReveal_settingOn_biometricCancelled_staysHidden` — setting `true`, fake returns `.cancelled`, assert NOT revealed.
+  4. `testRequestReveal_settingOn_biometricFailed_staysHidden` — setting `true`, fake returns `.failed(.userFailed)`, assert NOT revealed.
+  5. `testRequestReveal_settingOn_biometricUnavailable_revealsImmediately` — setting `true`, fake returns `.unavailable(...)` from `isAvailable()`, assert revealed (graceful fallback).
+  6. `testRequestReveal_settingOn_noBiometricInjected_revealsImmediately` — setting `true` but `biometricAuth` is `nil`, assert revealed.
+  7. `testRequestReveal_alreadyRevealed_noop` — already `true`, call again, assert still `true` (no auth prompt).
+- **Test setup pattern:**
+  ```swift
+  let settings = AppEnvironment.InMemorySettingsStore()
+  let fake = FakeBiometricAuthenticator(availability: .available, authResult: .success)
+  let env = AppEnvironment(
+      passManager: MockPassManager.preview(),
+      clipboard: ...,
+      settings: settings,
+      passwordGenerator: LivePasswordGenerator(),
+      biometricAuth: fake
+  )
+  let state = AppState(passManager: env.passManager)
+  let model = EntryDetailModel(environment: env, state: state)
+  // load an entry first, then test requestReveal()
+  ```
+- **Verification:** `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/EntryDetailModelBiometricTests` — 7 tests, 0 failures.
+- **Commit:** `test: deterministic biometric reveal gate tests (E.3.7)`
+
+### Task 8 — Full regression verification
+
+- **Objective:** Ensure no regressions.
 - **Files to modify:** None.
 - **Verification:**
-  - Focused: `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/FormFieldRowAccessibilityTests`
-  - SourceGrepTests: `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/SourceGrepTests`
-  - Full suite: `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'` — all pass, 0 failures
-- **Success criteria:** Test count ≥ 718 (716 baseline from D.2 + 2 new), 0 failures.
-- **Risks:** None.
-
-## Concurrency Notes
-
-No concurrency concerns. `FormFieldRow` is a plain SwiftUI `View` struct. The new static helper is a pure function. No actor boundaries crossed.
-
-## Commit message
-
-```
-feat(a11y): FormFieldRow vertical layout for accessibility sizes (D.3)
-
-When dynamicTypeSize >= .accessibility1, FormFieldRow switches from
-HStack(label, control) to VStack(alignment: .leading) so content is
-not clipped at large text sizes. Extracted shouldUseVerticalLayout(_:)
-static helper; two new tests in FormFieldRowAccessibilityTests.
-```
+  ```sh
+  xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+  rg -n '\bas!' Kizba/
+  rg -n 'Logger.*stdin|print\(.*stdin' Kizba/
+  ```
+- **Success criteria:** All tests pass, 0 failures, grep bans clean.
+- **Commit:** None (verification only). Update `.ai/handoff.md` and `.ai/build-log.md`.
 
 ## Suggested current step
 
-Tasks 1 and 2 can be done together (single edit pass). Task 3 is verification only.
+Tasks 1–3 first (settings key + fixture + DI wiring). Then Tasks 4–5 (model + view gate). Then Task 6 (Settings UI). Then Task 7 (tests). Task 8 is verification only.

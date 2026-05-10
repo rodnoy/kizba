@@ -41,6 +41,7 @@ public struct SettingsView: View {
                 generalSection
                 binariesSection
                 clipboardSection
+                securitySection
                 actionsSection
             }
             .padding(theme.spacing.lg)
