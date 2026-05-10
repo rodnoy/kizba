@@ -379,23 +379,9 @@ final class ConcurrentWriteLockoutTests: XCTestCase {
 
     // MARK: - Helpers
 
-    private func waitUntilEditing(
-        model: EntryFormModel,
-        timeout seconds: TimeInterval,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) async {
-        let deadline = Date().addingTimeInterval(seconds)
-        while Date() < deadline {
-            if model.state == .editing { return }
-            try? await Task.sleep(nanoseconds: 10_000_000)
-        }
-        XCTFail(
-            "Timed out waiting for .editing; last state \(model.state)",
-            file: file,
-            line: line
-        )
-    }
+    // Use shared waitUntil helper from Fixtures/AsyncTestHelpers.swift
+    // kept local wrapper removed — tests call the shared waitUntil
+    // directly for consistency.
 }
 
 // MARK: - Test fakes
