@@ -89,6 +89,7 @@ struct EntryListView: View {
                 // no other gate (it's always available otherwise).
                 .disabled(state.anyWriteInFlight)
                 .help("New Entry (⌘N)")
+                .accessibilityHint("Keyboard shortcut: ⌘N")
             }
             // Phase G.4 — ↔ Move Entry. Same enable rule as the
             // detail-side actions: a non-nil selection is required
@@ -105,6 +106,7 @@ struct EntryListView: View {
                 // write op is in flight (concurrent-write lockout).
                 .disabled(state.router.selectedEntryID == nil || state.anyWriteInFlight)
                 .help("Move Entry (⌘⇧M)")
+                .accessibilityHint("Keyboard shortcut: ⌘⇧M")
             }
             // Phase G.5 — 🗑 Delete Entry. Flips
             // `AppState.isDeleteConfirmationPresented`; the
@@ -127,6 +129,7 @@ struct EntryListView: View {
                 // would have nothing to do.
                 .disabled(model.canDelete == false || state.anyWriteInFlight)
                 .help("Delete Entry (⌫)")
+                .accessibilityHint("Keyboard shortcut: ⌫")
             }
             ToolbarItem {
                 Button {

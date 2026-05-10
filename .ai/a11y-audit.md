@@ -295,36 +295,36 @@ relevant accessibility features enabled.
   (sidebar folder role announcement).
 
 ### Medium — should consider for MVP 3
-- **`SecretRevealField` toggle state not exposed via trait.** The
-  reveal/hide button relabels itself (`"Reveal secret"` ↔ `"Hide secret"`)
-  but does not also expose `.accessibilityValue` or an "expanded"
-  trait. VoiceOver users who navigate by trait will not know the
-  current state from the rotor — only by reading the label.
-  (`Kizba/Presentation/DesignSystem/Components/SecretRevealField.swift:51-57`).
-- **`KeyValueEditor` rows not combined into single VoiceOver elements.**
-  Each row contains two `TextField`s plus a remove `Button`; VoiceOver
-  navigates them as three separate stops. A `.accessibilityElement(children: .contain)`
-  + custom label per row would group them, at the cost of losing
-  individual field focus. Today's behaviour is functionally correct
-  but verbose. (`Kizba/Presentation/DesignSystem/Components/KeyValueEditor.swift:54-72`).
-- **Editable cleartext password TextField in `NewEntrySheet`.** Uses a
+- [x] **`SecretRevealField` toggle state not exposed via trait.** The
+  reveal/hide button relabels itself ("Reveal secret" ↔ "Hide secret")
+  but did not expose `.accessibilityValue`. This was addressed by
+  adding an accessibilityValue helper and modifier (SecretRevealField.accessibilityValueText).
+  (D.1)
+- [x] **`KeyValueEditor` rows not combined into single VoiceOver elements.**
+  Each row contained two `TextField`s plus a remove `Button`; VoiceOver
+  navigated them as three separate stops. Per-row grouping + helper were
+  added to KeyValueEditor to combine rows into single accessibility elements.
+  (D.2)
+- [ ] **Editable cleartext password TextField in `NewEntrySheet`.** Uses a
   plain `TextField` (line 146), not a `SecureField`. Each character is
   read aloud as it is typed; users in public spaces should toggle
   VoiceOver verbosity or rely on the (missing) reveal/hide toggle on
   the editable field. Justified for create flow (user explicitly
   chose the value), but consider migrating to `SecureField` + a
   dedicated reveal toggle for parity with the read-only
-  `SecretRevealField`.
-- **`FormFieldRow` 140pt fixed label column does not scale with
+  `SecretRevealField`. — REMAINS OPEN (not addressed in D.1–D.5)
+- [x] **`FormFieldRow` 140pt fixed label column does not scale with
   Dynamic Type.** At "Larger Accessibility Size 5", long field labels
-  truncate inside the column rather than wrapping or growing.
-  (`Kizba/Presentation/DesignSystem/Components/FormFieldRow.swift:6,38`).
-- **Toolbar button announcements may not include keyboard shortcut.**
+  truncate inside the column rather than wrapping or growing. A vertical
+  layout for accessibility Dynamic Type sizes was added (FormFieldRow.shouldUseVerticalLayout).
+  (D.3)
+- [x] **Toolbar button announcements may not include keyboard shortcut.**
   The `.help(...)` tooltip contains the shortcut text ("New Entry
   (⌘N)") and SwiftUI on macOS is supposed to fold this into the
   VoiceOver utterance, but behaviour varies by VoiceOver verbosity
-  setting. Verify manually; if missed, consider adding an explicit
-  `.accessibilityHint("⌘N")` to each toolbar button.
+  setting. We added explicit `.accessibilityHint("Keyboard shortcut: …")`
+  to the write toolbar buttons so the shortcut is announced reliably.
+  (D.5)
 
 ### Low — backlog
 - **No `.accessibilityValue` on the password Stepper in

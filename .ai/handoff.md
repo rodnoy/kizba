@@ -182,9 +182,20 @@ D.2 — KeyValueEditor accessibility — COMPLETED
 
 Next immediate action: D.3 — Accessibility smoke & review
  
+
 D.3 — FormFieldRow Dynamic Type Vertical Layout — COMPLETED
 
 Next immediate action: D.4 — Accessibility sweep review
+
+### Phase D progress
+
+D.4 — Accessibility sweep review — COMPLETED
+
+D.5 — Toolbar accessibility hints — COMPLETED
+
+D.6 — Audit doc updates — COMPLETED
+
+Next immediate action: E.1 — Phase E (Touch ID per-reveal gate)
 
 ### D.3 verification
 

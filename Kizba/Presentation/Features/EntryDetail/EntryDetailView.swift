@@ -119,6 +119,7 @@ struct EntryDetailView: View {
                 // lockout).
                 .disabled(!canEditCurrentEntry || state.anyWriteInFlight)
                 .help("Edit Entry (⌘E)")
+                .accessibilityHint("Keyboard shortcut: ⌘E")
             }
             // Phase G.3 — 🎲 Regenerate Password. Same enable rule
             // as Edit (selection + loaded body). Toggles
@@ -135,6 +136,7 @@ struct EntryDetailView: View {
                 // lockout).
                 .disabled(!canEditCurrentEntry || state.anyWriteInFlight)
                 .help("Regenerate Password (⌘⌥G)")
+                .accessibilityHint("Keyboard shortcut: ⌘⌥G")
             }
         }
         // Build the regenerate model BEFORE presenting the sheet so
