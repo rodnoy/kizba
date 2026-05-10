@@ -78,9 +78,24 @@ struct EntryDetailView: View {
             case .loading:
                 LoadingPlaceholder()
             case .loaded(let secret):
+                // Intercept reveal attempts through a proxy binding that
+                // delegates the true->reveal transition to
+                // `model.requestReveal()` so biometric gating can happen
+                // at the model layer without changing `SecretRevealField`.
+                let revealBinding = Binding<Bool>(
+                    get: { model.isPasswordRevealed },
+                    set: { newValue in
+                        if newValue {
+                            Task { await model.requestReveal() }
+                        } else {
+                            model.isPasswordRevealed = false
+                        }
+                    }
+                )
+
                 LoadedSecretView(
                     secret: secret,
-                    isRevealed: $model.isPasswordRevealed,
+                    isRevealed: revealBinding,
                     onCopyPassword: { @Sendable in Task { await model.copyPassword() } },
                     // Per-field copy callbacks route through the
                     // model's typed copy methods so each post yields
