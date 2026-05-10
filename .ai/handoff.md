@@ -154,3 +154,11 @@ Next immediate action after C.4: C.5
 - Commit: feat(mvp3): integrate StoreWatching into LivePassManager (C.5)
 - Date: 2026-05-10
 - Notes: Added optional watcher injection, lazy start/stop on subscriber lifecycle, and tests using FakeStoreWatcher.
+
+### C.6 — Wire real FSEventsStoreWatcher into AppEnvironment.live — COMPLETED
+
+- Commit: 1480d37
+- Date: 2026-05-10
+- Notes: `AppEnvironment.live()` now instantiates `FSEventsStoreWatcher()` and passes it into `LivePassManager(..., storeWatcher:)`. Previews and tests that use `preview()` keep existing behaviour (no watcher injected).
+
+Next immediate action: C.7
