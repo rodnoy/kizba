@@ -1,6 +1,8 @@
 import XCTest
+import SwiftUI
 @testable import Kizba
 
+@MainActor
 final class EntryFormBodyTests: XCTestCase {
 
     func testHeaderAndFooterSlotsAreRendered() {
