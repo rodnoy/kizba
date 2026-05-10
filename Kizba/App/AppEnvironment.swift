@@ -58,6 +58,7 @@ struct AppEnvironment: Sendable {
         clipboard: any ClipboardServicing,
         settings: any SettingsStoring,
         passwordGenerator: any PasswordGenerating,
+        biometricAuth: (any BiometricAuthenticating)? = nil,
         passCLI: LivePassCLI? = nil,
         discovery: (any BinaryLocating)? = nil,
         invocationLog: InvocationLog? = nil
@@ -66,10 +67,17 @@ struct AppEnvironment: Sendable {
         self.clipboard = clipboard
         self.settings = settings
         self.passwordGenerator = passwordGenerator
+        self.biometricAuth = biometricAuth
         self.passCLI = passCLI
         self.discovery = discovery
         self.invocationLog = invocationLog
     }
+}
+
+extension AppEnvironment {
+    // Optional biometric authenticator injected for production
+    // wiring. `nil` in preview/test environments by default.
+    let biometricAuth: (any BiometricAuthenticating)?
 }
 
 // MARK: - Factories
@@ -146,6 +154,7 @@ extension AppEnvironment {
             clipboard: clipboard,
             settings: settings,
             passwordGenerator: LivePasswordGenerator(),
+            biometricAuth: LocalAuthBiometricAuthenticator(),
             passCLI: passCLI,
             discovery: discovery,
             invocationLog: invocationLog
