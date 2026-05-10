@@ -163,8 +163,10 @@ Next immediate action after C.4: C.5
 
 Next immediate action: C.7 — Phase C regression (verification)
 
-### C.7 — Phase C regression — IN PROGRESS
+### C.7 — Phase C regression — COMPLETED
 
-Planned verification: run full test suite and opt-in FSEvents smoke; ensure grep bans hold. Local run performed — full suite PASSED. See .ai/build-log.md for condensed results.
+Completed verification: full suite PASSED — 714 tests executed, 9 skipped, 0 failures. Opt-in FSEvents test SKIPPED locally; manual smoke instructions in .ai/build-log.md.
+
+Next immediate action: D.1 — Phase D (Accessibility medium gaps)
 
 When Phase C regression completes: mark C.7 — COMPLETED and set next action to D.1.
