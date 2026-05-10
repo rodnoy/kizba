@@ -70,18 +70,32 @@ struct NewEntrySheet: View {
     var body: some View {
         VStack(spacing: theme.spacing.lg) {
             header
-            ScrollView {
-                VStack(spacing: theme.spacing.lg) {
-                    pathSection
-                    passwordSection
-                    metadataSection
-                    notesSection
-                    if let banner = collisionBanner {
-                        banner
+            EntryFormBody(model: model, pathFieldEnabled: true, header: {
+                header
+            }, footer: {
+                HStack(spacing: theme.spacing.md) {
+                    Spacer()
+                    Button("Cancel") {
+                        model.cancel()
+                        dismiss()
                     }
+                    .buttonStyle(.kizba(.ghost))
+                    .keyboardShortcut(.cancelAction)
+
+                    Button("Save") {
+                        model.save()
+                    }
+                    .buttonStyle(.kizba(.primary))
+                    .disabled(!model.canSave)
+                    .keyboardShortcut(.defaultAction)
                 }
+            })
+            // Collision banner remains above the footer inside the
+            // original column; keep rendering it here so behavior is
+            // unchanged.
+            if let banner = collisionBanner {
+                banner
             }
-            footerActions
         }
         .padding(theme.spacing.lg)
         .frame(minWidth: 520, minHeight: 560)

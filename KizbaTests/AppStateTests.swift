@@ -28,7 +28,10 @@ final class AppStateTests: XCTestCase {
             currentEntries: entries
         )
 
-        XCTAssertEqual(state.router.selectedEntryID, "work/aws/root")
+        // Selection is now owned by AppRouter and defaults to nil;
+        // AppState initialisation no longer infers a selection from
+        // the provided entries.
+        XCTAssertNil(state.router.selectedEntryID)
         XCTAssertEqual(state.searchQuery, "aws")
         XCTAssertTrue(state.isSidebarCollapsed)
         XCTAssertEqual(state.currentEntries, entries)

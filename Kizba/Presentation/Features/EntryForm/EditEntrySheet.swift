@@ -70,9 +70,26 @@ struct EditEntrySheet: View {
 
     var body: some View {
         VStack(spacing: theme.spacing.lg) {
-            header
-            content
-            footerActions
+            EntryFormBody(model: model, pathFieldEnabled: false, header: {
+                header
+            }, footer: {
+                HStack(spacing: theme.spacing.md) {
+                    Spacer()
+                    Button("Cancel") {
+                        model.cancel()
+                        dismiss()
+                    }
+                    .buttonStyle(.kizba(.ghost))
+                    .keyboardShortcut(.cancelAction)
+
+                    Button("Save changes") {
+                        model.save()
+                    }
+                    .buttonStyle(.kizba(.primary))
+                    .disabled(!model.canSave)
+                    .keyboardShortcut(.defaultAction)
+                }
+            })
         }
         .padding(theme.spacing.lg)
         .frame(minWidth: 520, minHeight: 560)

@@ -128,7 +128,8 @@ final class EntryFormModelEditTests: XCTestCase {
             entries: [entry],
             secrets: [entry.path: initial]
         )
-        let appState = AppState(selectedEntryID: entry.path)
+        let appState = AppState()
+        appState.router.selectedEntryID = entry.path
         let model = makeEditModel(
             originalPath: entry.path,
             passManager: manager,
@@ -169,7 +170,8 @@ final class EntryFormModelEditTests: XCTestCase {
         )
         // Selection is intentionally something OTHER than the
         // edited entry to prove the save does not overwrite it.
-        let appState = AppState(selectedEntryID: "some/other/path")
+        let appState = AppState()
+        appState.router.selectedEntryID = "some/other/path"
         let model = makeEditModel(
             originalPath: entry.path,
             passManager: manager,

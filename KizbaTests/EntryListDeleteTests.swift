@@ -186,10 +186,8 @@ final class EntryListDeleteTests: XCTestCase {
             error: .decryptionFailed(stderrExcerpt: "no fixture")
         )
         let env = makeEnvironment(passManager: scripted)
-        let state = AppState(
-            passManager: scripted,
-            selectedEntryID: targetPath
-        )
+        let state = AppState(passManager: scripted)
+        state.router.selectedEntryID = targetPath
         let model = EntryListModel(environment: env, state: state)
 
         await model.deleteEntry(at: targetPath)
@@ -225,10 +223,8 @@ final class EntryListDeleteTests: XCTestCase {
             removeError: .recipientNotFound(emailOrKeyId: "alice@example.com")
         )
         let env = makeEnvironment(passManager: scripted)
-        let state = AppState(
-            passManager: scripted,
-            selectedEntryID: targetPath
-        )
+        let state = AppState(passManager: scripted)
+        state.router.selectedEntryID = targetPath
         let model = EntryListModel(environment: env, state: state)
 
         await model.deleteEntry(at: targetPath)
@@ -286,10 +282,8 @@ final class EntryListDeleteTests: XCTestCase {
             delay: .milliseconds(100)
         )
         let env = makeEnvironment(passManager: scripted)
-        let state = AppState(
-            passManager: scripted,
-            selectedEntryID: targetPath
-        )
+        let state = AppState(passManager: scripted)
+        state.router.selectedEntryID = targetPath
         let model = EntryListModel(environment: env, state: state)
 
         XCTAssertEqual(model.deletionState, .idle)
@@ -325,10 +319,8 @@ final class EntryListDeleteTests: XCTestCase {
             delay: .milliseconds(80)
         )
         let env = makeEnvironment(passManager: scripted)
-        let state = AppState(
-            passManager: scripted,
-            selectedEntryID: targetPath
-        )
+        let state = AppState(passManager: scripted)
+        state.router.selectedEntryID = targetPath
         let model = EntryListModel(environment: env, state: state)
 
         let first = Task { await model.deleteEntry(at: targetPath) }

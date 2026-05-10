@@ -337,7 +337,8 @@ final class ConcurrentWriteLockoutTests: XCTestCase {
             passCLI: nil,
             discovery: nil
         )
-        let state = AppState(passManager: manager, selectedEntryID: path)
+        let state = AppState(passManager: manager)
+        state.router.selectedEntryID = path
         let model = EntryListModel(environment: env, state: state)
 
         let task = Task { await model.deleteEntry(at: path) }
