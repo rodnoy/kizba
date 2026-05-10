@@ -1,5 +1,5 @@
-import XCTest
 import Foundation
+import XCTest
 
 @testable import Kizba
 
@@ -7,30 +7,33 @@ final class FSEventsStoreWatcherTests: XCTestCase {
     func testFSEventsEmitsOnRealFSChange() async throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["KIZBA_FSEVENTS_TEST"] == "1", "Opt-in")
 
-        let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("kizba-fsevents-test-")
-        let dir = try FileManager.default.url(for: .itemReplacementDirectory, in: .userDomainMask, appropriateFor: tmp, create: true)
+        let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent("kizba-fsevents-\(UUID())")
+        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
 
         let watcher = FSEventsStoreWatcher()
-        await watcher.start(at: dir)
+        await watcher.start(at: tmpDir)
 
-        let stream = watcher.events
+        let exp = expectation(description: "fsevents")
 
-        let expectation = expectation(description: "received fsevent")
-
-        let task = Task {
+        // Register subscriber before creating file.
+        Task {
+            var stream = watcher.events
             for await _ in stream {
-                expectation.fulfill()
+                exp.fulfill()
                 break
             }
         }
 
-        // Make a filesystem change
-        let file = dir.appendingPathComponent("touch-me.txt")
+        // Give the registration a moment.
+        try await Task.sleep(nanoseconds: 50_000_000) // 50ms
+
+        // Create a file inside tmpDir to trigger FSEvents.
+        let file = tmpDir.appendingPathComponent("touch.txt")
         try "hello".write(to: file, atomically: true, encoding: .utf8)
 
-        wait(for: [expectation], timeout: 1.0)
+        wait(for: [exp], timeout: 1.0)
 
-        task.cancel()
         await watcher.stop()
+        try FileManager.default.removeItem(at: tmpDir)
     }
 }

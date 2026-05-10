@@ -4,180 +4,160 @@
 import Foundation
 import CoreServices
 
-final class FSEventsStoreWatcher: StoreWatching, @unchecked Sendable {
-    private let queue = DispatchQueue(label: "kizba.fsevents")
-    private let debounceInterval: TimeInterval = 0.350
+// Actor owning continuations for multi-subscriber AsyncStream<Void>.
+private actor ContinuationStore {
+    var continuations: [UUID: AsyncStream<Void>.Continuation] = [:]
 
-    private struct InnerState {
-        var stream: FSEventStreamRef?
-        var continuations: [UUID: AsyncStream<Void>.Continuation]
-        var debounceTimer: DispatchSourceTimer?
-        var isStarted: Bool
+    func addContinuation(_ id: UUID, _ cont: AsyncStream<Void>.Continuation) {
+        continuations[id] = cont
     }
 
-    // Use an unsafe pointer for mutable storage to avoid main-actor isolation enforcement.
-    nonisolated private let statePtr: UnsafeMutablePointer<InnerState>
-
-    init() {
-        statePtr = UnsafeMutablePointer<InnerState>.allocate(capacity: 1)
-        statePtr.initialize(to: InnerState(stream: nil, continuations: [:], debounceTimer: nil, isStarted: false))
+    func removeContinuation(_ id: UUID) {
+        continuations.removeValue(forKey: id)
     }
 
-    nonisolated var events: AsyncStream<Void> {
-        AsyncStream { [weak self] continuation in
-            guard let self = self else {
-                continuation.finish()
-                return
-            }
-
-            let id = UUID()
-            // Register continuation on the serial queue to keep synchronization simple.
-            self.queue.async {
-                self.statePtr.pointee.continuations[id] = continuation
-            }
-
-            continuation.onTermination = { @Sendable _ in
-                // Unregister on the serial queue.
-                self.queue.async {
-                    self.statePtr.pointee.continuations.removeValue(forKey: id)
-                }
-            }
-        }
-    }
-
-    nonisolated func start(at storeRoot: URL) async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            queue.async { [weak self] in
-                guard let self = self else {
-                    continuation.resume()
-                    return
-                }
-
-                if self.statePtr.pointee.isStarted {
-                    continuation.resume()
-                    return
-                }
-
-                // Prepare paths
-                let paths = [storeRoot.path] as CFArray
-
-                // Context pointer
-                var context = FSEventStreamContext(version: 0,
-                                                   info: Unmanaged.passUnretained(self).toOpaque(),
-                                                   retain: nil,
-                                                   release: nil,
-                                                   copyDescription: nil)
-
-                let flags = FSEventStreamCreateFlags(kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagNoDefer)
-
-                guard let stream = FSEventStreamCreate(nil,
-                                                      { (streamRef, clientCallBackInfo, numEvents, eventIds, eventFlags, eventPaths) in
-                    // Callback invoked by FSEvents on our dispatch queue.
-                    guard let info = clientCallBackInfo else { return }
-                    let watcher = Unmanaged<FSEventsStoreWatcher>.fromOpaque(info).takeUnretainedValue()
-
-                    // Schedule trailing-edge debounce on the serial queue.
-                    watcher.queue.async {
-                        // Cancel existing timer and create a new one for trailing-edge debounce.
-                        if let t = watcher.statePtr.pointee.debounceTimer {
-                            t.cancel()
-                            watcher.statePtr.pointee.debounceTimer = nil
-                        }
-
-                        let timer = DispatchSource.makeTimerSource(queue: watcher.queue)
-                        timer.schedule(deadline: .now() + watcher.debounceInterval)
-                        timer.setEventHandler { [weak watcher] in
-                            guard let watcher = watcher else { return }
-                            watcher.statePtr.pointee.debounceTimer = nil
-                            watcher.emit()
-                        }
-                        watcher.statePtr.pointee.debounceTimer = timer
-                        timer.resume()
-                    }
-                }, &context, paths, FSEventStreamEventId(kFSEventStreamEventIdSinceNow), 0, flags) else {
-                    // Failed to create stream
-                    continuation.resume()
-                    return
-                }
-
-                self.statePtr.pointee.stream = stream
-                // Schedule on our dispatch queue and start
-                FSEventStreamSetDispatchQueue(stream, self.queue)
-                FSEventStreamStart(stream)
-                self.statePtr.pointee.isStarted = true
-
-                continuation.resume()
-            }
-        }
-    }
-
-    nonisolated func stop() async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            queue.async { [weak self] in
-                guard let self = self else {
-                    continuation.resume()
-                    return
-                }
-
-                if let timer = self.statePtr.pointee.debounceTimer {
-                    timer.cancel()
-                    self.statePtr.pointee.debounceTimer = nil
-                }
-
-                if let stream = self.statePtr.pointee.stream {
-                    FSEventStreamStop(stream)
-                    FSEventStreamInvalidate(stream)
-                    FSEventStreamRelease(stream)
-                    self.statePtr.pointee.stream = nil
-                }
-
-                // Finish all continuations
-                for (_, cont) in self.statePtr.pointee.continuations {
-                    cont.finish()
-                }
-                self.statePtr.pointee.continuations.removeAll()
-                self.statePtr.pointee.isStarted = false
-
-                continuation.resume()
-            }
-        }
-    }
-
-    deinit {
-        // Schedule cleanup on our serial queue without awaiting to avoid async deinit capture.
-        queue.async { [weak self] in
-            guard let self = self else { return }
-
-            if let timer = self.statePtr.pointee.debounceTimer {
-                timer.cancel()
-                self.statePtr.pointee.debounceTimer = nil
-            }
-
-            if let stream = self.statePtr.pointee.stream {
-                FSEventStreamStop(stream)
-                FSEventStreamInvalidate(stream)
-                FSEventStreamRelease(stream)
-                self.statePtr.pointee.stream = nil
-            }
-
-            for (_, cont) in self.statePtr.pointee.continuations {
-                cont.finish()
-            }
-            self.statePtr.pointee.continuations.removeAll()
-        }
-    }
-
-    // Emit a single Void to all registered continuations. Called from serial queue.
-    nonisolated(unsafe) private func emit() {
-        for (_, cont) in statePtr.pointee.continuations {
-            // Yield a single Void value. Do not finish the stream; allow further events.
+    func emitAll() {
+        for (_, cont) in continuations {
             cont.yield(())
         }
     }
 
-    // Ensure we free the allocated pointer if the instance is ever deallocated.
-    private func freeState() {
-        statePtr.deinitialize(count: 1)
-        statePtr.deallocate()
+    func finishAll() {
+        for (_, cont) in continuations {
+            cont.finish()
+        }
+        continuations.removeAll()
+    }
+}
+
+/// FSEvents-backed implementation of StoreWatching.
+public final class FSEventsStoreWatcher: StoreWatching, @unchecked Sendable {
+    // Serial queue for all FSEvents C API usage and timer handling.
+    let queue = DispatchQueue(label: "kizba.fsevents")
+
+    // Continuation actor. Actor methods are invoked from any context.
+    private let store = ContinuationStore()
+
+    // Stream and timer must be confined to `queue`.
+    private var streamRef: FSEventStreamRef? = nil
+    private var debounceTimer: DispatchSourceTimer? = nil
+
+    public init() {}
+
+    deinit {
+        // Best-effort cleanup: perform invalidation on queue and finish continuations.
+        queue.sync {
+            if let s = streamRef {
+                FSEventStreamStop(s)
+                FSEventStreamInvalidate(s)
+                FSEventStreamRelease(s)
+                streamRef = nil
+            }
+            debounceTimer?.cancel()
+            debounceTimer = nil
+        }
+        Task { await store.finishAll() }
+    }
+
+    // Multi-subscriber AsyncStream. Each registration registers its continuation with the actor.
+    public var events: AsyncStream<Void> {
+        return AsyncStream<Void> { continuation in
+            let id = UUID()
+            // Register continuation on the actor.
+            Task { await store.addContinuation(id, continuation) }
+
+            continuation.onTermination = { @Sendable _ in
+                Task { await self.store.removeContinuation(id) }
+            }
+        }
+    }
+
+    // MARK: Start / Stop
+
+    public func start(at storeRoot: URL) async {
+        // Create and start the FSEventStream on the dedicated queue.
+        queue.async { [weak self] in
+            guard let self = self else { return }
+
+            // Ensure there's no existing stream.
+            if let s = self.streamRef {
+                FSEventStreamStop(s)
+                FSEventStreamInvalidate(s)
+                FSEventStreamRelease(s)
+                self.streamRef = nil
+            }
+
+            // Paths to watch
+            let paths = [storeRoot.path] as CFArray
+
+            // Client info pointer: pass unretained self.
+            let info = Unmanaged.passUnretained(self).toOpaque()
+
+            // Callback
+            let callback: FSEventStreamCallback = { (_streamRef, clientCallBackInfo, numEvents, eventPaths, eventFlags, eventIds) in
+                guard let client = clientCallBackInfo else { return }
+                let watcher = Unmanaged<FSEventsStoreWatcher>.fromOpaque(client).takeUnretainedValue()
+                // We're already on the dispatch queue set for the stream; schedule debounce work here.
+                watcher.scheduleDebounce()
+            }
+
+            let flags = FSEventStreamCreateFlags(kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagNoDefer)
+
+            let stream = FSEventStreamCreate(kCFAllocatorDefault, callback, info, paths, FSEventStreamEventId(kFSEventStreamEventIdSinceNow), 0, flags)
+            guard let stream = stream else { return }
+
+            // Set dispatch queue; the callback will now be invoked on `queue`.
+            FSEventStreamSetDispatchQueue(stream, self.queue)
+
+            if !FSEventStreamStart(stream) {
+                // Failed to start — release stream and bail.
+                FSEventStreamInvalidate(stream)
+                FSEventStreamRelease(stream)
+                return
+            }
+
+            self.streamRef = stream
+        }
+    }
+
+    public func stop() async {
+        // Invalidate stream and cancel timer on the queue, then finish continuations.
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            queue.async { [weak self] in
+                guard let self = self else { cont.resume(); return }
+                if let s = self.streamRef {
+                    FSEventStreamStop(s)
+                    FSEventStreamInvalidate(s)
+                    FSEventStreamRelease(s)
+                    self.streamRef = nil
+                }
+                self.debounceTimer?.cancel()
+                self.debounceTimer = nil
+                cont.resume()
+            }
+        }
+
+        await store.finishAll()
+    }
+
+    // MARK: Debounce handling (confined to `queue`)
+
+    private func scheduleDebounce() {
+        // This method is always called on `queue`.
+        // Cancel existing timer and schedule a trailing-edge timer for 350 ms.
+        debounceTimer?.cancel()
+
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now() + .milliseconds(350))
+        timer.setEventHandler { [weak self] in
+            guard let self = self else { return }
+            // When the timer fires, emit to all continuations via the actor.
+            Task { await self.store.emitAll() }
+            // Clear timer reference.
+            self.debounceTimer?.cancel()
+            self.debounceTimer = nil
+        }
+        debounceTimer = timer
+        timer.activate()
     }
 }
