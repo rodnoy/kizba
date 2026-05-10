@@ -32,14 +32,14 @@ Add `.accessibilityValue(isRevealed ? "Revealed" : "Hidden")` to the reveal/hide
 - **Files to modify:**
   - `Kizba/Presentation/DesignSystem/Components/SecretRevealField.swift`
   - `KizbaTests/SecretRevealFieldTests.swift`
-- **Changes in `SecretRevealField.swift`:**
-  1. Add a static helper in the `// MARK: - Pure helpers` section:
+ - **Changes in `SecretRevealField.swift`:**
+   1. Add a static helper in the `// MARK: - Pure helpers` section:
      ```swift
      static func accessibilityValueText(isRevealed: Bool) -> String {
          isRevealed ? "Revealed" : "Hidden"
      }
      ```
-  2. Update the `.accessibilityValue(...)` modifier from Task 1 to call `SecretRevealField.accessibilityValueText(isRevealed: isRevealed)`.
+   2. Update the `.accessibilityValue(...)` modifier from Task 1 to call `SecretRevealField.accessibilityValueText(isRevealed: isRevealed)`.
 - **Changes in `SecretRevealFieldTests.swift`:**
   1. Add one test method:
      ```swift
@@ -48,7 +48,7 @@ Add `.accessibilityValue(isRevealed ? "Revealed" : "Hidden")` to the reveal/hide
          XCTAssertEqual(SecretRevealField.accessibilityValueText(isRevealed: false), "Hidden")
      }
      ```
-- **Verification:** `xcodebuild test -only-testing:KizbaTests/SecretRevealFieldTests` — all pass (existing + 1 new).
+ - **Verification:** `xcodebuild test -only-testing:KizbaTests/SecretRevealFieldTests` — all pass (existing + 1 new).
 - **Risks:** None. Pure function, no concurrency.
 
 ### Task 3 — Verify no regressions

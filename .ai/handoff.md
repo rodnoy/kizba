@@ -170,3 +170,12 @@ Completed verification: full suite PASSED — 714 tests executed, 9 skipped, 0 f
 Next immediate action: D.1 — Phase D (Accessibility medium gaps)
 
 When Phase C regression completes: mark C.7 — COMPLETED and set next action to D.1.
+
+D.1 — SecretRevealField Accessibility Value — COMPLETED
+
+- Commit: feat(a11y): SecretRevealField accessibilityValue (D.1)
+- Date: 2026-05-10
+- Notes: Added accessibilityValue modifier to the reveal toggle and a pure helper
+  SecretRevealField.accessibilityValueText(isRevealed:) with unit test.
+
+Next action: D.2
