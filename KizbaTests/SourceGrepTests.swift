@@ -377,6 +377,60 @@ final class SourceGrepTests: XCTestCase {
         )
     }
 
+    /// (17) Every Presentation `*Model.swift` that declares a `final class`
+    /// whose name ends with `Model` must be annotated with `@Observable`.
+    /// Files may opt-out by including the exact comment `// kizba:not-observable-model`.
+    func testPresentationModelsRequireObservable() throws {
+        let presentationDir = Self.repoRoot.appendingPathComponent(
+            Self.presentationRoot, isDirectory: true
+        )
+
+        var violations: [String] = []
+        var skipped: [String] = []
+
+        // Iterate all swift files under Presentation
+        for url in try Self.swiftFiles(under: presentationDir) {
+            let name = url.lastPathComponent
+            // Only consider files whose filename ends with Model.swift
+            guard name.hasSuffix("Model.swift") else { continue }
+
+            let contents = try String(contentsOf: url, encoding: .utf8)
+
+            // If file contains an opt-out comment, record and skip
+            if contents.contains("// kizba:not-observable-model") {
+                skipped.append(url.path)
+                continue
+            }
+
+            // Look for a declaration like `final class FooModel` anywhere in the file
+            let pattern = #"final\s+class\s+\w+Model\b"#
+            let regex = try NSRegularExpression(pattern: pattern, options: [])
+            let nsRange = NSRange(contents.startIndex..., in: contents)
+            if regex.firstMatch(in: contents, options: [], range: nsRange) != nil {
+                // If a matching class exists, require the `@Observable` token somewhere
+                if !contents.contains("@Observable") {
+                    violations.append(url.path)
+                }
+            }
+        }
+
+        // Record skipped files as an XCTContext note for visibility.
+        if !skipped.isEmpty {
+            let msg = "Skipped (opt-out) Presentation model files:\n" + skipped.joined(separator: "\n")
+            XCTContext.runActivity(named: "Presentation model opt-outs") { _ in
+                XCTFail(msg) // Use XCTFail so the output is visible in xcodebuild logs as a note
+            }
+        }
+
+        if !violations.isEmpty {
+            XCTFail(
+                "Found Presentation model classes missing @Observable. "
+                + "Annotate with `@Observable` or add `// kizba:not-observable-model` to opt out.\n"
+                + violations.joined(separator: "\n")
+            )
+        }
+    }
+
     // MARK: - Engine
 
     /// Enumerate `.swift` files under `Kizba/Presentation/` excluding
