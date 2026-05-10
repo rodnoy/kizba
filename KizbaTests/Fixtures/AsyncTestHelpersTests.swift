@@ -24,10 +24,12 @@ final class AsyncTestHelpersTests: XCTestCase {
         task.cancel()
     }
 
-    func testWaitUntil_timesOut_andFails() async {
-        // Ensure waitUntil returns and records failure on false
-        // predicate. We cannot assert XCTFail programmatically here,
-        // but exercising the call ensures API stability.
-        await waitUntil({ false }, timeout: 0.01)
+    func testWaitUntil_succeeds_whenPredicateBecomesTrue() async {
+        var ready = false
+        Task {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+            ready = true
+        }
+        await waitUntil({ ready }, timeout: 1.0)
     }
 }
