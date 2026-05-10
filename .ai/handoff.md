@@ -148,3 +148,9 @@ Added `Kizba/Infrastructure/Store/FSEventsStoreWatcher.swift` (actor-backed FSEv
 - Added `KizbaTests/Fixtures/TempStoreFixture.swift`: test-only helper (instance + static API) for creating and mutating temporary stores used by FSEvents and scanner tests. Minimal Foundation-only implementation; includes write/touch/delete/remove helpers and legacy instance methods (`createStandardLayout`, `createEmptyStore`, `cleanup`) used by existing tests.
 
 Next immediate action after C.4: C.5
+
+### C.5 — LivePassManager integration with StoreWatching — COMPLETED
+
+- Commit: feat(mvp3): integrate StoreWatching into LivePassManager (C.5)
+- Date: 2026-05-10
+- Notes: Added optional watcher injection, lazy start/stop on subscriber lifecycle, and tests using FakeStoreWatcher.

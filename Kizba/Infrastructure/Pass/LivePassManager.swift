@@ -67,6 +67,13 @@ public actor LivePassManager: PassManaging {
     /// ``SettingsKeys/storePathOverride`` take effect on the next
     /// operation without an app restart.
     private let storeRootProvider: @Sendable () -> URL
+    
+    /// Optional watcher injected for filesystem change notifications.
+    private var storeWatcher: (any StoreWatching)?
+
+    /// Task that drains `storeWatcher.events` and forwards them into
+    /// the actor via `handleWatcherEvent()`.
+    private var watcherDrainTask: Task<Void, Never>? = nil
 
     /// Per-subscriber continuations registered against ``changes``.
     /// The map survives across mutations for the lifetime of the
@@ -90,11 +97,13 @@ public actor LivePassManager: PassManaging {
     public init(
         scanner: any PasswordStoreScanning,
         passCLI: LivePassCLI,
-        storeRootProvider: @escaping @Sendable () -> URL
+        storeRootProvider: @escaping @Sendable () -> URL,
+        storeWatcher: (any StoreWatching)? = nil
     ) {
         self.scanner = scanner
         self.passCLI = passCLI
         self.storeRootProvider = storeRootProvider
+        self.storeWatcher = storeWatcher
     }
 
     /// Convenience initialiser for tests/preview wiring that have a
@@ -102,13 +111,22 @@ public actor LivePassManager: PassManaging {
     public init(
         scanner: any PasswordStoreScanning,
         passCLI: LivePassCLI,
-        storeRoot: URL
+        storeRoot: URL,
+        storeWatcher: (any StoreWatching)? = nil
     ) {
         self.init(
             scanner: scanner,
             passCLI: passCLI,
-            storeRootProvider: { storeRoot }
+            storeRootProvider: { storeRoot },
+            storeWatcher: storeWatcher
         )
+    }
+
+    /// Handle a watcher event: invalidate scanner and emit `.bulk`.
+    private func handleWatcherEvent() async {
+        let root = storeRootProvider()
+        await scanner.invalidate(storeRoot: root)
+        emit(.bulk)
     }
 
     /// Standard `~/.password-store` location used when no override is
@@ -324,12 +342,51 @@ public actor LivePassManager: PassManaging {
         }
     }
 
-    private func register(id: UUID, continuation: AsyncStream<StoreChange>.Continuation) {
+    private func register(id: UUID, continuation: AsyncStream<StoreChange>.Continuation) async {
+        // Add the continuation under actor isolation.
         continuations[id] = continuation
+
+        // If this is the first subscriber, start the watcher lifecycle.
+        if continuations.count == 1 {
+            // Lazily instantiate a production watcher if none was injected.
+            if storeWatcher == nil {
+                storeWatcher = FSEventsStoreWatcher()
+            }
+
+            if let watcher = storeWatcher {
+                // Start the watcher at the current store root.
+                await watcher.start(at: storeRootProvider())
+
+                // Capture the watcher strongly for the drain task so it
+                // survives independently of actor state. Capture `self`
+                // weakly to avoid retain cycles.
+                let capturedWatcher = watcher
+                watcherDrainTask = Task.detached { [weak self, capturedWatcher] in
+                    // Drain watcher events and forward them back to the actor.
+                    for await _ in capturedWatcher.events {
+                        // If the task is cancelled, stop draining.
+                        if Task.isCancelled { break }
+                        await self?.handleWatcherEvent()
+                    }
+                }
+            }
+        }
     }
 
-    private func unregister(id: UUID) {
+    private func unregister(id: UUID) async {
         continuations.removeValue(forKey: id)
+
+        // If no subscribers remain, stop and tear down the watcher so
+        // it can be lazily restarted later.
+        if continuations.isEmpty {
+            if let watcher = storeWatcher {
+                // Cancel the drain task first so it stops iterating.
+                watcherDrainTask?.cancel()
+                watcherDrainTask = nil
+                await watcher.stop()
+                storeWatcher = nil
+            }
+        }
     }
 
     /// Fan-out one ``StoreChange`` to every active subscriber. Called

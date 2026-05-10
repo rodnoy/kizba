@@ -5,7 +5,7 @@ import Foundation
 
 /// Protocol for filesystem store change watching.
 /// Foundation-only. Implementations may use platform APIs (FSEvents) in Infrastructure.
-nonisolated protocol StoreWatching: Sendable {
+public nonisolated protocol StoreWatching: Sendable {
     /// Multi-subscriber async stream of change notifications.
     var events: AsyncStream<Void> { get }
 

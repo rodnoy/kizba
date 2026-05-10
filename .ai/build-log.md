@@ -1,7 +1,8 @@
-Build verification for C.3 (FSEventsStoreWatcher)
+LivePassManager FSEvents integration tests
 
-- Commit: 9505f54
-- Date: 2026-05-10
-- Commands run:
-  - xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/SourceGrepTests — PASSED
-  - xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' — PASSED (708 tests, 9 skipped, 0 failures)
+Summary:
+- Focused tests (LivePassManagerFSEventsTests): 6 passed, 0 failed
+- SourceGrepTests only: 19 passed
+- Full suite: 714 executed, 9 skipped, 0 failures
+
+Command outputs saved in CI logs; local xcodebuild run performed.
