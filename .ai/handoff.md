@@ -181,3 +181,7 @@ D.1 — SecretRevealField Accessibility Value — COMPLETED
 D.2 — KeyValueEditor accessibility — COMPLETED
 
 Next immediate action: D.3 — Accessibility smoke & review
+ 
+D.3 — FormFieldRow Dynamic Type Vertical Layout — COMPLETED
+
+Next immediate action: D.4 — Accessibility sweep review
