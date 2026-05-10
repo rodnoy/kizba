@@ -19,21 +19,26 @@ final class FakeStoreWatcherTests: XCTestCase {
         let watcher = FakeStoreWatcher()
         let tmp = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("kizba-test-store")
 
-        var observed = false
+        let ready = expectation(description: "subscriber ready")
+        let observed = expectation(description: "observed")
 
-        let task = Task {
+        let task = Task { @MainActor in
+            // Signal that the subscriber task has started and is about to register
+            // its AsyncStream iteration (so the continuation will be added).
+            ready.fulfill()
             for await _ in watcher.events {
-                observed = true
+                observed.fulfill()
                 break
             }
         }
 
+        // Wait until the subscriber task has started and registered.
+        wait(for: [ready], timeout: 0.5)
+
         await watcher.start(at: tmp)
         watcher.simulateChange()
 
-        // wait until observed or timeout
-        await waitUntil({ observed }, timeout: 1.0)
-        XCTAssertTrue(observed)
+        wait(for: [observed], timeout: 1.0)
 
         task.cancel()
         await watcher.stop()
@@ -43,30 +48,34 @@ final class FakeStoreWatcherTests: XCTestCase {
         let watcher = FakeStoreWatcher()
         let tmp = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("kizba-test-store")
 
-        var observed1 = false
-        var observed2 = false
+        let ready1 = expectation(description: "subscriber ready")
+        let ready2 = expectation(description: "subscriber ready")
+        let observed1 = expectation(description: "observed1")
+        let observed2 = expectation(description: "observed2")
 
-        let t1 = Task {
+        let t1 = Task { @MainActor in
+            ready1.fulfill()
             for await _ in watcher.events {
-                observed1 = true
+                observed1.fulfill()
                 break
             }
         }
 
-        let t2 = Task {
+        let t2 = Task { @MainActor in
+            ready2.fulfill()
             for await _ in watcher.events {
-                observed2 = true
+                observed2.fulfill()
                 break
             }
         }
+
+        // Ensure both subscribers have started and registered their continuations
+        wait(for: [ready1, ready2], timeout: 0.5)
 
         await watcher.start(at: tmp)
         watcher.simulateChange()
 
-        await waitUntil({ observed1 && observed2 }, timeout: 1.0)
-
-        XCTAssertTrue(observed1)
-        XCTAssertTrue(observed2)
+        wait(for: [observed1, observed2], timeout: 1.0)
 
         t1.cancel()
         t2.cancel()
