@@ -123,7 +123,7 @@ public enum ErrorPresentation: Sendable {
         case .gitAuthFailed:
             return .toastWithDiagnostics(message: "Git authentication failed. Check your SSH keys or credentials.")
 
-        case .gitConflict:
+        case .gitConflict(_):
             // Conflicts are surfaced via the AppRouter / conflict banner UI.
             // Keep the global surface silent so the banner is the single
             // source of truth for conflict resolution affordances.

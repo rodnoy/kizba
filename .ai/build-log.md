@@ -35,3 +35,27 @@ Notes:
 
 Next step:
 - Phase A.3: implement ErrorPresentation.present(for:) explicit mappings for the 6 new git PassError cases (replace any temporary fallback if present).
+
+---
+
+Build verification for Phase A.3
+
+Summary:
+- ErrorPresentation git-case mappings verified via targeted tests.
+- Project build succeeded.
+- Grep bans produced no matches.
+
+Commands executed and results:
+
+1) xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/ErrorPresentationTests
+   - Result: TEST SUCCEEDED (17 tests, 0 failures)
+   - xcresult: /Users/kirillsimagin/Library/Developer/Xcode/DerivedData/Kizba-*/Logs/Test/Test-Kizba-2026.05.11_15-01-22-+0200.xcresult
+
+2) xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+   - Result: BUILD SUCCEEDED
+
+3) rg -n '\bas!\b' Kizba || true
+   - Result: no matches (clean)
+
+4) rg -n 'Logger.*stdin|print\(.*stdin' Kizba || true
+   - Result: no matches (clean)

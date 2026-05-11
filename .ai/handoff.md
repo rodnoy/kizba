@@ -2,39 +2,39 @@
 
 ## Current state
 
-Phase A — in progress.
+Phase A is in progress.
 
-A.1 (GitStatus value type) verified locally. A.2 (PassError git cases + OnboardingHint extensions) implemented and unit-tested.
+A.1 (GitStatus) and A.2 (PassError git cases + OnboardingHint extensions) were already completed.
+
+✅ A.3 completed: `ErrorPresentation.present(for:)` now explicitly maps all 6 git `PassError` cases, and unit coverage for these mappings was added.
 
 ## Next action
 
-Delegate to smart-worker: implement task A.3 (ErrorPresentation mappings for git cases). Replace any temporary fallback in ErrorPresentation.present(for:) with explicit mappings per `.ai/plan.md`.
+Delegate to smart-worker: implement task A.4 (add `PassGitManaging` protocol + `GitPushOutcome`) per `.ai/plan.md`.
 
 ## Phase A progress
 
-- A.1 — verified
-- A.2 — completed (PassError git cases + OnboardingHint added; unit tests passing)
+- A.1 — completed
+- A.2 — completed
+- A.3 — completed
 
-Next: A.3 (ErrorPresentation mappings for the 6 git PassError cases).
+Next: A.4 (PassGitManaging protocol + GitPushOutcome).
 
-## Verification commands (A.2)
+## Verification commands (A.3)
 
-Run these locally to verify A.2 surface:
+Run these locally to verify A.3 surface:
 
 ```sh
-# PassError git-cases unit tests
-xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/PassErrorGitCasesTests
-
-# Core domain model tests
-xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/DomainModelsTests
-
-# Build check
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/ErrorPresentationTests
 xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-
-# Grep bans (must produce no output)
-rg -n '\bas!\b' Kizba
-rg -n 'Logger.*stdin|print\(.*stdin' Kizba
+rg -n '\bas!\b' Kizba || true
+rg -n 'Logger.*stdin|print\(.*stdin' Kizba || true
 ```
+
+Expected results:
+- `ErrorPresentationTests`: **TEST SUCCEEDED**
+- Build: **BUILD SUCCEEDED**
+- Both `rg` commands: no matches
 
 ## Constraints (must hold throughout MVP 4)
 

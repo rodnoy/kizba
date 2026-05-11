@@ -115,4 +115,69 @@ final class ErrorPresentationTests: XCTestCase {
             return XCTFail("Expected .silent, got \(pres)")
         }
     }
+
+    // MARK: - MVP 4 git-side mappings (Phase A.3)
+
+    func testGitNotInitialized_mapsToOnboarding() {
+        let pres = ErrorPresentation.present(for: .gitNotInitialized)
+        guard case let .onboarding(message) = pres else {
+            return XCTFail("Expected .onboarding, got \(pres)")
+        }
+        XCTAssertTrue(
+            message.contains("pass git init"),
+            "onboarding message should mention `pass git init` (got \(message))"
+        )
+    }
+
+    func testGitNoRemote_mapsToOnboarding() {
+        let pres = ErrorPresentation.present(for: .gitNoRemote)
+        guard case let .onboarding(message) = pres else {
+            return XCTFail("Expected .onboarding, got \(pres)")
+        }
+        XCTAssertEqual(
+            message,
+            "No git remote configured. Add a remote to enable push and pull."
+        )
+    }
+
+    func testGitAuthFailed_mapsToToastWithDiagnostics() {
+        let pres = ErrorPresentation.present(for: .gitAuthFailed)
+        guard case let .toastWithDiagnostics(message) = pres else {
+            return XCTFail("Expected .toastWithDiagnostics, got \(pres)")
+        }
+        XCTAssertEqual(
+            message,
+            "Git authentication failed. Check your SSH keys or credentials."
+        )
+    }
+
+    func testGitConflict_mapsToSilent() {
+        let pres = ErrorPresentation.present(for: .gitConflict(paths: ["a.gpg"]))
+        guard case .silent = pres else {
+            return XCTFail("Expected .silent, got \(pres)")
+        }
+    }
+
+    func testGitNetworkUnavailable_mapsToToastWithDiagnostics() {
+        let pres = ErrorPresentation.present(for: .gitNetworkUnavailable)
+        guard case let .toastWithDiagnostics(message) = pres else {
+            return XCTFail("Expected .toastWithDiagnostics, got \(pres)")
+        }
+        XCTAssertEqual(
+            message,
+            "Network unavailable. Check your connection and try again."
+        )
+    }
+
+    func testGitRejected_mapsToToastWithDiagnostics() {
+        let reason = "non-fast-forward"
+        let pres = ErrorPresentation.present(for: .gitRejected(reason: reason))
+        guard case let .toastWithDiagnostics(message) = pres else {
+            return XCTFail("Expected .toastWithDiagnostics, got \(pres)")
+        }
+        XCTAssertTrue(
+            message.contains(reason),
+            "message should include rejection reason (got \(message))"
+        )
+    }
 }
