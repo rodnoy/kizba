@@ -79,3 +79,28 @@ Commands executed and results:
 
 3) rg -n 'Logger.*stdin|print\(.*stdin' Kizba || true
    - Result: no matches (clean)
+
+---
+
+Build verification for Phase A.5
+
+Summary:
+- Added `FakePassGitManager` actor fixture and focused tests.
+- Targeted tests passed.
+- Project build succeeded.
+- Grep bans produced no matches.
+
+Commands executed and results:
+
+1) xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/FakePassGitManagerTests
+   - Result: TEST SUCCEEDED (5 tests, 0 failures)
+   - xcresult: /Users/kirillsimagin/Library/Developer/Xcode/DerivedData/Kizba-*/Logs/Test/Test-Kizba-2026.05.11_15-16-41-+0200.xcresult
+
+2) xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+   - Result: BUILD SUCCEEDED
+
+3) rg -n '\bas!\b' Kizba
+   - Result: no matches (clean)
+
+4) rg -n 'Logger.*stdin|print\(.*stdin' Kizba
+   - Result: no matches (clean)

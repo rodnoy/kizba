@@ -22,6 +22,8 @@
 		F00000012FAB8D6400ED03E6 /* GitStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GitStatus.swift; path = Domain/Models/GitStatus.swift; sourceTree = "<group>"; };
 		F00000022FAB8D6400ED03E6 /* GitStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GitStatusTests.swift; path = GitStatusTests.swift; sourceTree = "<group>"; };
 		F00000032FAB8D6400ED03E6 /* PassGitManaging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PassGitManaging.swift; path = Domain/Protocols/PassGitManaging.swift; sourceTree = "<group>"; };
+		F00000042FAB8D6400ED03E6 /* FakePassGitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FakePassGitManager.swift; path = Fixtures/FakePassGitManager.swift; sourceTree = "<group>"; };
+		F00000052FAB8D6400ED03E6 /* FakePassGitManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FakePassGitManagerTests.swift; path = FakePassGitManagerTests.swift; sourceTree = "<group>"; };
 
 /* End PBXFileReference section */
 
