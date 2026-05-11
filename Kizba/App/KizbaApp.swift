@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 @main
 struct KizbaApp: App {
@@ -24,6 +25,23 @@ struct KizbaApp: App {
                 RootSplitView(environment: environment, state: state)
                     .task {
                         await environment.wireGitModelIfAvailable(into: state)
+                    }
+                    .sheet(
+                        isPresented: Binding(
+                            get: { state.router.isGitConflictBannerPresented },
+                            set: { state.router.isGitConflictBannerPresented = $0 }
+                        )
+                    ) {
+                        if let gitModel = state.gitStatusModel {
+                            GitConflictBanner(
+                                model: gitModel,
+                                storePath: environment.storeURL.path,
+                                openTerminalAction: {
+                                    let storeURL = environment.storeURL
+                                    _ = NSWorkspace.shared.open(storeURL)
+                                }
+                            )
+                        }
                     }
             }
         }

@@ -54,6 +54,11 @@ struct AppEnvironment: Sendable {
     /// ``live()`` once Phase 5.3 wiring is complete.
     let passCLI: LivePassCLI?
 
+    /// Absolute path of the active password store.
+    var storeURL: URL {
+        passManager.storeLocation()
+    }
+
     /// Designated initialiser. All collaborators are required so the
     /// composition root is explicit at every call site.
     init(
