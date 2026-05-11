@@ -5,12 +5,13 @@
 Phase A — COMPLETED.
 Phase B — COMPLETED.
 Phase C — COMPLETED.
-Phase D — IN PROGRESS.
+Phase D — COMPLETED.
 
 D.1 — COMPLETED.
 D.2 — COMPLETED.
 D.3 — COMPLETED.
 D.4 — COMPLETED.
+D.5 — COMPLETED.
 
 C.4 — COMPLETED.
 C.5 — COMPLETED.
@@ -19,7 +20,7 @@ C.8 — COMPLETED.
 
 ## Next action
 
-Delegate to smart-worker: implement D.5.
+Delegate to smart-planner: prepare implementation plan for Phase E.1 (Settings — gitOperationTimeoutSeconds).
 
 Note: C.9 regression sweep verification completed successfully — tests and Release build passed; grep bans clean.
 
