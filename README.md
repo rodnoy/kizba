@@ -21,6 +21,12 @@ MVP 2 ships a complete read + write surface over `pass(1)`:
 - **FSEvents auto-refresh** — external changes to `~/.password-store` (e.g., from the CLI) are detected automatically via FSEvents; no manual ⌘R needed.
 - **Touch ID gate** (opt-in) — require biometric authentication before revealing secrets. Disabled by default; enable in Settings. Requires a Mac with Touch ID or Apple Watch unlock.
 
+## Git support
+- Sidebar badge showing repository status (clean, local changes, ahead/behind, conflict) with an actions popover.
+- Pull / Push via the "Git" menu (Refresh Status — ⌘⇧R; Pull; Push). Conflict banner shows merge conflicts and a quick "Open Terminal at Store" action.
+- Settings: "Git operation timeout" stepper (10–300 seconds, default 60) controls network operation timeout.
+- Opt-in integration tests: run `KIZBA_E2E=1 KIZBA_GIT_E2E=1 xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/PassGitE2ETests`
+
 ## Visual identity
 
 Five-color pastel palette (Pink Orchid · Pastel Petal · Blush Pop · Icy Blue · Sky Blue) used as

@@ -508,3 +508,12 @@ The 27 architectural + UX decisions for MVP 4 (planning phase, before any code).
 - **U5 — Show toast on `pass git push` no-op success.** When push returns `.alreadyUpToDate`, post `Toast(severity: .info, title: "Already up to date", message: "Nothing to push.")`. Severity `.info` (not `.success` — reserved for actual mutations).
 - **U6 — Auto-fetch on schedule deferred to MVP 5+.** No timer-based polling in MVP 4. Manual Refresh + scenePhase + StoreChange events cover user-driven cases.
 - **U7 — `gitOperationTimeoutSeconds` is a visible Settings stepper** (range 10...300, default 60). Slow-network users (4G in transit) need to bump it; visible setting beats undocumented `defaults` magic.
+
+## 2026-05-11 — MVP 4 (resolution)
+
+- LivePassGitManager implemented as actor; PassGitManaging protocol.
+- GitStatus is a non-Codable value type; security grep rules enforced.
+- UI: GitStatusModel @MainActor; badge in sidebar; popover + menu + conflict banner.
+- Pull/Push lockout integrated into AppState.activeWriteOps; new cases .gitPull/.gitPush.
+- E2E opt-in gated by env vars KIZBA_E2E and KIZBA_GIT_E2E.
+- No third-party packages; SWIFT_STRICT_CONCURRENCY enforced.

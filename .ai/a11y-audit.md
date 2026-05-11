@@ -381,3 +381,11 @@ relevant accessibility features enabled.
 - **Touch ID toggle (Settings):** VoiceOver announces label + state; disabled state announced when biometrics unavailable; reachable via keyboard Tab.
 - **FSEvents auto-refresh:** Entry list updates automatically on external store change; no VoiceOver regression (new rows announced on focus).
 - **SecureField password input (EntryFormBody):** Editable password field renders as `SecureField` by default; reveal toggle mirrors the read-only `SecretRevealField` vocabulary (`Hidden` / `Revealed`); defaults to masked so VoiceOver does not read individual characters as the user types. (Phase D.3 closure)
+
+## Git surfaces
+
+- [ ] GitStatusBadge: label + value + hint present; small visual dot for clean.
+- [ ] GitActionsPopover: each button has accessibilityLabel and accessibilityHint; in-flight spinner labelled.
+- [ ] GitConflictBanner: modal trait, store path selectable and labelled, primary Open Terminal action labelled.
+- [ ] Settings stepper: labelled and announces value/hint.
+- [ ] Menu items: Refresh status has shortcut announced.

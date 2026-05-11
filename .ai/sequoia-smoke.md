@@ -15,6 +15,10 @@ Include the following rows in the verification table. Columns: Verified (Y/N), N
 | Diagnostics | — | — | — | — |
 | FSEvents auto-refresh | — | Placeholder: verify auto-refresh without ⌘R | — | — |
 | Touch ID prompt | — | Placeholder: verify Touch ID appears on reveal when enabled | — | — |
+| Git status (clean) | — | Sidebar badge shows branch + clean dot for git-backed store | — | — |
+| Git pull happy | — | Git > Pull succeeds; badge updates; success/info toast appears | — | — |
+| Git push happy | — | Git > Push succeeds or shows "Already up to date" info toast | — | — |
+| Git conflict banner | — | Pull conflict shows banner with "Open Terminal at Store" action | — | — |
 
 Fill in the verification table as you run the checklist.
 
