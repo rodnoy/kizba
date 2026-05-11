@@ -58,10 +58,18 @@ gpgconf --version || true
 xcodebuild -version | head -1 || true
 echo ""
 
+# NOTE: Use a portable mktemp fallback for macOS where mktemp can
+# sometimes fail with "File exists" when run concurrently. Attempt
+# the system mktemp -d -t first, falling back to a pid+timestamp path
+# and ensuring the directory exists. chmod 700 to restrict access.
 # Create ephemeral GNUPGHOME
-GNUPGHOME_DIR="$(mktemp -d /tmp/kizba-e2e-XXXXXXXX)"
-export GNUPGHOME="$GNUPGHOME_DIR"
+GNUPGHOME="$(mktemp -d -t kizba-e2e)" || GNUPGHOME="/tmp/kizba-e2e-$$-$(date +%s)"; mkdir -p "$GNUPGHOME"
+GNUPGHOME_DIR="$GNUPGHOME"
+export GNUPGHOME
 chmod 700 "$GNUPGHOME"
+
+# Ensure cleanup of agents and the ephemeral GNUPGHOME on EXIT
+trap 'gpgconf --kill all >/dev/null 2>&1 || true; rm -rf "$GNUPGHOME"' EXIT
 
 # configure gpg for non-interactive loopback pinentry
 cat > "$GNUPGHOME/gpg-agent.conf" <<'GAG'
@@ -101,15 +109,17 @@ if [ -z "$RECIPIENT_ID" ]; then
 fi
 
 # Run xcodebuild for the PassWriteIntegrationTests only
-LOG_TMP="$(mktemp /tmp/kizba-e2e-log-XXXXXX.txt)"
-echo "Log file: $LOG_TMP"
+LOGFILE="${GNUPGHOME}/run-e2e-$(date +%s)-$$.log"
+echo "Log file: $LOGFILE"
 
 CMD=(xcodebuild test -scheme Kizba -project "$PROJECT_ROOT/Kizba.xcodeproj" -destination "platform=macOS" -only-testing:KizbaTests/PassWriteIntegrationTests)
 echo "Running: KIZBA_E2E=1 ${CMD[*]}"
 
 set +e
+# ensure KIZBA_E2E is exported for xcodebuild/test runner visibility
+export KIZBA_E2E=1
 # run and capture
-KIZBA_E2E=1 "${CMD[@]}" 2>&1 | tee "$LOG_TMP"
+"${CMD[@]}" 2>&1 | tee "$LOGFILE"
 EXIT_CODE=${PIPESTATUS[0]}
 set -e
 
@@ -142,12 +152,12 @@ if [ "$EXIT_CODE" -eq 0 ]; then
     echo ""
     echo "All E2E tests passed."
     echo ""
-    echo "Full log: $LOG_TMP"
+    echo "Full log: $LOGFILE"
     echo ""
     echo "## Tail of xcodebuild output (last 500 lines)"
     echo ""
     echo '```'
-    tail -500 "$LOG_TMP" || true
+    tail -500 "$LOGFILE" || true
     echo '```'
   } > "$PROJECT_ROOT/.ai/build-log.md"
   echo "Wrote $PROJECT_ROOT/.ai/build-log.md"
@@ -177,10 +187,10 @@ else
     echo "## Failure output (last 500 lines)"
     echo ""
     echo '```'
-    tail -500 "$LOG_TMP" || true
+    tail -500 "$LOGFILE" || true
     echo '```'
     echo ""
-    echo "Full log: $LOG_TMP"
+    echo "Full log: $LOGFILE"
   } > "$PROJECT_ROOT/.ai/build-errors.md"
   echo "Wrote $PROJECT_ROOT/.ai/build-errors.md"
   EXIT_STATUS=$EXIT_CODE
