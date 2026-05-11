@@ -94,3 +94,34 @@ Phase: B.2 CLI extension + git env
 ## Verdict
 
 Phase B.2 is green: PassCLI git status/pull/push extension and env composition tests pass, app build is green, grep bans are clean.
+
+---
+
+# Build Log — Phase B.4 LivePassGitManager
+
+Date: 2026-05-11
+Phase: B.4 actor + tests
+
+## Commands and results
+
+1. `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/LivePassGitManagerTests`
+   - Exit code: `0`
+   - Result: `TEST SUCCEEDED`
+   - Suite summary: `Executed 14 tests, with 0 failures (0 unexpected)`
+   - Full stdout/stderr: `/Users/kirillsimagin/.local/share/opencode/tool-output/tool_e17647199001rKa4tYTevU6L1s`
+
+2. `xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'`
+   - Exit code: `0`
+   - Result: `BUILD SUCCEEDED`
+
+3. `rg -n '\bas!\b' Kizba`
+   - Exit code: `1`
+   - Result: no matches
+
+4. `rg -n 'Logger.*stdin|print\(.*stdin' Kizba`
+   - Exit code: `1`
+   - Result: no matches
+
+## Verdict
+
+Phase B.4 is green: LivePassGitManager actor and dedicated tests pass, app build is green, grep bans are clean.
