@@ -30,6 +30,9 @@ struct KizbaApp: App {
             .commands {
             DiagnosticsCommands()
             EntryMenuCommands(state: state)
+            if state.gitStatusModel != nil {
+                GitMenuCommands(state: state)
+            }
         }
         // Standard macOS Settings scene. Reuses the SHARED
         // `BinaryDiscoveryService` from `AppEnvironment.live()` so that

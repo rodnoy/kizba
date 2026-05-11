@@ -9,24 +9,26 @@ Phase C — IN PROGRESS.
 C.4 — COMPLETED.
 C.5 — COMPLETED.
 C.6 — COMPLETED.
+C.8 — COMPLETED.
 
 ## Next action
 
-Delegate to smart-worker: implement C.7 Sidebar mount.
+Delegate to smart-worker: run C.9 Phase C regression sweep.
 
-Task: Mount Git actions popover entrypoint in sidebar flow for C.7.
+Task: Create `Kizba/App/GitMenuCommands.swift` with a "Git" `CommandMenu` containing Refresh Status (⌘⇧R), Pull, Push, Open Terminal at Store. Mount in `KizbaApp.commands`. Add `KizbaTests/GitMenuCommandsTests.swift` testing disable conditions via `GitStatusModel` computed properties (`canRefresh`, `canPull`, `canPush`). If `pull()`/`push()`/`openTerminalAtStore()` don't exist on `GitStatusModel` yet, stub the buttons with `.disabled(true)` + `// TODO: Phase D`. Follow `EntryMenuCommands` pattern exactly. Add both files to `project.pbxproj`.
 
-Verification commands for C.4:
+See `.ai/plan.md` Phase C.8 section for full API signatures, test cases, and code shape.
+
+Verification commands for C.8:
 ```sh
-xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/AppEnvironmentGitWiringTests
 xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/GitMenuCommandsTests
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
 rg -n '\bas!\b' Kizba
 rg -n 'Logger.*stdin|print\(.*stdin' Kizba
 ```
 
-Summary: Added `AppEnvironment` helpers to build and async-wire `LivePassGitManager` into `AppState.gitStatusModel` only when discovery succeeds and the store is a git repository. Added `AppEnvironmentGitWiringTests` (3 async tests) for no discovery, missing git, and repo success path. Wired startup via non-blocking `.task` in `KizbaApp`.
-
-Expected commit message: `feat(app): wire LivePassGitManager startup integration`
+Expected commit message: `feat(app): add Git menu commands (Refresh ⌘⇧R, Pull, Push, Open Terminal)`
 
 Verification commands after C.2:
 ```sh
@@ -46,9 +48,9 @@ Expected commit message: `feat(app): add optional gitStatusModel to AppState`
 - C.4 — COMPLETED (AppEnvironment wiring)
 - C.5 — COMPLETED (GitStatusBadge view + sidebar mount)
 - C.6 — COMPLETED (GitActionsPopover view)
-- C.7 — next (Sidebar mount)
-- C.8 — pending (Git menu commands)
-- C.9 — pending (regression sweep)
+- C.7 — COMPLETED (Sidebar mount — GitStatusBadge in SidebarView, RootSplitView passes gitStatusModel)
+- C.8 — COMPLETED (Git menu commands)
+- C.9 — next (regression sweep)
 
 ## Phase B progress
 

@@ -281,3 +281,5 @@ Phase C.5 is green: `GitStatusBadge` was added and mounted in sidebar with `Root
 ---
 
 Phase C.6 verification passed: `GitActionsPopoverTests` executed 8 tests with 0 failures, `xcodebuild build` for the Kizba macOS scheme succeeded, and both grep bans (`as!` and stdin logging patterns) returned no matches. The `GitStatusBadge` popover now renders `GitActionsPopover`, with no Phase D action logic introduced.
+
+Phase C.8 verification passed: targeted `GitMenuCommandsTests` executed 6 tests with 0 failures, the app scheme build succeeded on macOS, and both source-policy grep checks (`\bas!\b` and `Logger.*stdin|print\(.*stdin`) returned no matches. The new Git menu commands are wired with safe default no-op closures for Pull/Push/Open Terminal, without introducing Phase D behavior.
