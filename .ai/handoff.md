@@ -6,83 +6,27 @@ Phase A — COMPLETED.
 Phase B — COMPLETED.
 Phase C — COMPLETED.
 Phase D — COMPLETED.
+Phase E — COMPLETED.
 
-D.1 — COMPLETED.
-D.2 — COMPLETED.
-D.3 — COMPLETED.
-D.4 — COMPLETED.
-D.5 — COMPLETED.
+E.1 — COMPLETED (ShellInvocation + stdin pipe).
+E.2 — COMPLETED (ProcessShellRunner stdin).
+E.3 — COMPLETED (Opt-in E2E Pass+Git).
+E.4 — COMPLETED (Docs & final regression sweep).
 
-C.4 — COMPLETED.
-C.5 — COMPLETED.
-C.6 — COMPLETED.
-C.8 — COMPLETED.
+## MVP 4 release checklist
+
+- [ ] Run full tests:
+  `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'`
+- [ ] Build Release:
+  `xcodebuild -scheme Kizba -project Kizba.xcodeproj -configuration Release -destination 'platform=macOS' build`
+- [ ] Confirm grep bans:
+  `rg -n '\bas!\b' Kizba`
+  `rg -n 'Logger.*stdin|print\(.*stdin' Kizba`
+- [ ] Optionally run opt-in Git E2E:
+  `KIZBA_E2E=1 KIZBA_GIT_E2E=1 xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/PassGitE2ETests`
+- [ ] Tag release.
+- [ ] Update release notes.
 
 ## Next action
 
-E.2 — COMPLETED.
-E.3 — COMPLETED.
-
-Delegate to smart-planner: prepare implementation plan for Phase E.4 (Docs & final sweep)
-
-Note: C.9 regression sweep verification completed successfully — tests and Release build passed; grep bans clean.
-
-See `.ai/plan.md` Phase C.8 section for full API signatures, test cases, and code shape.
-
-Verification commands for C.8:
-```sh
-xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/GitMenuCommandsTests
-xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-rg -n '\bas!\b' Kizba
-rg -n 'Logger.*stdin|print\(.*stdin' Kizba
-```
-
-Expected commit message: `feat(app): add Git menu commands (Refresh ⌘⇧R, Pull, Push, Open Terminal)`
-
-Verification commands after C.2:
-```sh
-xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/GitStatusModelObserveTests
-xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-rg -n '\bas!\b' Kizba
-rg -n 'Logger.*stdin|print\(.*stdin' Kizba
-```
-
-Expected commit message: `feat(app): add optional gitStatusModel to AppState`
-
-## Phase C progress
-
-- C.1 — COMPLETED (GitStatusModel scaffold + tests)
-- C.2 — COMPLETED (observe-changes hook)
-- C.3 — COMPLETED (AppState extension)
-- C.4 — COMPLETED (AppEnvironment wiring)
-- C.5 — COMPLETED (GitStatusBadge view + sidebar mount)
-- C.6 — COMPLETED (GitActionsPopover view)
-- C.7 — COMPLETED (Sidebar mount — GitStatusBadge in SidebarView, RootSplitView passes gitStatusModel)
-- C.8 — COMPLETED (Git menu commands)
-- C.9 — next (regression sweep)
-
-## Phase B progress
-
-- B.1–B.5 — all completed
-
-## Phase A progress
-
-- A.1–A.7 — all completed
-
-## Verification commands
-
-```sh
-xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/GitStatusModelTests
-xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-rg -n '\bas!\b' Kizba
-rg -n 'Logger.*stdin|print\(.*stdin' Kizba
-```
-
-## Last completed step summary
-
-- C.4 completed: `AppEnvironment` now provides `makeLivePassGitManager(...)` and `wireGitModelIfAvailable(into:usingShellRunner:)` helpers.
-- `wireGitModelIfAvailable` performs best-effort probe and creates `GitStatusModel` only when `.git` + `.pass` are discoverable and `status.isGitRepository == true`; otherwise it is a no-op.
-- `KizbaApp` now runs startup git wiring in a non-blocking `.task` after initial render.
-- Added `KizbaTests/AppEnvironmentGitWiringTests.swift` with 3 async tests for nil discovery, missing git, and repo wiring success (`clean-with-upstream` fixture).
-- Verification green: targeted tests passed, app build succeeded, grep bans clean.
+MVP 4 complete. Next milestone: MVP 5 planning.

@@ -20,3 +20,10 @@ Added opt-in `PassGitE2ETests` and `PassGitE2EHelper` with dual gating (`KIZBA_E
 Targeted E2E run passed with `TEST_RUNNER_KIZBA_E2E=1 TEST_RUNNER_KIZBA_GIT_E2E=1` (`PassGitE2ETests`: 7/7 passed).
 Full suite with E2E env passed: 908 tests executed, 3 skipped, 0 failures.
 Build succeeded (`xcodebuild build`), grep bans clean (`\bas!\b` and `Logger.*stdin|print\(.*stdin`).
+
+Phase E.4 final regression sweep summary
+
+Default full test suite passed: 908 tests executed, 17 skipped, 0 failures.
+Release build succeeded for `Kizba` (`-configuration Release`).
+Security grep bans were clean: no matches for `\bas!\b` and no matches for `Logger.*stdin|print\(.*stdin` in `Kizba`.
+Optional Git E2E command was executed and completed successfully, but all 7 tests were skipped because the runtime env gate was not enabled in the test host (`PassGitE2ETests`: 0 failures, skipped by gate).
