@@ -20,7 +20,9 @@ C.8 — COMPLETED.
 
 ## Next action
 
-Delegate to smart-planner: prepare implementation plan for Phase E.1 (Settings — gitOperationTimeoutSeconds).
+E.2 — COMPLETED.
+
+Delegate to smart-planner: prepare implementation plan for Phase E.3 (Opt-in E2E).
 
 Note: C.9 regression sweep verification completed successfully — tests and Release build passed; grep bans clean.
 
