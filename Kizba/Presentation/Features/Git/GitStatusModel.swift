@@ -5,6 +5,8 @@ import Observation
 @MainActor
 public final class GitStatusModel {
 
+    private nonisolated static let gitOperationTimeoutSecondsKey = SettingsKey<Int>("gitOperationTimeoutSeconds")
+
     public enum LoadState: Sendable, Equatable {
         case idle
         case loading
@@ -189,6 +191,112 @@ public final class GitStatusModel {
         currentTask = nil
         if loadState == .loading {
             loadState = .idle
+        }
+    }
+
+    public func pull() async {
+        guard canPull else { return }
+
+        var operationError: PassError?
+        operationState = .pulling
+        appState.beginWrite(.gitPull)
+        defer {
+            operationState = .idle
+            appState.endWrite(.gitPull)
+        }
+
+        do {
+            try await gitManager.gitPull(timeoutSeconds: gitOperationTimeoutSeconds)
+            toastCenter.post(
+                Toast(severity: .success, title: "Pull complete", message: nil)
+            )
+        } catch is CancellationError {
+            // Silently cancelled.
+        } catch {
+            let mappedError = (error as? PassError)
+                ?? PassError.shellFailure(exitCode: -1, stderrExcerpt: "")
+            operationError = mappedError
+            lastError = mappedError
+            toastCenter.post(
+                Toast(
+                    severity: .danger,
+                    title: "Pull failed",
+                    message: userMessage(for: mappedError)
+                )
+            )
+        }
+
+        await loadStatus()
+        if let operationError {
+            lastError = operationError
+        }
+    }
+
+    public func push() async {
+        guard canPush else { return }
+
+        var operationError: PassError?
+        operationState = .pushing
+        appState.beginWrite(.gitPush)
+        defer {
+            operationState = .idle
+            appState.endWrite(.gitPush)
+        }
+
+        do {
+            let outcome = try await gitManager.gitPush(timeoutSeconds: gitOperationTimeoutSeconds)
+            switch outcome {
+            case .pushed:
+                toastCenter.post(
+                    Toast(severity: .success, title: "Push complete", message: nil)
+                )
+            case .alreadyUpToDate:
+                toastCenter.post(
+                    Toast(severity: .info, title: "Already up to date", message: nil)
+                )
+            }
+        } catch is CancellationError {
+            // Silently cancelled.
+        } catch {
+            let mappedError = (error as? PassError)
+                ?? PassError.shellFailure(exitCode: -1, stderrExcerpt: "")
+            operationError = mappedError
+            lastError = mappedError
+            toastCenter.post(
+                Toast(
+                    severity: .danger,
+                    title: "Push failed",
+                    message: userMessage(for: mappedError)
+                )
+            )
+        }
+
+        await loadStatus()
+        if let operationError {
+            lastError = operationError
+        }
+    }
+
+    private var gitOperationTimeoutSeconds: Int {
+        let configured = settingsStore.value(for: Self.gitOperationTimeoutSecondsKey)
+        guard let configured, configured > 0 else { return 60 }
+        return configured
+    }
+
+    private func userMessage(for error: PassError) -> String? {
+        let presentation = ErrorPresentation.present(for: error)
+        switch presentation {
+        case .silent:
+            return nil
+        case .toastWithDiagnostics(let message),
+             .inlineWithDiagnostics(let message):
+            return message
+        case .onboarding(let message):
+            return message
+        case .banner(let message, _):
+            return message
+        case .emptyState(let nudge):
+            return nudge.actionTitle
         }
     }
 

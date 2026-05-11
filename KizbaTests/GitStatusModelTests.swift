@@ -276,6 +276,154 @@ final class GitStatusModelTests: XCTestCase {
         XCTAssertTrue(model.canRefresh)
     }
 
+    // MARK: - pull()
+
+    func testPull_happyPath_postsSuccessToast_and_reloadsStatus() async {
+        let manager = FakePassGitManager()
+        await manager.setNextStatus(.success(GitStatus(
+            isGitRepository: true,
+            hasRemote: true
+        )))
+        let appState = AppState()
+        let model = makeModel(gitManager: manager, appState: appState)
+        await model.loadStatus()
+
+        await model.pull()
+
+        XCTAssertEqual(model.operationState, .idle)
+        XCTAssertFalse(appState.anyWriteInFlight)
+        XCTAssertEqual(appState.toastCenter.visible?.severity, .success)
+        let pullCount = await manager.pullCallCount
+        XCTAssertEqual(pullCount, 1)
+    }
+
+    func testPull_failure_postsDangerToast_and_setsLastError() async {
+        let manager = FakePassGitManager()
+        await manager.setNextStatus(.success(GitStatus(
+            isGitRepository: true,
+            hasRemote: true
+        )))
+        await manager.setPullResults([.failure(PassError.gitAuthFailed)])
+        let appState = AppState()
+        let model = makeModel(gitManager: manager, appState: appState)
+        await model.loadStatus()
+
+        await model.pull()
+
+        XCTAssertEqual(model.operationState, .idle)
+        XCTAssertFalse(appState.anyWriteInFlight)
+        XCTAssertEqual(model.lastError, .gitAuthFailed)
+        XCTAssertEqual(appState.toastCenter.visible?.severity, .danger)
+    }
+
+    func testPull_guardsCanPull_doesNothingWhenFalse() async {
+        let manager = FakePassGitManager()
+        let model = makeModel(gitManager: manager)
+
+        await model.pull()
+
+        let pullCount = await manager.pullCallCount
+        XCTAssertEqual(pullCount, 0)
+    }
+
+    func testPull_setsWriteLockout_duringOperation() async {
+        let manager = FakePassGitManager()
+        await manager.setNextStatus(.success(GitStatus(
+            isGitRepository: true,
+            hasRemote: true
+        )))
+        await manager.setArtificialDelay(.milliseconds(100))
+        let appState = AppState()
+        let model = makeModel(gitManager: manager, appState: appState)
+        await model.loadStatus()
+
+        let task = Task { await model.pull() }
+        try? await Task.sleep(for: .milliseconds(30))
+        XCTAssertTrue(appState.anyWriteInFlight)
+        XCTAssertTrue(appState.activeWriteOps.contains(.gitPull))
+
+        await task.value
+        XCTAssertFalse(appState.anyWriteInFlight)
+    }
+
+    // MARK: - push()
+
+    func testPush_happyPath_postsSuccessToast() async {
+        let manager = FakePassGitManager()
+        await manager.setNextStatus(.success(GitStatus(
+            isGitRepository: true,
+            aheadCount: 1,
+            hasRemote: true
+        )))
+        let appState = AppState()
+        let model = makeModel(gitManager: manager, appState: appState)
+        await model.loadStatus()
+
+        await model.push()
+
+        XCTAssertEqual(model.operationState, .idle)
+        XCTAssertFalse(appState.anyWriteInFlight)
+        XCTAssertEqual(appState.toastCenter.visible?.severity, .success)
+        let pushCount = await manager.pushCallCount
+        XCTAssertEqual(pushCount, 1)
+    }
+
+    func testPush_failure_postsDangerToast_and_setsLastError() async {
+        let manager = FakePassGitManager()
+        await manager.setNextStatus(.success(GitStatus(
+            isGitRepository: true,
+            aheadCount: 1,
+            hasRemote: true
+        )))
+        await manager.setPushResults([.failure(PassError.gitAuthFailed)])
+        let appState = AppState()
+        let model = makeModel(gitManager: manager, appState: appState)
+        await model.loadStatus()
+
+        await model.push()
+
+        XCTAssertEqual(model.operationState, .idle)
+        XCTAssertFalse(appState.anyWriteInFlight)
+        XCTAssertEqual(model.lastError, .gitAuthFailed)
+        XCTAssertEqual(appState.toastCenter.visible?.severity, .danger)
+    }
+
+    func testPush_guardsCanPush_doesNothingWhenFalse() async {
+        let manager = FakePassGitManager()
+        await manager.setNextStatus(.success(GitStatus(
+            isGitRepository: true,
+            hasRemote: true
+        )))
+        let model = makeModel(gitManager: manager)
+        await model.loadStatus()
+
+        await model.push()
+
+        let pushCount = await manager.pushCallCount
+        XCTAssertEqual(pushCount, 0)
+    }
+
+    func testPush_setsWriteLockout_duringOperation() async {
+        let manager = FakePassGitManager()
+        await manager.setNextStatus(.success(GitStatus(
+            isGitRepository: true,
+            aheadCount: 1,
+            hasRemote: true
+        )))
+        await manager.setArtificialDelay(.milliseconds(100))
+        let appState = AppState()
+        let model = makeModel(gitManager: manager, appState: appState)
+        await model.loadStatus()
+
+        let task = Task { await model.push() }
+        try? await Task.sleep(for: .milliseconds(30))
+        XCTAssertTrue(appState.anyWriteInFlight)
+        XCTAssertTrue(appState.activeWriteOps.contains(.gitPush))
+
+        await task.value
+        XCTAssertFalse(appState.anyWriteInFlight)
+    }
+
     // MARK: - Helpers
 
     private func makeModel(

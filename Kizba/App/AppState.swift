@@ -42,6 +42,10 @@ public enum ActiveWriteOp: Sendable, Hashable {
     case move
     /// `EntryListModel.deleteEntry` — the destructive delete pipeline.
     case delete
+    /// `GitStatusModel.pull()` — git pull operation.
+    case gitPull
+    /// `GitStatusModel.push()` — git push operation.
+    case gitPush
 }
 
 /// Observable, MainActor-isolated root state for the Kizba window.

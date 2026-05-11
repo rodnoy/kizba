@@ -78,6 +78,40 @@ final class ConcurrentWriteLockoutTests: XCTestCase {
         XCTAssertFalse(state.anyWriteInFlight)
     }
 
+    // MARK: - Git operations (D.1)
+
+    func testGitPull_beginEnd_trackedCorrectly() {
+        let state = AppState()
+
+        state.beginWrite(.gitPull)
+        XCTAssertTrue(state.anyWriteInFlight)
+        XCTAssertTrue(state.activeWriteOps.contains(.gitPull))
+
+        state.endWrite(.gitPull)
+        XCTAssertFalse(state.anyWriteInFlight)
+    }
+
+    func testGitPush_beginEnd_trackedCorrectly() {
+        let state = AppState()
+
+        state.beginWrite(.gitPush)
+        XCTAssertTrue(state.anyWriteInFlight)
+        XCTAssertTrue(state.activeWriteOps.contains(.gitPush))
+
+        state.endWrite(.gitPush)
+        XCTAssertFalse(state.anyWriteInFlight)
+    }
+
+    func testGitPull_blocksOtherWriteOps() {
+        let state = AppState()
+
+        state.beginWrite(.gitPull)
+        XCTAssertTrue(state.anyWriteInFlight)
+
+        state.endWrite(.gitPull)
+        XCTAssertFalse(state.anyWriteInFlight)
+    }
+
     // MARK: - EntryFormModel(.create)
 
     func testEntryFormCreate_save_marksInsertNewInFlight_thenReleasesOnSuccess() async {

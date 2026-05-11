@@ -4,7 +4,10 @@
 
 Phase A — COMPLETED.
 Phase B — COMPLETED.
-Phase C — IN PROGRESS.
+Phase C — COMPLETED.
+Phase D — IN PROGRESS.
+
+D.1 — COMPLETED.
 
 C.4 — COMPLETED.
 C.5 — COMPLETED.
@@ -13,7 +16,7 @@ C.8 — COMPLETED.
 
 ## Next action
 
-Delegate to smart-planner: prepare implementation plan for Phase D.1 (ActiveWriteOp extension).
+Delegate to smart-worker: implement D.2 (AppRouter conflict banner state).
 
 Note: C.9 regression sweep verification completed successfully — tests and Release build passed; grep bans clean.
 

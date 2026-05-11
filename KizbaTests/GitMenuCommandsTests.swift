@@ -49,6 +49,24 @@ final class GitMenuCommandsTests: XCTestCase {
         XCTAssertFalse(GitMenuCommands.canPull(state: state))
     }
 
+    func testCanPull_gitPushInFlight_false() {
+        let status = GitStatus(
+            isGitRepository: true,
+            branch: "main",
+            hasLocalChanges: false,
+            hasConflicts: false,
+            aheadCount: 0,
+            behindCount: 0,
+            hasRemote: true,
+            lastFetchAt: nil
+        )
+        let (state, model) = makeStateWithModel(status: status)
+        model.operationState = .idle
+        state.beginWrite(.gitPush)
+
+        XCTAssertFalse(GitMenuCommands.canPull(state: state))
+    }
+
     func testCanPushEnabledWhenAheadAndNoWriteInFlight() {
         let status = GitStatus(
             isGitRepository: true,
