@@ -21,6 +21,7 @@
 		E9411DBC2FAB8D6900ED03E6 /* KizbaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KizbaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F00000012FAB8D6400ED03E6 /* GitStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GitStatus.swift; path = Domain/Models/GitStatus.swift; sourceTree = "<group>"; };
 		F00000022FAB8D6400ED03E6 /* GitStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GitStatusTests.swift; path = GitStatusTests.swift; sourceTree = "<group>"; };
+		F00000032FAB8D6400ED03E6 /* PassGitManaging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PassGitManaging.swift; path = Domain/Protocols/PassGitManaging.swift; sourceTree = "<group>"; };
 
 /* End PBXFileReference section */
 

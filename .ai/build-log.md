@@ -59,3 +59,23 @@ Commands executed and results:
 
 4) rg -n 'Logger.*stdin|print\(.*stdin' Kizba || true
    - Result: no matches (clean)
+
+---
+
+Build verification for Phase A.4
+
+Summary:
+- Added `PassGitManaging` protocol and `GitPushOutcome` enum.
+- Project build succeeded.
+- Grep bans produced no matches.
+
+Commands executed and results:
+
+1) xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+   - Result: BUILD SUCCEEDED
+
+2) rg -n '\bas!\b' Kizba || true
+   - Result: no matches (clean)
+
+3) rg -n 'Logger.*stdin|print\(.*stdin' Kizba || true
+   - Result: no matches (clean)
