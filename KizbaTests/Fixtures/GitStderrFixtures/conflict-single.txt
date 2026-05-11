@@ -1,0 +1,3 @@
+Auto-merging personal/email.gpg
+CONFLICT (content): Merge conflict in personal/email.gpg
+Automatic merge failed; fix conflicts and then commit the result.

@@ -1,0 +1,1 @@
+fatal: Authentication failed for 'https://github.com/acme/private-store.git/'

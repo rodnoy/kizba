@@ -1,0 +1,5 @@
+To origin
+ ! [rejected]        release -> release (non-fast-forward)
+error: failed to push some refs to 'origin'
+hint: Updates were rejected because the tip of your current branch is behind
+hint: its remote counterpart.
