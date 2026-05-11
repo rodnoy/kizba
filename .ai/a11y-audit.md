@@ -305,14 +305,13 @@ relevant accessibility features enabled.
   navigated them as three separate stops. Per-row grouping + helper were
   added to KeyValueEditor to combine rows into single accessibility elements.
   (D.2)
-- [ ] **Editable cleartext password TextField in `NewEntrySheet`.** Uses a
-  plain `TextField` (line 146), not a `SecureField`. Each character is
-  read aloud as it is typed; users in public spaces should toggle
-  VoiceOver verbosity or rely on the (missing) reveal/hide toggle on
-  the editable field. Justified for create flow (user explicitly
-  chose the value), but consider migrating to `SecureField` + a
-  dedicated reveal toggle for parity with the read-only
-  `SecretRevealField`. — REMAINS OPEN (not addressed in D.1–D.5)
+- [x] **Editable cleartext password TextField in `NewEntrySheet` /
+  `EditEntrySheet`.** The shared `EntryFormBody` now renders the
+  password input as a `SecureField` by default and exposes a
+  reveal/hide toggle that mirrors the read-only `SecretRevealField`
+  vocabulary (`Hidden` / `Revealed`). The toggle defaults to masked
+  so VoiceOver no longer reads characters aloud as the user types.
+  (Phase D.3 closure)
 - [x] **`FormFieldRow` 140pt fixed label column does not scale with
   Dynamic Type.** At "Larger Accessibility Size 5", long field labels
   truncate inside the column rather than wrapping or growing. A vertical
@@ -381,3 +380,4 @@ relevant accessibility features enabled.
 
 - **Touch ID toggle (Settings):** VoiceOver announces label + state; disabled state announced when biometrics unavailable; reachable via keyboard Tab.
 - **FSEvents auto-refresh:** Entry list updates automatically on external store change; no VoiceOver regression (new rows announced on focus).
+- **SecureField password input (EntryFormBody):** Editable password field renders as `SecureField` by default; reveal toggle mirrors the read-only `SecretRevealField` vocabulary (`Hidden` / `Revealed`); defaults to masked so VoiceOver does not read individual characters as the user types. (Phase D.3 closure)

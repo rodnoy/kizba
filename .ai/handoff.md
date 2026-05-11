@@ -4,7 +4,7 @@
 
 **MVP 3 — SHIPPED.** All Phases A–F complete. No open blockers.
 
-Repository at HEAD `FILL_AFTER_F6`. Test suite: **NNN tests, M skipped, 0 failures**. Release build green. All grep bans clean.
+Repository at HEAD `<HEAD_AFTER_CLOSING_FIXES>`. Test suite: **737 tests, 9 skipped, 0 failures**. Release build green. All grep bans clean.
 
 ## Next immediate action
 

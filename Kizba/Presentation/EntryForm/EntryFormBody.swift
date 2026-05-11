@@ -7,6 +7,11 @@
 //  sections and owns the GeneratePasswordSheet wiring so callers
 //  only provide header / footer slots.
 //
+//  Phase D.3 closure — The password input is rendered via
+//  `SecureField` by default with a reveal toggle that mirrors the
+//  read-only `SecretRevealField` accessibility contract. The
+//  reveal state is presentation-only and never crosses the model.
+//
 
 import SwiftUI
 
@@ -26,21 +31,36 @@ public struct EntryFormBody<Header: View, Footer: View>: View {
     internal let headerView: Header
     internal let footerView: Footer
 
+    /// Generator used by the "Generate password…" sub-sheet. Held
+    /// as `any PasswordGenerating` so previews and tests may inject
+    /// a deterministic stub. The sheet wiring builds a fresh
+    /// `GeneratePasswordModel` per presentation over this generator.
+    internal let passwordGenerator: any PasswordGenerating
+
     @Environment(\.theme) private var theme
 
     // Generate sub-sheet state owned by this body.
     @State private var isGenerateSheetPresented: Bool = false
     @State private var generatePasswordModel: GeneratePasswordModel?
 
+    /// Local UI state for the password reveal toggle. Kept here
+    /// because reveal/hide is presentation-only — the model never
+    /// needs to know whether the user is looking at the value.
+    /// Defaults to masked (`false`) so the password is never
+    /// rendered in cleartext until the user explicitly opts in.
+    @State private var isPasswordRevealed: Bool = false
+
     /// Construct a body backed by `model`.
     init(
         model: EntryFormModel,
         pathFieldEnabled: Bool,
+        passwordGenerator: any PasswordGenerating = LivePasswordGenerator(),
         @ViewBuilder header: () -> Header,
         @ViewBuilder footer: () -> Footer
     ) {
         self.model = model
         self.pathFieldEnabled = pathFieldEnabled
+        self.passwordGenerator = passwordGenerator
         self.headerView = header()
         self.footerView = footer()
     }
@@ -64,7 +84,7 @@ public struct EntryFormBody<Header: View, Footer: View>: View {
             if presented {
                 // Build a fresh generator model per presentation.
                 generatePasswordModel = GeneratePasswordModel(
-                    generator: LivePasswordGenerator()
+                    generator: passwordGenerator
                 )
             }
         }
@@ -106,12 +126,40 @@ public struct EntryFormBody<Header: View, Footer: View>: View {
                 errorText: model.passwordError
             ) {
                 VStack(alignment: .leading, spacing: theme.spacing.sm) {
-                    TextField(
-                        "password",
-                        text: Binding(get: { model.draft.password }, set: { model.draft.password = $0 }),
-                        prompt: Text("password")
-                    )
-                    .textFieldStyle(.kizba)
+                    HStack(spacing: theme.spacing.sm) {
+                        // The password input is rendered as either a
+                        // `SecureField` (default — characters are
+                        // masked and never read aloud by VoiceOver
+                        // as they are typed) or a plain `TextField`
+                        // when the user has opted into reveal. The
+                        // two branches must share the same binding
+                        // so toggling does not lose in-flight input.
+                        if isPasswordRevealed {
+                            TextField(
+                                "password",
+                                text: Binding(get: { model.draft.password }, set: { model.draft.password = $0 }),
+                                prompt: Text("password")
+                            )
+                            .textFieldStyle(.kizba)
+                        } else {
+                            SecureField(
+                                "password",
+                                text: Binding(get: { model.draft.password }, set: { model.draft.password = $0 }),
+                                prompt: Text("password")
+                            )
+                            .textFieldStyle(.kizba)
+                        }
+
+                        Button {
+                            isPasswordRevealed.toggle()
+                        } label: {
+                            Image(systemName: isPasswordRevealed ? "eye.slash" : "eye")
+                        }
+                        .buttonStyle(.kizba(.ghost, size: .compact))
+                        .accessibilityLabel(isPasswordRevealed ? "Hide password" : "Reveal password")
+                        .accessibilityValue(EntryFormBody<Header, Footer>.passwordRevealAccessibilityValue(isRevealed: isPasswordRevealed))
+                        .help(isPasswordRevealed ? "Hide password" : "Reveal password")
+                    }
 
                     HStack(spacing: theme.spacing.sm) {
                         Spacer()
@@ -174,5 +222,16 @@ public struct EntryFormBody<Header: View, Footer: View>: View {
                 }
             }
         )
+    }
+
+    // MARK: - Pure helpers (testable contract)
+
+    /// Accessibility value string describing the current reveal state
+    /// of the password field. Mirrors
+    /// `SecretRevealField.accessibilityValueText(isRevealed:)` so the
+    /// editable and read-only secret affordances announce the same
+    /// vocabulary to assistive tech.
+    static func passwordRevealAccessibilityValue(isRevealed: Bool) -> String {
+        isRevealed ? "Revealed" : "Hidden"
     }
 }
