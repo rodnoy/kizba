@@ -94,6 +94,10 @@ final class AppState {
     /// for presentation state.
     var router: AppRouter = AppRouter()
 
+    /// Optional Git status model. Wired by AppEnvironment when git
+    /// integration is available for the current store.
+    var gitStatusModel: GitStatusModel?
+
     // presentation flags are owned by `router` (see above)
 
     /// Set of in-flight write operations (Phase G.6). Each write
@@ -146,13 +150,15 @@ final class AppState {
         searchQuery: String = "",
         isSidebarCollapsed: Bool = false,
         currentEntries: [PassEntry] = [],
-        toastCenter: ToastCenter = ToastCenter()
+        toastCenter: ToastCenter = ToastCenter(),
+        gitStatusModel: GitStatusModel? = nil
     ) {
         self.searchQuery = searchQuery
         self.isSidebarCollapsed = isSidebarCollapsed
         self.currentEntries = currentEntries
         self.toastCenter = toastCenter
         self.actionHistory = ActionHistory(passManager: passManager)
+        self.gitStatusModel = gitStatusModel
         // `router` already initialised to a fresh `AppRouter()`; it
         // owns selection and presentation state.
     }
@@ -175,7 +181,8 @@ final class AppState {
             searchQuery: searchQuery,
             isSidebarCollapsed: isSidebarCollapsed,
             currentEntries: currentEntries,
-            toastCenter: toastCenter
+            toastCenter: toastCenter,
+            gitStatusModel: nil
         )
     }
     #endif

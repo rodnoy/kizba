@@ -185,3 +185,35 @@ Phase: C.2 observe-changes hook
 ## Verdict
 
 Phase C.2 is green: `GitStatusModel.observeChanges()` and `stop()` are covered by dedicated tests, app build is green, and grep bans are clean.
+
+---
+
+# Build Log — Phase C.3 AppState optional gitStatusModel
+
+Date: 2026-05-11
+Phase: C.3 AppState extension
+
+## Commands and results
+
+1. `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/AppStateTests`
+   - Exit code: `0`
+   - Result: `TEST SUCCEEDED`
+   - Suite summary: `Executed 6 tests, with 0 failures (0 unexpected)`
+   - Last test header: `Test Suite 'AppStateTests' passed at 2026-05-11 16:56:11.488.`
+
+2. `xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'`
+   - Exit code: `0`
+   - Result: `BUILD SUCCEEDED`
+   - Last build line: `** BUILD SUCCEEDED **`
+
+3. `rg -n '\bas!\b' Kizba`
+   - Exit code: `1`
+   - Result: no matches
+
+4. `rg -n 'Logger.*stdin|print\(.*stdin' Kizba`
+   - Exit code: `1`
+   - Result: no matches
+
+## Verdict
+
+Phase C.3 is green: `AppState` now has optional `gitStatusModel` with default nil, `AppStateTests` includes `testGitStatusModel_defaultNil`, build is green, and grep bans remain clean.

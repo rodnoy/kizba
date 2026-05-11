@@ -62,4 +62,9 @@ final class AppStateTests: XCTestCase {
         ]
         XCTAssertEqual(state.currentEntries.map(\.path), ["a", "b"])
     }
+
+    func testGitStatusModel_defaultNil() {
+        let state = AppState()
+        XCTAssertNil(state.gitStatusModel)
+    }
 }

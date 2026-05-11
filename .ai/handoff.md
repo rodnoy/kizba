@@ -6,11 +6,25 @@ Phase A — COMPLETED.
 Phase B — COMPLETED.
 Phase C — IN PROGRESS.
 
+C.3 — COMPLETED.
+
 ## Next action
 
-Delegate to smart-worker: implement C.3 AppState extension to hold `gitStatusModel`.
+Delegate to smart-worker: implement C.4 AppEnvironment wiring (LivePassGitManager startup integration).
 
-Task: Extend `Kizba/App/AppState.swift` with optional `gitStatusModel: GitStatusModel? = nil` and initializer plumbing (default nil), then add/adjust `KizbaTests/AppStateTests.swift` coverage for the default value. Keep changes additive and minimal.
+Task: Wire git startup in `AppEnvironment`/`KizbaApp` so `AppState.gitStatusModel` is created only when git is available and store is a git repository.
+
+Verification commands for C.3:
+```sh
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/AppStateTests
+xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+rg -n '\bas!\b' Kizba
+rg -n 'Logger.*stdin|print\(.*stdin' Kizba
+```
+
+Summary: Added optional `gitStatusModel` to `AppState` with designated-init/default plumbing (nil by default) and added `testGitStatusModel_defaultNil` in `AppStateTests`. Targeted tests and build passed; grep bans are clean.
+
+Expected commit message: `feat(app): add optional gitStatusModel to AppState`
 
 Verification commands after C.2:
 ```sh
@@ -26,8 +40,8 @@ Expected commit message: `feat(app): add optional gitStatusModel to AppState`
 
 - C.1 — COMPLETED (GitStatusModel scaffold + tests)
 - C.2 — COMPLETED (observe-changes hook)
-- C.3 — next (AppState extension)
-- C.4 — pending (AppEnvironment wiring)
+- C.3 — COMPLETED (AppState extension)
+- C.4 — next (AppEnvironment wiring)
 - C.5 — pending (GitStatusBadge view)
 - C.6 — pending (GitActionsPopover view)
 - C.7 — pending (Sidebar mount)
