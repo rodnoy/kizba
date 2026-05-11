@@ -8,12 +8,13 @@ Phase C — IN PROGRESS.
 
 C.4 — COMPLETED.
 C.5 — COMPLETED.
+C.6 — COMPLETED.
 
 ## Next action
 
-Delegate to smart-worker: implement C.6 GitActionsPopover view.
+Delegate to smart-worker: implement C.7 Sidebar mount.
 
-Task: Add `GitActionsPopover` UI wired from `GitStatusBadge` placeholder trigger.
+Task: Mount Git actions popover entrypoint in sidebar flow for C.7.
 
 Verification commands for C.4:
 ```sh
@@ -44,8 +45,8 @@ Expected commit message: `feat(app): add optional gitStatusModel to AppState`
 - C.3 — COMPLETED (AppState extension)
 - C.4 — COMPLETED (AppEnvironment wiring)
 - C.5 — COMPLETED (GitStatusBadge view + sidebar mount)
-- C.6 — next (GitActionsPopover view)
-- C.7 — pending (Sidebar mount)
+- C.6 — COMPLETED (GitActionsPopover view)
+- C.7 — next (Sidebar mount)
 - C.8 — pending (Git menu commands)
 - C.9 — pending (regression sweep)
 

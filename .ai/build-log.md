@@ -277,3 +277,7 @@ Phase: C.5 GitStatusBadge view + sidebar mount
 ## Verdict
 
 Phase C.5 is green: `GitStatusBadge` was added and mounted in sidebar with `RootSplitView` wiring, dedicated badge tests pass, app build is green, and grep bans remain clean.
+
+---
+
+Phase C.6 verification passed: `GitActionsPopoverTests` executed 8 tests with 0 failures, `xcodebuild build` for the Kizba macOS scheme succeeded, and both grep bans (`as!` and stdin logging patterns) returned no matches. The `GitStatusBadge` popover now renders `GitActionsPopover`, with no Phase D action logic introduced.

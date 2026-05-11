@@ -21,8 +21,7 @@ struct GitStatusBadge: View {
         .buttonStyle(.plain)
         .foregroundStyle(foregroundColor)
         .popover(isPresented: $isPopoverPresented) {
-            Text("Git Actions")
-                .padding(theme.spacing.md)
+            GitActionsPopover(model: model)
         }
         .accessibilityLabel(model.badgeAccessibilityLabel)
         .accessibilityAddTraits(.isButton)
