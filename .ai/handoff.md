@@ -6,25 +6,25 @@ Phase A — COMPLETED.
 Phase B — COMPLETED.
 Phase C — IN PROGRESS.
 
-C.3 — COMPLETED.
+C.4 — COMPLETED.
 
 ## Next action
 
-Delegate to smart-worker: implement C.4 AppEnvironment wiring (LivePassGitManager startup integration).
+Delegate to smart-worker: implement C.5 GitStatusBadge view.
 
-Task: Wire git startup in `AppEnvironment`/`KizbaApp` so `AppState.gitStatusModel` is created only when git is available and store is a git repository.
+Task: Add `GitStatusBadge` UI and mount-ready wiring for sidebar usage.
 
-Verification commands for C.3:
+Verification commands for C.4:
 ```sh
-xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/AppStateTests
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/AppEnvironmentGitWiringTests
 xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
 rg -n '\bas!\b' Kizba
 rg -n 'Logger.*stdin|print\(.*stdin' Kizba
 ```
 
-Summary: Added optional `gitStatusModel` to `AppState` with designated-init/default plumbing (nil by default) and added `testGitStatusModel_defaultNil` in `AppStateTests`. Targeted tests and build passed; grep bans are clean.
+Summary: Added `AppEnvironment` helpers to build and async-wire `LivePassGitManager` into `AppState.gitStatusModel` only when discovery succeeds and the store is a git repository. Added `AppEnvironmentGitWiringTests` (3 async tests) for no discovery, missing git, and repo success path. Wired startup via non-blocking `.task` in `KizbaApp`.
 
-Expected commit message: `feat(app): add optional gitStatusModel to AppState`
+Expected commit message: `feat(app): wire LivePassGitManager startup integration`
 
 Verification commands after C.2:
 ```sh
@@ -41,8 +41,8 @@ Expected commit message: `feat(app): add optional gitStatusModel to AppState`
 - C.1 — COMPLETED (GitStatusModel scaffold + tests)
 - C.2 — COMPLETED (observe-changes hook)
 - C.3 — COMPLETED (AppState extension)
-- C.4 — next (AppEnvironment wiring)
-- C.5 — pending (GitStatusBadge view)
+- C.4 — COMPLETED (AppEnvironment wiring)
+- C.5 — next (GitStatusBadge view)
 - C.6 — pending (GitActionsPopover view)
 - C.7 — pending (Sidebar mount)
 - C.8 — pending (Git menu commands)
@@ -67,7 +67,8 @@ rg -n 'Logger.*stdin|print\(.*stdin' Kizba
 
 ## Last completed step summary
 
-- C.2 completed: `GitStatusModel` now stores `passManager`, subscribes to `passManager.changes` via `observeChanges()`, reloads via `await loadStatus()` per event, and exposes idempotent `stop()` cancellation seam.
-- Added `KizbaTests/GitStatusModelObserveTests.swift` (4 async tests) covering event-triggered reload, stop cancellation, no-double-subscribe behavior, and cancellation during a slow load.
-- Updated `GitStatusModelTests` constructor helper and Async test helper protocol conformance to include the new `passManager` dependency.
-- Verification green: targeted observe tests passed, app build succeeded, grep bans clean.
+- C.4 completed: `AppEnvironment` now provides `makeLivePassGitManager(...)` and `wireGitModelIfAvailable(into:usingShellRunner:)` helpers.
+- `wireGitModelIfAvailable` performs best-effort probe and creates `GitStatusModel` only when `.git` + `.pass` are discoverable and `status.isGitRepository == true`; otherwise it is a no-op.
+- `KizbaApp` now runs startup git wiring in a non-blocking `.task` after initial render.
+- Added `KizbaTests/AppEnvironmentGitWiringTests.swift` with 3 async tests for nil discovery, missing git, and repo wiring success (`clean-with-upstream` fixture).
+- Verification green: targeted tests passed, app build succeeded, grep bans clean.

@@ -81,6 +81,59 @@ struct AppEnvironment: Sendable {
 
 extension AppEnvironment {
 
+    func makeLivePassGitManager(
+        passExecutable: URL,
+        gitExecutable: URL,
+        shellRunner: (any ShellCommandRunning)? = nil
+    ) -> LivePassGitManager {
+        let runner = shellRunner ?? ProcessShellRunner(invocationLog: invocationLog)
+        let passCLI = PassCLI(executable: passExecutable, shellRunner: runner)
+        let storeRootProvider = Self.makeStoreRootProvider(settings: settings)
+
+        return LivePassGitManager(
+            passCLI: passCLI,
+            gitExecutable: gitExecutable,
+            storeLocationProvider: {
+                storeRootProvider()
+            }
+        )
+    }
+
+    @MainActor
+    func wireGitModelIfAvailable(
+        into appState: AppState,
+        usingShellRunner shellRunner: (any ShellCommandRunning)? = nil
+    ) async {
+        guard let discovery else { return }
+        guard let gitExecutable = await discovery.locate(.git) else { return }
+        guard let passExecutable = await discovery.locate(.pass) else { return }
+
+        let gitManager = makeLivePassGitManager(
+            passExecutable: passExecutable,
+            gitExecutable: gitExecutable,
+            shellRunner: shellRunner
+        )
+
+        guard let status = try? await gitManager.gitStatus(), status.isGitRepository else {
+            return
+        }
+
+        let model = GitStatusModel(
+            gitManager: gitManager,
+            passManager: passManager,
+            appState: appState,
+            router: appState.router,
+            toastCenter: appState.toastCenter,
+            settingsStore: settings
+        )
+        model.status = status
+        appState.gitStatusModel = model
+
+        Task {
+            await model.observeChanges()
+        }
+    }
+
     /// Production wiring.
     ///
     /// `live()` constructs the real infrastructure collaborators that

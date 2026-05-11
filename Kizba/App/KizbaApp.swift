@@ -22,6 +22,9 @@ struct KizbaApp: App {
         WindowGroup {
             ThemedRoot {
                 RootSplitView(environment: environment, state: state)
+                    .task {
+                        await environment.wireGitModelIfAvailable(into: state)
+                    }
             }
         }
             .commands {
