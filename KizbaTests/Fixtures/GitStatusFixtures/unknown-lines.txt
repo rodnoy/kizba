@@ -1,0 +1,6 @@
+# branch.oid dddddddddddddddddddddddddddddddddddddddd
+# branch.head main
+# branch.foo bar
+X something unexpected
+# branch.upstream origin/main
+# branch.ab +4 -1

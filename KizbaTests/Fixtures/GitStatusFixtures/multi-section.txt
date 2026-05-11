@@ -1,0 +1,7 @@
+# branch.oid cccccccccccccccccccccccccccccccccccccccc
+# branch.head release/1.2
+# branch.upstream origin/release/1.2
+# branch.ab +2 -5
+1 .M N... 100644 100644 100644 abcdef5 abcdef5 one/file.gpg
+? new/untracked.gpg
+u UU N... 100644 100644 100644 100644 abcdef6 abcdef6 abcdef6 conflict/file.gpg

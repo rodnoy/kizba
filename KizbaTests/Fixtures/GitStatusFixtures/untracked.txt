@@ -1,0 +1,3 @@
+# branch.oid 9999999999999999999999999999999999999999
+# branch.head main
+? new/entry.gpg

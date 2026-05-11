@@ -1,0 +1,3 @@
+# branch.oid aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+# branch.head main
+u UU N... 100644 100644 100644 100644 abcdef4 abcdef4 abcdef4 conflicted/path.gpg
