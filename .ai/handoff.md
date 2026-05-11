@@ -3,44 +3,49 @@
 ## Current state
 
 Phase A — COMPLETED.
-Phase B.1 — COMPLETED (GitStatusParser + fixtures + tests).
-Phase B.2 — COMPLETED (PassCLI+Git extension + env + tests).
-Phase B.3 — COMPLETED (PassGitErrorMapper + fixtures + tests).
-Phase B.4 — COMPLETED (LivePassGitManager actor + tests).
+Phase B — COMPLETED.
+Phase C — IN PROGRESS.
 
 ## Next action
 
-Phase B — COMPLETED.
+Delegate to smart-worker: implement C.2 GitStatusModel observe-changes hook.
 
-Delegate to smart-planner: create an executable plan for Phase C (UI). See verification commands below and brief summary.
+Task: Extend `Kizba/Presentation/Features/Git/GitStatusModel.swift` with `observeChanges()` subscription to `PassManaging.changes`, add `stop()` cancellation seam and re-entrancy guard, and wire scenePhase `.active` reload in app-level composition. Add dedicated observe tests (new `KizbaTests/GitStatusModelObserveTests.swift`) using existing async helper patterns.
 
-Verification commands used:
-- xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-- xcodebuild -scheme Kizba -project Kizba.xcodeproj -configuration Release -destination 'platform=macOS' build
-- rg -n '\bas!\b' Kizba
-- rg -n 'Logger.*stdin|print\(.*stdin' Kizba
+Verification commands after C.1:
+```sh
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/GitStatusModelTests
+xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+rg -n '\bas!\b' Kizba
+rg -n 'Logger.*stdin|print\(.*stdin' Kizba
+```
 
-Summary:
-- Ran full test suite: 827 tests executed, 9 skipped, 0 failures. TEST SUCCEEDED.
-- Release build: BUILD SUCCEEDED.
-- Grep bans: no matches.
+Expected commit message: `feat(ui): add GitStatusModel observe-changes hook + scenePhase refresh`
+
+## Phase C progress
+
+- C.1 — COMPLETED (GitStatusModel scaffold + tests)
+- C.2 — next (observe-changes hook)
+- C.3 — pending (AppState extension)
+- C.4 — pending (AppEnvironment wiring)
+- C.5 — pending (GitStatusBadge view)
+- C.6 — pending (GitActionsPopover view)
+- C.7 — pending (Sidebar mount)
+- C.8 — pending (Git menu commands)
+- C.9 — pending (regression sweep)
 
 ## Phase B progress
 
-- B.1 — completed
-- B.2 — completed
-- B.3 — completed
-- B.4 — completed
-- B.5 — COMPLETED (regression sweep)
+- B.1–B.5 — all completed
 
 ## Phase A progress
 
-- A.1–A.8 — all completed
+- A.1–A.7 — all completed
 
 ## Verification commands
 
 ```sh
-xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/LivePassGitManagerTests
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/GitStatusModelTests
 xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
 rg -n '\bas!\b' Kizba
 rg -n 'Logger.*stdin|print\(.*stdin' Kizba
@@ -48,6 +53,6 @@ rg -n 'Logger.*stdin|print\(.*stdin' Kizba
 
 ## Last completed step summary
 
-- Implemented `LivePassGitManager` actor with injected `PassCLI`, pre-resolved git executable, and async store-path provider.
-- Added `LivePassGitManagerTests` (14) covering status mapping, pull/push happy/error paths, and cancellation propagation.
-- Verified targeted tests, app build, and grep bans; all green.
+- C.1 completed: added `GitStatusModel` scaffold (`@Observable @MainActor`) with generation-safe `loadStatus()`, computed badge/action-gating properties, `cancelCurrentLoad()`, and conflict-banner auto-dismiss helper.
+- Added `KizbaTests/GitStatusModelTests.swift` (15 tests, 1 skipped) covering happy/failure/stale/cancel paths, computed states, and router conflict auto-dismiss behavior.
+- Verification green: targeted tests passed, app build succeeded, grep bans clean.

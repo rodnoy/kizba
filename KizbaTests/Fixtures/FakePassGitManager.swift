@@ -13,6 +13,10 @@ actor FakePassGitManager: PassGitManaging {
 
     var artificialDelay: Duration? = nil
 
+    func setArtificialDelay(_ delay: Duration?) {
+        artificialDelay = delay
+    }
+
     func setNextStatus(_ result: Result<GitStatus, Error>) {
         nextStatus = result
     }

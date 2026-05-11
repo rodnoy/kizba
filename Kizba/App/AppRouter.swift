@@ -34,6 +34,9 @@ final class AppRouter {
     /// Whether the destructive delete confirmation is presented.
     var isDeleteConfirmationPresented: Bool = false
 
+    /// Whether the Git conflict banner sheet is presented.
+    var isGitConflictBannerPresented: Bool = false
+
     // MARK: - Selection
 
     /// Currently selected folder name, or `nil` when none is selected.
@@ -70,6 +73,16 @@ final class AppRouter {
         isDeleteConfirmationPresented = true
     }
 
+    /// Present the Git conflict banner sheet.
+    func presentGitConflictBanner() {
+        isGitConflictBannerPresented = true
+    }
+
+    /// Dismiss the Git conflict banner sheet.
+    func dismissGitConflictBanner() {
+        isGitConflictBannerPresented = false
+    }
+
     /// Dismiss all presented sheets / dialogs.
     func dismissAll() {
         isNewEntrySheetPresented = false
@@ -77,6 +90,7 @@ final class AppRouter {
         isMoveEntrySheetPresented = false
         isRegenerateInPlaceSheetPresented = false
         isDeleteConfirmationPresented = false
+        isGitConflictBannerPresented = false
     }
 
     /// Select a top-level folder (or clear selection by passing `nil`).

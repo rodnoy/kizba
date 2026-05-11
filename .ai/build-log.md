@@ -125,3 +125,33 @@ Phase: B.4 actor + tests
 ## Verdict
 
 Phase B.4 is green: LivePassGitManager actor and dedicated tests pass, app build is green, grep bans are clean.
+
+---
+
+# Build Log — Phase C.1 GitStatusModel scaffold
+
+Date: 2026-05-11
+Phase: C.1 GitStatusModel scaffold
+
+## Commands and results
+
+1. `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/GitStatusModelTests`
+   - Exit code: `0`
+   - Result: `TEST SUCCEEDED`
+   - Suite summary: `Executed 15 tests, with 1 test skipped and 0 failures (0 unexpected)`
+   - Last test header: `Test Suite 'GitStatusModelTests' passed at 2026-05-11 16:39:39.844.`
+
+2. `xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'`
+   - Exit code: `0`
+   - Result: `BUILD SUCCEEDED`
+   - Last build line: `** BUILD SUCCEEDED **`
+
+3. `rg -n '\bas!\b' Kizba`
+   - Result: no matches (grep ban clean)
+
+4. `rg -n 'Logger.*stdin|print\(.*stdin' Kizba`
+   - Result: no matches (grep ban clean)
+
+## Verdict
+
+Phase C.1 is green: GitStatusModel scaffold and dedicated tests pass, app build is green, grep bans are clean.
