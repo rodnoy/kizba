@@ -48,5 +48,6 @@ fastlane/test_output
 
 #AI if needed
 .ai/build-output.txt
+.ai/
 CLAUDE.md
 Agent.md
