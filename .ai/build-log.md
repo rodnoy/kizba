@@ -1,32 +1,32 @@
-# Build Log — Phase A Regression Sweep
+# Build Log — Phase B regression sweep
 
-Date: 2026-05-11
-Phase: A.7 / A.8 full regression
+Date: 2026-05-11 16:20:18 +0200
+Phase: B.5 regression sweep
 
 ## Commands and results
 
 1. `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'`
    - Exit code: `0`
    - Result: `TEST SUCCEEDED`
-   - Suite summary: `Executed 763 tests, with 9 tests skipped and 0 failures (0 unexpected)`
-   - Full stdout/stderr: `/Users/kirillsimagin/.local/share/opencode/tool-output/tool_e173ea6c2001KPM1O0a902L8pj`
+   - Suite summary: `Executed 827 tests, with 9 tests skipped and 0 failures (0 unexpected)`
+   - Last test header: `Test Suite 'KizbaTests.xctest' passed at 2026-05-11 16:19:53.166.`
 
 2. `xcodebuild -scheme Kizba -project Kizba.xcodeproj -configuration Release -destination 'platform=macOS' build`
    - Exit code: `0`
    - Result: `BUILD SUCCEEDED`
-   - Full stdout/stderr: `/Users/kirillsimagin/.local/share/opencode/tool-output/tool_e173f8244001N4xN8TzslIMFsD`
+   - Last build line: `** BUILD SUCCEEDED **`
 
-3. `rg -n '\bas!\b' Kizba || true`
-   - Exit code: `0`
-   - Result: no output (ban clean)
+3. `rg -n '\bas!\b' Kizba`
+   - Result: no matches (grep ban clean)
 
-4. `rg -n 'Logger.*stdin|print\(.*stdin' Kizba || true`
-   - Exit code: `0`
-   - Result: no output (ban clean)
+4. `rg -n 'Logger.*stdin|print\(.*stdin' Kizba`
+   - Result: no matches (grep ban clean)
 
 ## Verdict
 
-Phase A regression sweep is green: full test suite passed, Release build passed, grep bans are clean.
+Phase B regression sweep: ALL GREEN — tests passed, Release build succeeded, and grep bans are clean.
+
+Timestamp: 2026-05-11 16:20:18 +0200
 
 ---
 

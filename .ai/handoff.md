@@ -10,13 +10,20 @@ Phase B.4 — COMPLETED (LivePassGitManager actor + tests).
 
 ## Next action
 
-Delegate to smart-worker: implement **B.5 Phase B regression sweep** (per locked order in `.ai/plan.md`: B.1 → B.3 → B.2 → B.4 → B.5).
+Phase B — COMPLETED.
 
-Task scope:
-- Run full Phase B regression sweep
-- Verify full tests + Release build + grep bans
-- Confirm all Phase B artifacts are present and green
-- Commit with B.5 message from plan
+Delegate to smart-planner: create an executable plan for Phase C (UI). See verification commands below and brief summary.
+
+Verification commands used:
+- xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+- xcodebuild -scheme Kizba -project Kizba.xcodeproj -configuration Release -destination 'platform=macOS' build
+- rg -n '\bas!\b' Kizba
+- rg -n 'Logger.*stdin|print\(.*stdin' Kizba
+
+Summary:
+- Ran full test suite: 827 tests executed, 9 skipped, 0 failures. TEST SUCCEEDED.
+- Release build: BUILD SUCCEEDED.
+- Grep bans: no matches.
 
 ## Phase B progress
 
@@ -24,7 +31,7 @@ Task scope:
 - B.2 — completed
 - B.3 — completed
 - B.4 — completed
-- B.5 — pending (next)
+- B.5 — COMPLETED (regression sweep)
 
 ## Phase A progress
 
