@@ -14,9 +14,34 @@ Commands executed and results:
    - Result: BUILD SUCCEEDED
 
 3) rg -n '\bas!\b' Kizba
-   - Result: no matches (clean)
+    - Result: no matches (clean)
 
 4) rg -n 'Logger.*stdin|print\(.*stdin' Kizba
+    - Result: no matches (clean)
+
+---
+
+Build verification for Phase A.6
+
+Summary:
+- Added `testGitDomainTypesNonConformances()` in `KizbaTests/SourceGrepTests.swift`.
+- Focused grep test passed.
+- Project build succeeded.
+- Grep bans produced no matches.
+
+Commands executed and results:
+
+1) xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/SourceGrepTests/testGitDomainTypesNonConformances
+   - Result: TEST SUCCEEDED (1 test, 0 failures)
+   - xcresult: /Users/kirillsimagin/Library/Developer/Xcode/DerivedData/Kizba-*/Logs/Test/Test-Kizba-2026.05.11_15-31-10-+0200.xcresult
+
+2) xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+   - Result: BUILD SUCCEEDED
+
+3) rg -n '\bas!\b' Kizba || true
+   - Result: no matches (clean)
+
+4) rg -n 'Logger.*stdin|print\(.*stdin' Kizba || true
    - Result: no matches (clean)
 
 Additional A.2 verification commands run:

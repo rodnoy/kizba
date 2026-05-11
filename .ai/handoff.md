@@ -4,11 +4,11 @@
 
 Phase A — in progress.
 
-A.5 completed: added `FakePassGitManager` actor fixture in `KizbaTests/Fixtures/FakePassGitManager.swift`, added focused tests in `KizbaTests/FakePassGitManagerTests.swift`, and registered new test files in `Kizba.xcodeproj/project.pbxproj`.
+A.6 completed: added `testGitDomainTypesNonConformances()` to `KizbaTests/SourceGrepTests.swift` to enforce that `GitStatus` does not conform to `Codable` / `Encodable` / `Decodable` / `CustomStringConvertible` / `CustomDebugStringConvertible`, including runtime non-conformance checks.
 
 ## Next action
 
-Delegate to smart-worker: implement A.6 (extend `SourceGrepTests` with `GitStatus` non-conformance rule) per `.ai/plan.md`.
+Delegate to smart-worker: implement A.7 (Phase A regression sweep) per `.ai/plan.md`.
 
 ## Phase A progress
 
@@ -17,12 +17,13 @@ Delegate to smart-worker: implement A.6 (extend `SourceGrepTests` with `GitStatu
 - A.3 — completed
 - A.4 — completed
 - A.5 — completed
+- A.6 — completed
 
-## Verification commands (A.5)
+## Verification commands (A.6)
 
 ```sh
-xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/FakePassGitManagerTests
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/SourceGrepTests/testGitDomainTypesNonConformances
 xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-rg -n '\bas!\b' Kizba
-rg -n 'Logger.*stdin|print\(.*stdin' Kizba
+rg -n '\bas!\b' Kizba || true
+rg -n 'Logger.*stdin|print\(.*stdin' Kizba || true
 ```

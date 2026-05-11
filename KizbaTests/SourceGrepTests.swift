@@ -161,6 +161,35 @@ final class SourceGrepTests: XCTestCase {
         XCTAssertFalse((PassSecret.self as Any) is CustomDebugStringConvertible.Type)
     }
 
+    func testGitDomainTypesNonConformances() throws {
+        let kizbaRoot = Self.repoRoot.appendingPathComponent("Kizba", isDirectory: true)
+        let pattern = #"(?:struct|extension)\s+GitStatus\b[^:{]*:\s*([^{]*?\b(?:Codable|Encodable|Decodable|CustomStringConvertible|CustomDebugStringConvertible)\b[^{]*)"#
+        let regex = try NSRegularExpression(pattern: pattern, options: [])
+
+        var hits: [String] = []
+        let files = try Self.swiftFiles(under: kizbaRoot)
+        for url in files {
+            let contents = try String(contentsOf: url, encoding: .utf8)
+            let nsRange = NSRange(contents.startIndex..., in: contents)
+            regex.enumerateMatches(in: contents, options: [], range: nsRange) { match, _, _ in
+                guard let match else { return }
+                let lineNumber = Self.lineNumber(of: match.range.location, in: contents)
+                let snippet = (contents as NSString).substring(with: match.range)
+                hits.append("\(url.path):\(lineNumber): \(snippet)")
+            }
+        }
+
+        if !hits.isEmpty {
+            XCTFail("GitStatus must NOT conform to Codable/Encodable/Decodable/CustomStringConvertible/CustomDebugStringConvertible. Offending declarations:\n" + hits.joined(separator: "\n"))
+        }
+
+        // runtime checks
+        XCTAssertFalse((GitStatus.self as Any) is Encodable.Type)
+        XCTAssertFalse((GitStatus.self as Any) is Decodable.Type)
+        XCTAssertFalse((GitStatus.self as Any) is CustomStringConvertible.Type)
+        XCTAssertFalse((GitStatus.self as Any) is CustomDebugStringConvertible.Type)
+    }
+
     /// (6) Broad scan of the whole `Kizba/` source tree for raw
     /// `print(` / `NSLog(` / `debugPrint(` calls. Pragmatic heuristics:
     /// - Skip lines whose trimmed prefix starts with `//` or `/*`.
