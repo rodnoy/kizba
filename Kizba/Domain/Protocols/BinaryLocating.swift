@@ -15,6 +15,9 @@ public enum BinaryName: String, Sendable, Hashable, CaseIterable {
     /// The `pass` password-store CLI.
     case pass
 
+    /// Git binary used for direct status checks.
+    case git
+
     /// GnuPG, used transitively by `pass show`.
     case gpg
 

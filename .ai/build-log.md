@@ -58,3 +58,39 @@ Phase: B.3 mapper + tests
 ## Verdict
 
 Phase B.3 is green: PassGitErrorMapper and dedicated fixtures/tests pass, app build is green, grep bans are clean.
+
+---
+
+# Build Log — Phase B.2 PassCLI+Git
+
+Date: 2026-05-11
+Phase: B.2 CLI extension + git env
+
+## Commands and results
+
+1. `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/PassCLIGitTests`
+   - Exit code: `0`
+   - Result: `TEST SUCCEEDED`
+   - Suite summary: `Executed 8 tests, with 0 failures (0 unexpected)`
+   - Full stdout/stderr: `/Users/kirillsimagin/.local/share/opencode/tool-output/tool_e175e6392001GgumLLiuj8pDBa`
+
+2. `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/PassCLIGitEnvTests`
+   - Exit code: `0`
+   - Result: `TEST SUCCEEDED`
+   - Suite summary: `Executed 5 tests, with 0 failures (0 unexpected)`
+
+3. `xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'`
+   - Exit code: `0`
+   - Result: `BUILD SUCCEEDED`
+
+4. `rg -n '\bas!\b' Kizba`
+   - Exit code: `1`
+   - Result: no matches
+
+5. `rg -n 'Logger.*stdin|print\(.*stdin' Kizba`
+   - Exit code: `1`
+   - Result: no matches
+
+## Verdict
+
+Phase B.2 is green: PassCLI git status/pull/push extension and env composition tests pass, app build is green, grep bans are clean.
