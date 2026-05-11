@@ -217,13 +217,17 @@ public final class GitStatusModel {
                 ?? PassError.shellFailure(exitCode: -1, stderrExcerpt: "")
             operationError = mappedError
             lastError = mappedError
-            toastCenter.post(
-                Toast(
-                    severity: .danger,
-                    title: "Pull failed",
-                    message: userMessage(for: mappedError)
+            if case .gitConflict = mappedError {
+                router.presentGitConflictBanner()
+            } else {
+                toastCenter.post(
+                    Toast(
+                        severity: .danger,
+                        title: "Pull failed",
+                        message: userMessage(for: mappedError)
+                    )
                 )
-            )
+            }
         }
 
         await loadStatus()
@@ -301,7 +305,9 @@ public final class GitStatusModel {
     }
 
     private func refreshConflictAutoDismiss() {
-        if router.isGitConflictBannerPresented, !status.hasConflicts {
+        if status.hasConflicts, !router.isGitConflictBannerPresented {
+            router.presentGitConflictBanner()
+        } else if router.isGitConflictBannerPresented, !status.hasConflicts {
             router.dismissGitConflictBanner()
         }
     }

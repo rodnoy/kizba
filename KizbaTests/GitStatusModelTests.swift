@@ -199,7 +199,29 @@ final class GitStatusModelTests: XCTestCase {
         XCTAssertNil(model.lastError)
     }
 
-    func testRefreshConflictAutoDismiss_callsRouterWhenConflictsCleared() async {
+    func testRefresh_autoPresentsBannerWhenStatusHasConflicts() async {
+        let manager = FakePassGitManager()
+        await manager.setNextStatus(.success(GitStatus(
+            isGitRepository: true,
+            branch: "main",
+            hasLocalChanges: false,
+            hasConflicts: true,
+            aheadCount: 0,
+            behindCount: 0,
+            hasRemote: true,
+            lastFetchAt: nil
+        )))
+
+        let router = AppRouter()
+        XCTAssertFalse(router.isGitConflictBannerPresented)
+
+        let model = makeModel(gitManager: manager, router: router)
+        await model.loadStatus()
+
+        XCTAssertTrue(router.isGitConflictBannerPresented)
+    }
+
+    func testRefresh_autoDismissesBannerWhenConflictsResolved() async {
         let manager = FakePassGitManager()
         await manager.setNextStatus(.success(GitStatus(
             isGitRepository: true,
@@ -220,6 +242,31 @@ final class GitStatusModelTests: XCTestCase {
         await model.loadStatus()
 
         XCTAssertFalse(router.isGitConflictBannerPresented)
+    }
+
+    func testPull_conflictError_presentsBanner() async {
+        let manager = FakePassGitManager()
+        await manager.setNextStatus(.success(GitStatus(
+            isGitRepository: true,
+            hasConflicts: true,
+            hasRemote: true
+        )))
+        await manager.setPullResults([.failure(PassError.gitConflict(paths: ["a"]))])
+
+        let appState = AppState()
+        let router = AppRouter()
+        let model = makeModel(gitManager: manager, appState: appState, router: router)
+        await model.loadStatus()
+
+        XCTAssertTrue(router.isGitConflictBannerPresented)
+
+        router.dismissGitConflictBanner()
+        XCTAssertFalse(router.isGitConflictBannerPresented)
+
+        await model.pull()
+
+        XCTAssertTrue(router.isGitConflictBannerPresented)
+        XCTAssertNotEqual(appState.toastCenter.visible?.severity, .danger)
     }
 
     func testOperationState_transitions_onPullPushCalls() {
