@@ -247,3 +247,33 @@ Phase: C.4 AppEnvironment wiring
 ## Verdict
 
 Phase C.4 is green: AppEnvironment startup git wiring landed with dedicated unit tests, app build is green, and grep bans are clean.
+
+---
+
+# Build Log — Phase C.5 GitStatusBadge + sidebar mount
+
+Date: 2026-05-11
+Phase: C.5 GitStatusBadge view + sidebar mount
+
+## Commands and results
+
+1. `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/GitStatusBadgeTests`
+   - Exit code: `0`
+   - Result: `TEST SUCCEEDED`
+   - Suite summary: `Executed 10 tests, with 0 failures (0 unexpected)`
+
+2. `xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'`
+   - Exit code: `0`
+   - Result: `BUILD SUCCEEDED`
+
+3. `rg -n '\bas!\b' Kizba`
+   - Exit code: `1`
+   - Result: no matches
+
+4. `rg -n 'Logger.*stdin|print\(.*stdin' Kizba`
+   - Exit code: `1`
+   - Result: no matches
+
+## Verdict
+
+Phase C.5 is green: `GitStatusBadge` was added and mounted in sidebar with `RootSplitView` wiring, dedicated badge tests pass, app build is green, and grep bans remain clean.

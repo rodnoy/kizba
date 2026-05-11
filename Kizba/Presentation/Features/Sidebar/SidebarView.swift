@@ -21,43 +21,58 @@ struct SidebarView: View {
     @Binding var selection: String?
 
     @State private var model: SidebarModel
+    private let gitStatusModel: GitStatusModel?
+    @Environment(\.theme) private var theme
 
-    init(environment: AppEnvironment, selection: Binding<String?>) {
+    init(
+        environment: AppEnvironment,
+        selection: Binding<String?>,
+        gitStatusModel: GitStatusModel? = nil
+    ) {
         self._selection = selection
         self._model = State(initialValue: SidebarModel(passManager: environment.passManager))
+        self.gitStatusModel = gitStatusModel
     }
 
     var body: some View {
-        List {
-            Section("Folders") {
-                ForEach(model.folders) { folder in
-                    EntryRowView(
-                        leadingIconName: "folder",
-                        title: folder.name,
-                        isSelected: selection == folder.name
-                    )
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        selection = folder.name
+        VStack(spacing: 0) {
+            List {
+                Section("Folders") {
+                    ForEach(model.folders) { folder in
+                        EntryRowView(
+                            leadingIconName: "folder",
+                            title: folder.name,
+                            isSelected: selection == folder.name
+                        )
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            selection = folder.name
+                        }
+                        .listRowBackground(Color.clear)
+                        // I.3 a11y — VoiceOver row label includes the
+                        // semantic role ("folder") so users navigating by
+                        // ear can distinguish folder rows from entry rows
+                        // (which carry no role suffix). The leading icon
+                        // is `.accessibilityHidden(true)` inside
+                        // `EntryRowView`, so this is the only carrier of
+                        // the "folder" semantic.
+                        .accessibilityLabel("\(folder.name), folder")
                     }
-                    .listRowBackground(Color.clear)
-                    // I.3 a11y — VoiceOver row label includes the
-                    // semantic role ("folder") so users navigating by
-                    // ear can distinguish folder rows from entry rows
-                    // (which carry no role suffix). The leading icon
-                    // is `.accessibilityHidden(true)` inside
-                    // `EntryRowView`, so this is the only carrier of
-                    // the "folder" semantic.
-                    .accessibilityLabel("\(folder.name), folder")
                 }
             }
+            // Use a plain `List` without SwiftUI's `List(selection:)` chrome so
+            // `EntryRowView` remains the only visible selection indicator.
+            .listStyle(.plain)
+            // Hide the default list container background for a cleaner custom
+            // sidebar surface.
+            .scrollContentBackground(.hidden)
+
+            if let gitStatusModel {
+                GitStatusBadge(model: gitStatusModel)
+                    .padding(.horizontal, theme.spacing.md)
+                    .padding(.vertical, theme.spacing.sm)
+            }
         }
-        // Use a plain `List` without SwiftUI's `List(selection:)` chrome so
-        // `EntryRowView` remains the only visible selection indicator.
-        .listStyle(.plain)
-        // Hide the default list container background for a cleaner custom
-        // sidebar surface.
-        .scrollContentBackground(.hidden)
         .navigationTitle("Kizba")
         .task {
             await model.load()

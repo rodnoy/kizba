@@ -33,7 +33,8 @@ struct RootSplitView: View {
                 selection: Binding(
                     get: { state.router.selectedFolder },
                     set: { state.router.selectedFolder = $0 }
-                )
+                ),
+                gitStatusModel: state.gitStatusModel
             )
         } content: {
             EntryListView(environment: environment, state: state)
