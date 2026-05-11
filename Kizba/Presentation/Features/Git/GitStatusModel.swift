@@ -126,6 +126,10 @@ public final class GitStatusModel {
         changeSubscriptionTask = nil
     }
 
+    func dismissGitConflictBanner() {
+        router.dismissGitConflictBanner()
+    }
+
     public func loadStatus() async {
         generation &+= 1
         let token = generation

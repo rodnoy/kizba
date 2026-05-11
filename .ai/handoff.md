@@ -9,6 +9,7 @@ Phase D — IN PROGRESS.
 
 D.1 — COMPLETED.
 D.2 — COMPLETED.
+D.3 — COMPLETED.
 
 C.4 — COMPLETED.
 C.5 — COMPLETED.
@@ -17,7 +18,7 @@ C.8 — COMPLETED.
 
 ## Next action
 
-Delegate to smart-worker: implement D.3 (GitConflictBannerView).
+Delegate to smart-worker: implement D.4 (mount GitConflictBanner sheet in KizbaApp).
 
 Note: C.9 regression sweep verification completed successfully — tests and Release build passed; grep bans clean.
 
