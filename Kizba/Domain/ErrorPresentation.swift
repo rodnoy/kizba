@@ -111,6 +111,9 @@ public enum ErrorPresentation: Sendable {
             // staying silent at the global surface is preferable to a
             // confusing toast — the form will keep its own inline error.
             return .silent
+        default:
+            // TEMP: fallback to be replaced by A.4 mappings
+            return .silent
         }
     }
 }

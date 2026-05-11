@@ -470,3 +470,41 @@ The 20 architectural decisions for MVP 3 (planning phase, before any code). Item
 - **Snapshot tests still OUT** (per existing decisions).
 - **Opt-in `KIZBA_FSEVENTS_TEST=1` env var** for FSEvents real-FS tests (CI-flaky). Existing `KIZBA_E2E=1` continues to gate `PassWriteIntegrationTests`.
 - **Net suite delta ~+50 tests** (692 → ~742). New fakes: `FakeStoreWatcher`, `FakeBiometricAuthenticator`. New helpers: `AsyncTestHelpers`.
+
+## 2026-05-11 — MVP 4 (planning locked)
+
+The 27 architectural + UX decisions for MVP 4 (planning phase, before any code). 20 architectural locked from the architect's proposal; 7 UX locked from the user clarification round. Items will be re-confirmed as resolutions in E.4 once implementation completes.
+
+### Scope
+- **MVP 4 = Git support ONLY** (Variant A from three options). Comfort features (Favorites, Recently used, OTP, menu-bar mode, global quick search, better metadata editing, browser auto-fill, keyboard-shortcut audit) deferred to MVP 5+.
+
+### Architecture (20 locked)
+- **`PassGitManaging` is a separate protocol from `PassManaging`.** Keeps both surfaces minimal; existing fakes need no edits.
+- **CLI invocation strategy**: `git -C <store_path> status --porcelain=v2 --branch` for read-only status; `pass git pull` / `pass git push` for write operations. Status uses direct git for parser stability; writes use `pass git` to preserve any pass-installed git hooks.
+- **`GitStatusParser` parses porcelain v2 + `--branch`.** Stable contract since git 2.11. Pure static enum, fixture-tested across git 2.34/2.39/2.45.
+- **`GitStatus` value type** with `isGitRepository, branch, hasLocalChanges, hasConflicts, aheadCount, behindCount, hasRemote, lastFetchAt`. NOT Codable / NOT CustomStringConvertible.
+- **6 new `PassError` cases**: `gitNotInitialized`, `gitNoRemote`, `gitAuthFailed`, `gitConflict(paths: [String]?)`, `gitNetworkUnavailable`, `gitRejected(reason: String)`. All `Sendable, Hashable, Equatable`.
+- **`PassGitErrorMapper` is a separate file from `PassErrorMapper`** (the latter is already 483 LOC; git stderr surfaces are different enough to warrant separation).
+- **`LivePassGitManager` is an actor** matching `LivePassManager` isolation pattern.
+- **Refresh strategy**: recompute status on every `StoreChange` event (F.5 pattern) + on app foreground (`scenePhase == .active`) + manual refresh button. NO periodic polling.
+- **UI placement: sidebar status badge + Git menu in menu bar** (not toolbar — already crowded).
+- **Sidebar badge bottom-of-folders-list**, hidden when `isGitRepository == false`.
+- **Conflict UX: modal banner sheet** routed via `AppRouter`. "Open Terminal at store" primary action + "Dismiss". No auto-resolution.
+- **Network timeout: `gitOperationTimeoutSeconds: Int = 60`**, settings stepper 10...300.
+- **Cancellation via `Task.cancel()` → `ProcessShellRunner` SIGTERM** (existing pattern from MVP 2 E.2).
+- **Lockout: extend `ActiveWriteOp` with `.gitPull` / `.gitPush`** — pull/push refuse to start if `appState.anyWriteInFlight`; entry-write toolbar buttons + menu items disable while git op is in flight (zero new wiring — `anyWriteInFlight` already checks the Set).
+- **Settings**: only `gitOperationTimeoutSeconds`. NO "enableGitFeatures" toggle (auto-detected via `isGitRepository`).
+- **`GitStatusModel` is `@Observable @MainActor`**, owned by `AppState` (lazy: `nil` for non-git stores). Reuses generation-counter (F.4), idempotent observe-changes pattern (F.5), beginWrite/endWrite (G.6), reactive sheet routing via AppRouter (B.1).
+- **`AppEnvironment.live()` performs one-shot `gitStatus()` at startup**; if `isGitRepository == true`, constructs `LivePassGitManager` and `GitStatusModel`. Otherwise both are `nil`.
+- **Environment composition for git operations**: `GIT_TERMINAL_PROMPT=0` + `SSH_ASKPASS=/usr/bin/false` + pass-through `SSH_AUTH_SOCK`. Critical for fast-fail on credential prompts instead of hangs.
+- **Opt-in E2E suite** `PassGitIntegrationTests` gated by `KIZBA_GIT_E2E=1` (inherits the existing `KIZBA_E2E=1` GPG-key setup). Uses `file://` remote in temp dir; no `git daemon` needed.
+- **`SourceGrepTests` extension**: new git domain types must NOT conform to `Codable`/`CustomStringConvertible`/`CustomDebugStringConvertible` (extends existing security non-conformance pattern).
+
+### UX (7 locked, from user clarification round)
+- **U1 — Conflict banner shows the store path.** Wording: "Merge conflict in `~/.password-store`. Some entries have conflicting changes. Kizba does not resolve them automatically." Path rendered with `.font(theme.typography.mono)` to indicate it's copy-able.
+- **U2 — "Open Terminal at store" defaults to `Terminal.app`** via `NSWorkspace.shared.open`. No `$TERMINAL` env support in MVP 4 (deferred to MVP 5+ as Settings preference).
+- **U3 — "Up to date" badge shows a subtle dot.** When fully clean (`isGitRepository && !hasLocalChanges && aheadCount == 0 && behindCount == 0 && !hasConflicts`): minimal SF Symbol like `circle.fill` at very small size (`theme.typography.caption2` or smaller), unobtrusive `theme.colors.onSurfaceMuted`. Always-visible-but-quiet pattern.
+- **U4 — No keyboard shortcuts for Pull/Push.** Only ⌘⇧R for Refresh Status. Pull/Push are deliberate, infrequent actions; menu click is fine.
+- **U5 — Show toast on `pass git push` no-op success.** When push returns `.alreadyUpToDate`, post `Toast(severity: .info, title: "Already up to date", message: "Nothing to push.")`. Severity `.info` (not `.success` — reserved for actual mutations).
+- **U6 — Auto-fetch on schedule deferred to MVP 5+.** No timer-based polling in MVP 4. Manual Refresh + scenePhase + StoreChange events cover user-driven cases.
+- **U7 — `gitOperationTimeoutSeconds` is a visible Settings stepper** (range 10...300, default 60). Slow-network users (4G in transit) need to bump it; visible setting beats undocumented `defaults` magic.

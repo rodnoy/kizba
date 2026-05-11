@@ -2,17 +2,11 @@
 
 ## Current state
 
-**Phase A plan ready.** `.ai/plan.md` Phase A section replaced with 7 executable tasks (A.1–A.7). No MVP 4 code written yet. Repository at HEAD `382b8ce`. Test suite: 737 tests, 9 skipped, 0 failures. Release build green.
+**Phase A — implementing.** Tasks A.1 and A.2 implemented (GitStatus value type and PassError git cases).
 
 ## Next action
 
-**Delegate to smart-worker: implement task A.1 (GitStatus value type).**
-
-Task A.1 scope:
-- Create `Kizba/Domain/Models/GitStatus.swift` — `struct GitStatus: Sendable, Hashable, Equatable` with 8 stored properties and `static let notARepository`.
-- Create `KizbaTests/GitStatusTests.swift` — ~7 test methods covering defaults, equality, hashing, non-conformance checks.
-- Add both files to the Xcode project.
-
+Delegate to smart-worker: implement task A.3 (ErrorPresentation mappings for git cases) — replace temporary fallback in ErrorPresentation.present(for:) with explicit mappings per `.ai/plan.md`.
 ## Verification commands (A.1)
 
 ```sh

@@ -97,6 +97,30 @@ public enum PassError: Error, Hashable, Sendable {
     /// `pass generate` rejected the requested length (≤ 0 or larger than
     /// the configured `pass-length` cap).
     case invalidLength
+
+    // MARK: - Git-side (MVP 4)
+
+    /// Git is not initialised in the password store (no .git directory).
+    case gitNotInitialized
+
+    /// The repository has no configured remote for push/pull operations.
+    case gitNoRemote
+
+    /// Authentication to the git remote failed (SSH/HTTPS auth).
+    case gitAuthFailed
+
+    /// A merge conflict occurred during pull/push. Optional list of
+    /// conflicted file paths (sanitised). `nil` if paths couldn't be
+    /// extracted.
+    case gitConflict(paths: [String]?)
+
+    /// Network errors (DNS, unreachable host, timeout) prevented git
+    /// contact with the remote.
+    case gitNetworkUnavailable
+
+    /// Push was rejected by the remote (non-fast-forward, protected
+    /// branch). The associated reason is a sanitised excerpt.
+    case gitRejected(reason: String)
 }
 
 // MARK: - Presentation hints (consumed by views & form models)
@@ -114,7 +138,10 @@ public extension PassError {
         case .binaryNotFound, .pinentryNotConfigured, .decryptionFailed,
              .storeNotFound, .timedOut, .shellFailure, .parsingFailed,
              .cancelled, .recipientNotFound, .invalidGpgId,
-             .sourceNotFound, .writeFailed, .invalidLength:
+             .sourceNotFound, .writeFailed, .invalidLength,
+             // Git-side
+             .gitNotInitialized, .gitNoRemote, .gitAuthFailed,
+             .gitConflict, .gitNetworkUnavailable, .gitRejected:
             return false
         }
     }
@@ -129,10 +156,15 @@ public extension PassError {
             return .checkRecipients
         case .invalidGpgId:
             return .initializeStore
+        // Git-side hints
+        case .gitNotInitialized, .gitNoRemote:
+            return .configureGitRemote
         case .binaryNotFound, .pinentryNotConfigured, .decryptionFailed,
              .storeNotFound, .timedOut, .shellFailure, .parsingFailed,
              .cancelled, .entryAlreadyExists, .sourceNotFound,
-             .writeFailed, .invalidLength:
+             .writeFailed, .invalidLength,
+             // Git-side (other cases)
+             .gitAuthFailed, .gitNetworkUnavailable, .gitConflict(_), .gitRejected(_):
             return nil
         }
     }
@@ -148,7 +180,10 @@ public extension PassError {
         case .binaryNotFound, .pinentryNotConfigured, .decryptionFailed,
              .storeNotFound, .timedOut, .shellFailure, .parsingFailed,
              .cancelled, .entryAlreadyExists, .recipientNotFound,
-             .invalidGpgId, .writeFailed, .invalidLength:
+             .invalidGpgId, .writeFailed, .invalidLength,
+             // Git-side
+             .gitNotInitialized, .gitNoRemote, .gitAuthFailed,
+             .gitConflict, .gitNetworkUnavailable, .gitRejected:
             return false
         }
     }
@@ -166,4 +201,12 @@ public enum OnboardingHint: Sendable, Equatable, Hashable {
     /// user to run `pass init <gpg-id>` (or surface the equivalent
     /// in-app onboarding flow when it lands).
     case initializeStore
+
+    /// The user's store appears to be a git repository or needs a remote
+    /// configured. Prompt them to set up a remote or initialise git.
+    case configureGitRemote
+
+    /// Open a terminal at the store root so the user can resolve conflicts
+    /// or run git commands manually.
+    case openTerminalAtStore
 }
