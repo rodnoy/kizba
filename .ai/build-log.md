@@ -1,131 +1,29 @@
-Build verification for Phase A (A.1 / A.2)
+# Build Log — Phase A Regression Sweep
 
-Summary:
-- All targeted unit tests and project build passed locally.
-- Grep bans produced no output.
+Date: 2026-05-11
+Phase: A.7 / A.8 full regression
 
-Commands executed and results:
+## Commands and results
 
-1) xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/GitStatusTests
-   - Result: TEST SUCCEEDED (7 tests, 0 failures)
-   - xcresult: /Users/kirillsimagin/Library/Developer/Xcode/DerivedData/Kizba-*/Logs/Test/Test-Kizba-2026.05.11_14-43-13-+0200.xcresult
+1. `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'`
+   - Exit code: `0`
+   - Result: `TEST SUCCEEDED`
+   - Suite summary: `Executed 763 tests, with 9 tests skipped and 0 failures (0 unexpected)`
+   - Full stdout/stderr: `/Users/kirillsimagin/.local/share/opencode/tool-output/tool_e173ea6c2001KPM1O0a902L8pj`
 
-2) xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-   - Result: BUILD SUCCEEDED
+2. `xcodebuild -scheme Kizba -project Kizba.xcodeproj -configuration Release -destination 'platform=macOS' build`
+   - Exit code: `0`
+   - Result: `BUILD SUCCEEDED`
+   - Full stdout/stderr: `/Users/kirillsimagin/.local/share/opencode/tool-output/tool_e173f8244001N4xN8TzslIMFsD`
 
-3) rg -n '\bas!\b' Kizba
-    - Result: no matches (clean)
+3. `rg -n '\bas!\b' Kizba || true`
+   - Exit code: `0`
+   - Result: no output (ban clean)
 
-4) rg -n 'Logger.*stdin|print\(.*stdin' Kizba
-    - Result: no matches (clean)
+4. `rg -n 'Logger.*stdin|print\(.*stdin' Kizba || true`
+   - Exit code: `0`
+   - Result: no output (ban clean)
 
----
+## Verdict
 
-Build verification for Phase A.6
-
-Summary:
-- Added `testGitDomainTypesNonConformances()` in `KizbaTests/SourceGrepTests.swift`.
-- Focused grep test passed.
-- Project build succeeded.
-- Grep bans produced no matches.
-
-Commands executed and results:
-
-1) xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/SourceGrepTests/testGitDomainTypesNonConformances
-   - Result: TEST SUCCEEDED (1 test, 0 failures)
-   - xcresult: /Users/kirillsimagin/Library/Developer/Xcode/DerivedData/Kizba-*/Logs/Test/Test-Kizba-2026.05.11_15-31-10-+0200.xcresult
-
-2) xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-   - Result: BUILD SUCCEEDED
-
-3) rg -n '\bas!\b' Kizba || true
-   - Result: no matches (clean)
-
-4) rg -n 'Logger.*stdin|print\(.*stdin' Kizba || true
-   - Result: no matches (clean)
-
-Additional A.2 verification commands run:
-
-5) xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/PassErrorGitCasesTests
-   - Result: TEST SUCCEEDED (7 tests, 0 failures)
-   - xcresult: /Users/kirillsimagin/Library/Developer/Xcode/DerivedData/Kizba-*/Logs/Test/Test-Kizba-2026.05.11_14-46-41-+0200.xcresult
-
-6) xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/DomainModelsTests
-   - Result: TEST SUCCEEDED (0 tests selected for this run; build OK)
-   - xcresult: /Users/kirillsimagin/Library/Developer/Xcode/DerivedData/Kizba-*/Logs/Test/Test-Kizba-2026.05.11_14-47-28-+0200.xcresult
-
-Notes:
-- The PassError git cases and onboarding hints are present in Kizba/Domain/Models/PassError.swift and covered by unit tests KizbaTests/PassErrorGitCasesTests.swift.
-- No code changes were required during this step beyond updating the handoff file (.ai/handoff.md).
-
-Next step:
-- Phase A.3: implement ErrorPresentation.present(for:) explicit mappings for the 6 new git PassError cases (replace any temporary fallback if present).
-
----
-
-Build verification for Phase A.3
-
-Summary:
-- ErrorPresentation git-case mappings verified via targeted tests.
-- Project build succeeded.
-- Grep bans produced no matches.
-
-Commands executed and results:
-
-1) xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/ErrorPresentationTests
-   - Result: TEST SUCCEEDED (17 tests, 0 failures)
-   - xcresult: /Users/kirillsimagin/Library/Developer/Xcode/DerivedData/Kizba-*/Logs/Test/Test-Kizba-2026.05.11_15-01-22-+0200.xcresult
-
-2) xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-   - Result: BUILD SUCCEEDED
-
-3) rg -n '\bas!\b' Kizba || true
-   - Result: no matches (clean)
-
-4) rg -n 'Logger.*stdin|print\(.*stdin' Kizba || true
-   - Result: no matches (clean)
-
----
-
-Build verification for Phase A.4
-
-Summary:
-- Added `PassGitManaging` protocol and `GitPushOutcome` enum.
-- Project build succeeded.
-- Grep bans produced no matches.
-
-Commands executed and results:
-
-1) xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-   - Result: BUILD SUCCEEDED
-
-2) rg -n '\bas!\b' Kizba || true
-   - Result: no matches (clean)
-
-3) rg -n 'Logger.*stdin|print\(.*stdin' Kizba || true
-   - Result: no matches (clean)
-
----
-
-Build verification for Phase A.5
-
-Summary:
-- Added `FakePassGitManager` actor fixture and focused tests.
-- Targeted tests passed.
-- Project build succeeded.
-- Grep bans produced no matches.
-
-Commands executed and results:
-
-1) xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/FakePassGitManagerTests
-   - Result: TEST SUCCEEDED (5 tests, 0 failures)
-   - xcresult: /Users/kirillsimagin/Library/Developer/Xcode/DerivedData/Kizba-*/Logs/Test/Test-Kizba-2026.05.11_15-16-41-+0200.xcresult
-
-2) xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-   - Result: BUILD SUCCEEDED
-
-3) rg -n '\bas!\b' Kizba
-   - Result: no matches (clean)
-
-4) rg -n 'Logger.*stdin|print\(.*stdin' Kizba
-   - Result: no matches (clean)
+Phase A regression sweep is green: full test suite passed, Release build passed, grep bans are clean.

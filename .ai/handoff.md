@@ -2,13 +2,13 @@
 
 ## Current state
 
-Phase A — in progress.
+Phase A — COMPLETED (Domain types + protocol + fixture + grep rule landed).
 
-A.6 completed: added `testGitDomainTypesNonConformances()` to `KizbaTests/SourceGrepTests.swift` to enforce that `GitStatus` does not conform to `Codable` / `Encodable` / `Decodable` / `CustomStringConvertible` / `CustomDebugStringConvertible`, including runtime non-conformance checks.
+Phase A full regression (A.7/A.8) completed successfully: full test suite passed, Release build passed, grep bans are clean. See `.ai/build-log.md`.
 
 ## Next action
 
-Delegate to smart-worker: implement A.7 (Phase A regression sweep) per `.ai/plan.md`.
+Delegate to smart-planner to create an executable plan for Phase B (CLI integration + parser), then delegate to smart-worker to implement B.1 `GitStatusParser`.
 
 ## Phase A progress
 
@@ -18,12 +18,14 @@ Delegate to smart-worker: implement A.7 (Phase A regression sweep) per `.ai/plan
 - A.4 — completed
 - A.5 — completed
 - A.6 — completed
+- A.7 — completed
+- A.8 — completed
 
-## Verification commands (A.6)
+## Verification commands (Phase A regression)
 
 ```sh
-xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/SourceGrepTests/testGitDomainTypesNonConformances
-xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+xcodebuild -scheme Kizba -project Kizba.xcodeproj -configuration Release -destination 'platform=macOS' build
 rg -n '\bas!\b' Kizba || true
 rg -n 'Logger.*stdin|print\(.*stdin' Kizba || true
 ```
