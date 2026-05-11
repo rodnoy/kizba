@@ -21,8 +21,9 @@ C.8 — COMPLETED.
 ## Next action
 
 E.2 — COMPLETED.
+E.3 — COMPLETED.
 
-Delegate to smart-planner: prepare implementation plan for Phase E.3 (Opt-in E2E).
+Delegate to smart-planner: prepare implementation plan for Phase E.4 (Docs & final sweep)
 
 Note: C.9 regression sweep verification completed successfully — tests and Release build passed; grep bans clean.
 
