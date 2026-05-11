@@ -343,6 +343,22 @@ final class EntryListModel {
             return "pinentry is not configured."
         case .cancelled:
             return "Cancelled."
+        // Git-side (MVP 4)
+        case .gitNotInitialized:
+            return "Git is not initialised in the password store."
+        case .gitNoRemote:
+            return "No git remote configured."
+        case .gitAuthFailed:
+            return "Git authentication failed."
+        case .gitConflict(let paths):
+            if let paths, !paths.isEmpty {
+                return "Merge conflict in: \(paths.joined(separator: ", "))"
+            }
+            return "Merge conflict occurred."
+        case .gitNetworkUnavailable:
+            return "Network unavailable. Check your connection."
+        case .gitRejected(let reason):
+            return "Push rejected: \(reason)"
         }
     }
 

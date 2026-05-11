@@ -111,9 +111,29 @@ public enum ErrorPresentation: Sendable {
             // staying silent at the global surface is preferable to a
             // confusing toast — the form will keep its own inline error.
             return .silent
-        default:
-            // TEMP: fallback to be replaced by A.4 mappings
+
+        // MARK: - Git-side (MVP 4)
+
+        case .gitNotInitialized:
+            return .onboarding(message: "Git is not initialised in the password store. Run `pass git init` to enable git tracking.")
+
+        case .gitNoRemote:
+            return .onboarding(message: "No git remote configured. Add a remote to enable push and pull.")
+
+        case .gitAuthFailed:
+            return .toastWithDiagnostics(message: "Git authentication failed. Check your SSH keys or credentials.")
+
+        case .gitConflict:
+            // Conflicts are surfaced via the AppRouter / conflict banner UI.
+            // Keep the global surface silent so the banner is the single
+            // source of truth for conflict resolution affordances.
             return .silent
+
+        case .gitNetworkUnavailable:
+            return .toastWithDiagnostics(message: "Network unavailable. Check your connection and try again.")
+
+        case let .gitRejected(reason):
+            return .toastWithDiagnostics(message: "Push rejected: \(reason)")
         }
     }
 }
