@@ -16,6 +16,9 @@ extension EntryListModel: AsyncObserving {}
 @MainActor
 extension EntryDetailModel: AsyncObserving {}
 
+@MainActor
+extension GitStatusModel: AsyncObserving {}
+
 // MARK: - startObservation
 
 /// Starts `model.observeChanges()` on a detached task and yields a

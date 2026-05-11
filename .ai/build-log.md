@@ -155,3 +155,33 @@ Phase: C.1 GitStatusModel scaffold
 ## Verdict
 
 Phase C.1 is green: GitStatusModel scaffold and dedicated tests pass, app build is green, grep bans are clean.
+
+---
+
+# Build Log — Phase C.2 GitStatusModel observeChanges + stop
+
+Date: 2026-05-11
+Phase: C.2 observe-changes hook
+
+## Commands and results
+
+1. `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/GitStatusModelObserveTests`
+   - Exit code: `0`
+   - Result: `TEST SUCCEEDED`
+   - Suite summary: `Executed 4 tests, with 0 failures (0 unexpected)`
+
+2. `xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'`
+   - Exit code: `0`
+   - Result: `BUILD SUCCEEDED`
+
+3. `rg -n '\bas!\b' Kizba`
+   - Exit code: `1`
+   - Result: no matches
+
+4. `rg -n 'Logger.*stdin|print\(.*stdin' Kizba`
+   - Exit code: `1`
+   - Result: no matches
+
+## Verdict
+
+Phase C.2 is green: `GitStatusModel.observeChanges()` and `stop()` are covered by dedicated tests, app build is green, and grep bans are clean.

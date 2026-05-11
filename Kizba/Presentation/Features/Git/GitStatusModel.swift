@@ -25,8 +25,10 @@ public final class GitStatusModel {
 
     private var generation: UInt64 = 0
     private var currentTask: Task<Void, Never>?
+    private var changeSubscriptionTask: Task<Void, Never>?
 
     private let gitManager: any PassGitManaging
+    private let passManager: any PassManaging
     private let appState: AppState
     private let router: AppRouter
     private let toastCenter: ToastCenter
@@ -81,16 +83,45 @@ public final class GitStatusModel {
 
     init(
         gitManager: any PassGitManaging,
+        passManager: any PassManaging,
         appState: AppState,
         router: AppRouter,
         toastCenter: ToastCenter,
         settingsStore: any SettingsStoring = InternalNoopSettingsStore()
     ) {
         self.gitManager = gitManager
+        self.passManager = passManager
         self.appState = appState
         self.router = router
         self.toastCenter = toastCenter
         self.settingsStore = settingsStore
+    }
+
+    public func observeChanges() async {
+        guard changeSubscriptionTask == nil else { return }
+
+        let stream = passManager.changes
+        let task = Task { [weak self] in
+            for await _ in stream {
+                if Task.isCancelled { return }
+                guard let self else { return }
+                await self.loadStatus()
+            }
+        }
+        changeSubscriptionTask = task
+
+        await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
+
+        changeSubscriptionTask = nil
+    }
+
+    public func stop() {
+        changeSubscriptionTask?.cancel()
+        changeSubscriptionTask = nil
     }
 
     public func loadStatus() async {

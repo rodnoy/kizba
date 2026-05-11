@@ -8,25 +8,25 @@ Phase C — IN PROGRESS.
 
 ## Next action
 
-Delegate to smart-worker: implement C.2 GitStatusModel observe-changes hook.
+Delegate to smart-worker: implement C.3 AppState extension to hold `gitStatusModel`.
 
-Task: Extend `Kizba/Presentation/Features/Git/GitStatusModel.swift` with `observeChanges()` subscription to `PassManaging.changes`, add `stop()` cancellation seam and re-entrancy guard, and wire scenePhase `.active` reload in app-level composition. Add dedicated observe tests (new `KizbaTests/GitStatusModelObserveTests.swift`) using existing async helper patterns.
+Task: Extend `Kizba/App/AppState.swift` with optional `gitStatusModel: GitStatusModel? = nil` and initializer plumbing (default nil), then add/adjust `KizbaTests/AppStateTests.swift` coverage for the default value. Keep changes additive and minimal.
 
-Verification commands after C.1:
+Verification commands after C.2:
 ```sh
-xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/GitStatusModelTests
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/GitStatusModelObserveTests
 xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
 rg -n '\bas!\b' Kizba
 rg -n 'Logger.*stdin|print\(.*stdin' Kizba
 ```
 
-Expected commit message: `feat(ui): add GitStatusModel observe-changes hook + scenePhase refresh`
+Expected commit message: `feat(app): add optional gitStatusModel to AppState`
 
 ## Phase C progress
 
 - C.1 — COMPLETED (GitStatusModel scaffold + tests)
-- C.2 — next (observe-changes hook)
-- C.3 — pending (AppState extension)
+- C.2 — COMPLETED (observe-changes hook)
+- C.3 — next (AppState extension)
 - C.4 — pending (AppEnvironment wiring)
 - C.5 — pending (GitStatusBadge view)
 - C.6 — pending (GitActionsPopover view)
@@ -53,6 +53,7 @@ rg -n 'Logger.*stdin|print\(.*stdin' Kizba
 
 ## Last completed step summary
 
-- C.1 completed: added `GitStatusModel` scaffold (`@Observable @MainActor`) with generation-safe `loadStatus()`, computed badge/action-gating properties, `cancelCurrentLoad()`, and conflict-banner auto-dismiss helper.
-- Added `KizbaTests/GitStatusModelTests.swift` (15 tests, 1 skipped) covering happy/failure/stale/cancel paths, computed states, and router conflict auto-dismiss behavior.
-- Verification green: targeted tests passed, app build succeeded, grep bans clean.
+- C.2 completed: `GitStatusModel` now stores `passManager`, subscribes to `passManager.changes` via `observeChanges()`, reloads via `await loadStatus()` per event, and exposes idempotent `stop()` cancellation seam.
+- Added `KizbaTests/GitStatusModelObserveTests.swift` (4 async tests) covering event-triggered reload, stop cancellation, no-double-subscribe behavior, and cancellation during a slow load.
+- Updated `GitStatusModelTests` constructor helper and Async test helper protocol conformance to include the new `passManager` dependency.
+- Verification green: targeted observe tests passed, app build succeeded, grep bans clean.

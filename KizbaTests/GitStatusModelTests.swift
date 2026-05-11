@@ -280,6 +280,7 @@ final class GitStatusModelTests: XCTestCase {
 
     private func makeModel(
         gitManager: FakePassGitManager = FakePassGitManager(),
+        passManager: any PassManaging = MockPassManager(entries: [], secrets: [:]),
         appState: AppState? = nil,
         router: AppRouter? = nil,
         settingsStore: any SettingsStoring = AppEnvironment.InMemorySettingsStore()
@@ -288,6 +289,7 @@ final class GitStatusModelTests: XCTestCase {
         let resolvedRouter = router ?? AppRouter()
         return GitStatusModel(
             gitManager: gitManager,
+            passManager: passManager,
             appState: resolvedAppState,
             router: resolvedRouter,
             toastCenter: resolvedAppState.toastCenter,
