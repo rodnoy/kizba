@@ -13,9 +13,9 @@ C.8 — COMPLETED.
 
 ## Next action
 
-Delegate to smart-worker: run C.9 Phase C regression sweep.
+Delegate to smart-planner: prepare implementation plan for Phase D.1 (ActiveWriteOp extension).
 
-Task: Create `Kizba/App/GitMenuCommands.swift` with a "Git" `CommandMenu` containing Refresh Status (⌘⇧R), Pull, Push, Open Terminal at Store. Mount in `KizbaApp.commands`. Add `KizbaTests/GitMenuCommandsTests.swift` testing disable conditions via `GitStatusModel` computed properties (`canRefresh`, `canPull`, `canPush`). If `pull()`/`push()`/`openTerminalAtStore()` don't exist on `GitStatusModel` yet, stub the buttons with `.disabled(true)` + `// TODO: Phase D`. Follow `EntryMenuCommands` pattern exactly. Add both files to `project.pbxproj`.
+Note: C.9 regression sweep verification completed successfully — tests and Release build passed; grep bans clean.
 
 See `.ai/plan.md` Phase C.8 section for full API signatures, test cases, and code shape.
 
