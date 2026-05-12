@@ -9,7 +9,7 @@ public enum GitStatusParser: Sendable {
 
     public static func parse(_ stdout: String) -> GitStatus {
         var branch: String?
-        var hasRemote = false
+        var hasUpstream = false
         var aheadCount = 0
         var behindCount = 0
         var hasLocalChanges = false
@@ -23,7 +23,7 @@ public enum GitStatusParser: Sendable {
                 parseHeader(
                     line,
                     branch: &branch,
-                    hasRemote: &hasRemote,
+                    hasUpstream: &hasUpstream,
                     aheadCount: &aheadCount,
                     behindCount: &behindCount
                 )
@@ -41,6 +41,13 @@ public enum GitStatusParser: Sendable {
             }
         }
 
+        // MVP4 fix-pack v1, Fix 5 — `hasRemote` (any remote
+        // configured) is detected by ``LivePassGitManager`` via a
+        // separate `git -C <store> remote` invocation. The parser
+        // sees only `--branch` headers, so it cannot decide whether
+        // ANY remote exists. The parser populates `hasUpstream`
+        // (which it CAN see) and leaves `hasRemote = false` here for
+        // the manager to overwrite.
         return GitStatus(
             isGitRepository: true,
             branch: branch,
@@ -48,7 +55,8 @@ public enum GitStatusParser: Sendable {
             hasConflicts: hasConflicts,
             aheadCount: aheadCount,
             behindCount: behindCount,
-            hasRemote: hasRemote,
+            hasUpstream: hasUpstream,
+            hasRemote: false,
             lastFetchAt: nil
         )
     }
@@ -56,7 +64,7 @@ public enum GitStatusParser: Sendable {
     private static func parseHeader(
         _ line: String,
         branch: inout String?,
-        hasRemote: inout Bool,
+        hasUpstream: inout Bool,
         aheadCount: inout Int,
         behindCount: inout Int
     ) {
@@ -75,7 +83,7 @@ public enum GitStatusParser: Sendable {
         if payload.hasPrefix("branch.upstream ") {
             let value = String(payload.dropFirst("branch.upstream ".count))
             if !value.isEmpty {
-                hasRemote = true
+                hasUpstream = true
             }
             return
         }

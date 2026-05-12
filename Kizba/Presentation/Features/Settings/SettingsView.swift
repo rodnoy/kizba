@@ -42,6 +42,7 @@ public struct SettingsView: View {
                 binariesSection
                 clipboardSection
                 securitySection
+                gitSection
                 actionsSection
             }
             .padding(theme.spacing.lg)
@@ -178,6 +179,31 @@ public struct SettingsView: View {
             FormFieldRow(label: "Require Touch ID for reveal", helpText: "When enabled, revealing a password prompts for Touch ID / Face ID.") {
                 Toggle(isOn: $model.touchIDPerRevealEnabled) {
                     Text("Require Touch ID for password reveal")
+                }
+            }
+        }
+    }
+
+    private var gitSection: some View {
+        FormSection("Git") {
+            FormFieldRow(
+                label: "Operation timeout",
+                helpText: "Seconds before a git pull or push operation times out."
+            ) {
+                HStack(spacing: theme.spacing.sm) {
+                    Stepper(
+                        value: $model.gitOperationTimeoutSeconds,
+                        in: SettingsKeys.gitOperationTimeoutBounds,
+                        step: 5
+                    ) {
+                        Text("\(model.gitOperationTimeoutSeconds) s")
+                            .font(theme.typography.body)
+                            .foregroundStyle(theme.colors.onSurface)
+                    }
+                    .accessibilityLabel("Git operation timeout")
+                    .accessibilityValue("\(model.gitOperationTimeoutSeconds) seconds")
+                    .accessibilityHint("Seconds before git operations time out")
+                    Spacer()
                 }
             }
         }

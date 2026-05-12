@@ -36,10 +36,13 @@ struct KizbaApp: App {
                             GitConflictBanner(
                                 model: gitModel,
                                 storePath: environment.storeURL.path,
-                                openTerminalAction: {
-                                    let storeURL = environment.storeURL
-                                    _ = NSWorkspace.shared.open(storeURL)
-                                }
+                                // MVP4 fix-pack v1, Fix 4 — was
+                                // `NSWorkspace.shared.open(URL)`
+                                // for a directory URL, which opens
+                                // Finder, not Terminal. Delegate to
+                                // the model's single source of
+                                // truth (`open -a Terminal <path>`).
+                                openTerminalAction: { gitModel.openTerminalAtStore() }
                             )
                         }
                     }
@@ -49,7 +52,13 @@ struct KizbaApp: App {
             DiagnosticsCommands()
             EntryMenuCommands(state: state)
             if state.gitStatusModel != nil {
-                GitMenuCommands(state: state)
+                // MVP4 fix-pack v1, Fix 4 — pass `onOpenTerminal`
+                // so the "Open Terminal at Store" menu item is no
+                // longer a silent no-op.
+                GitMenuCommands(
+                    state: state,
+                    onOpenTerminal: { state.gitStatusModel?.openTerminalAtStore() }
+                )
             }
         }
         // Standard macOS Settings scene. Reuses the SHARED

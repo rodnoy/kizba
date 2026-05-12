@@ -101,6 +101,8 @@ public enum SettingsKeys {
     /// When true, require biometric authentication (Touch ID / Face ID)
     /// for each password reveal in the detail view.
     public nonisolated static let touchIDPerRevealEnabled = "touchIDPerRevealEnabled"
+    /// Timeout in seconds for git operations (pull, push).
+    public nonisolated static let gitOperationTimeoutSeconds = "gitOperationTimeoutSeconds"
 
     // MARK: - Defaults & sane bounds
     //
@@ -119,4 +121,11 @@ public enum SettingsKeys {
     /// persisted value cannot produce a useless 0-second delay or a
     /// runaway multi-hour delay.
     public nonisolated static let clipboardClearDelayBounds: ClosedRange<Int> = 5...300
+
+    /// Default git operation timeout applied when no explicit value is persisted.
+    public nonisolated static let defaultGitOperationTimeoutSeconds: Int = 60
+
+    /// Inclusive bounds enforced by the Settings UI stepper and at
+    /// read time inside ``GitStatusModel``.
+    public nonisolated static let gitOperationTimeoutBounds: ClosedRange<Int> = 10...300
 }

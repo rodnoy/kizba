@@ -37,6 +37,14 @@ final class SettingsModelTests: XCTestCase {
         XCTAssertEqual(model.clipboardClearDelaySeconds, 30)
     }
 
+    func testDefaultsGitOperationTimeout() {
+        let store = makeInMemoryStore()
+        let discovery = TestBinaryLocator(paths: [:])
+        let model = SettingsModel(settings: store, discovery: discovery)
+
+        XCTAssertEqual(model.gitOperationTimeoutSeconds, 60)
+    }
+
     func testSetAndGetOverrides() {
         let store = makeInMemoryStore()
         let discovery = TestBinaryLocator(paths: [:])
@@ -76,6 +84,48 @@ final class SettingsModelTests: XCTestCase {
         XCTAssertNil(fresh.storePathOverride)
         XCTAssertNil(fresh.passBinaryOverride)
         XCTAssertEqual(fresh.clipboardClearDelaySeconds, 30)
+    }
+
+    func testGitOperationTimeoutPersistsOnSave() {
+        let store = makeInMemoryStore()
+        let discovery = TestBinaryLocator(paths: [:])
+
+        var model = SettingsModel(settings: store, discovery: discovery)
+        model.gitOperationTimeoutSeconds = 120
+        model.save()
+
+        let fresh = SettingsModel(settings: store, discovery: discovery)
+        XCTAssertEqual(fresh.gitOperationTimeoutSeconds, 120)
+    }
+
+    func testGitOperationTimeoutResetsToDefault() {
+        let store = makeInMemoryStore()
+        let discovery = TestBinaryLocator(paths: [:])
+
+        var model = SettingsModel(settings: store, discovery: discovery)
+        model.gitOperationTimeoutSeconds = 200
+        model.save()
+
+        model.resetToDefaults()
+
+        let fresh = SettingsModel(settings: store, discovery: discovery)
+        XCTAssertEqual(fresh.gitOperationTimeoutSeconds, 60)
+    }
+
+    func testGitOperationTimeoutBoundsAreSane() {
+        XCTAssertEqual(SettingsKeys.gitOperationTimeoutBounds, 10...300)
+        XCTAssertEqual(SettingsKeys.defaultGitOperationTimeoutSeconds, 60)
+        XCTAssertTrue(SettingsKeys.gitOperationTimeoutBounds.contains(SettingsKeys.defaultGitOperationTimeoutSeconds))
+    }
+
+    func testGitTimeout_accessibilityValue_likeString() {
+        let store = makeInMemoryStore()
+        let discovery = TestBinaryLocator(paths: [:])
+        let model = SettingsModel(settings: store, discovery: discovery)
+
+        let accessibilityValue = "\(model.gitOperationTimeoutSeconds) seconds"
+        XCTAssertEqual(accessibilityValue, "60 seconds")
+        XCTAssertFalse(accessibilityValue.isEmpty)
     }
 
     func testReDetectTriggersDiscovery() async {

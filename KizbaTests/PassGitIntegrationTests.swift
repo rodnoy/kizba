@@ -2,7 +2,7 @@ import XCTest
 @testable import Kizba
 
 @MainActor
-final class PassGitE2ETests: XCTestCase {
+final class PassGitIntegrationTests: XCTestCase {
 
     private var helper: PassGitE2EHelper?
 

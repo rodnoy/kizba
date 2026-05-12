@@ -7,6 +7,10 @@ final class PassCLIGitTests: XCTestCase {
     private static let gitURL = URL(fileURLWithPath: "/usr/bin/git")
 
     func testGitStatus_invocationShape() async throws {
+        // Fix 5 (MVP4 fix-pack v1) — gitStatus() now issues TWO
+        // shell calls: `git status --porcelain=v2 --branch` then
+        // `git remote`. Assert on the first invocation explicitly
+        // (the second is covered by `testGitStatus_listsRemotes`).
         let fake = FakeShellRunner(response: .success(exitCode: 0, stdout: Data(), stderr: Data([0x78, 0x79])))
         let cli = PassCLI(
             executable: Self.passURL,
@@ -18,16 +22,35 @@ final class PassCLIGitTests: XCTestCase {
 
         _ = try await cli.gitStatus(storePath: storePath, gitExecutable: Self.gitURL)
 
-        let invocation = try XCTUnwrap(fake.lastInvocation)
+        let invocation = try XCTUnwrap(fake.allInvocations.first)
         XCTAssertEqual(invocation.executable, Self.gitURL)
         XCTAssertEqual(invocation.arguments, ["-C", storePath, "status", "--porcelain=v2", "--branch"])
         XCTAssertEqual(invocation.timeout, .seconds(5))
         XCTAssertEqual(invocation.stdin, .none)
-        XCTAssertEqual(invocation.environment["PATH"], PassCLI.defaultPATH)
+        // Fix 3 (MVP4 fix-pack v1) — git PATH appends `/sbin` and
+        // `/usr/sbin` for `darwin.sh` RAM-disk helpers.
+        XCTAssertEqual(invocation.environment["PATH"], PassCLI.defaultPATH + ":/sbin:/usr/sbin")
         XCTAssertEqual(invocation.environment["GIT_TERMINAL_PROMPT"], "0")
         XCTAssertEqual(invocation.environment["SSH_ASKPASS"], "/usr/bin/false")
         XCTAssertEqual(invocation.environment["PASSWORD_STORE_DIR"], storePath)
         XCTAssertEqual(invocation.environment["HOME"], "/tmp/home")
+    }
+
+    // Fix 5 (MVP4 fix-pack v1) — `gitStatus` now follows up with a
+    // `git remote` call so the manager can populate
+    // `GitStatus.hasRemote` independently of the parser's
+    // upstream-only signal.
+    func testGitStatus_followsUpWithGitRemoteCall() async throws {
+        let fake = FakeShellRunner(response: .success(exitCode: 0, stdout: Data(), stderr: Data()))
+        let cli = PassCLI(executable: Self.passURL, shellRunner: fake)
+
+        _ = try await cli.gitStatus(storePath: "/tmp/store", gitExecutable: Self.gitURL)
+
+        let invocations = fake.allInvocations
+        XCTAssertGreaterThanOrEqual(invocations.count, 2)
+        let remoteCall = invocations[1]
+        XCTAssertEqual(remoteCall.executable, Self.gitURL)
+        XCTAssertEqual(remoteCall.arguments, ["-C", "/tmp/store", "remote"])
     }
 
     func testGitStatus_parsesStdout() async throws {
@@ -92,6 +115,11 @@ final class PassCLIGitTests: XCTestCase {
         XCTAssertEqual(invocation.environment["PASSWORD_STORE_DIR"], "/tmp/custom-store")
         XCTAssertEqual(invocation.environment["GIT_TERMINAL_PROMPT"], "0")
         XCTAssertEqual(invocation.environment["SSH_ASKPASS"], "/usr/bin/false")
+        // Fix 3 (MVP4 fix-pack v1) — PATH for git ops carries `/sbin`
+        // and `/usr/sbin` so `darwin.sh` can locate `umount` and
+        // `diskutil`.
+        XCTAssertTrue((invocation.environment["PATH"] ?? "").split(separator: ":").contains("/sbin"))
+        XCTAssertTrue((invocation.environment["PATH"] ?? "").split(separator: ":").contains("/usr/sbin"))
     }
 
     func testGitPush_invocationShape() async throws {
@@ -108,6 +136,9 @@ final class PassCLIGitTests: XCTestCase {
         XCTAssertEqual(invocation.environment["PASSWORD_STORE_DIR"], "/tmp/custom-store")
         XCTAssertEqual(invocation.environment["GIT_TERMINAL_PROMPT"], "0")
         XCTAssertEqual(invocation.environment["SSH_ASKPASS"], "/usr/bin/false")
+        // Fix 3 (MVP4 fix-pack v1) — see `testGitPull_invocationShape`.
+        XCTAssertTrue((invocation.environment["PATH"] ?? "").split(separator: ":").contains("/sbin"))
+        XCTAssertTrue((invocation.environment["PATH"] ?? "").split(separator: ":").contains("/usr/sbin"))
     }
 
     func testGitPush_upToDate_returnsAlreadyUpToDate() async throws {

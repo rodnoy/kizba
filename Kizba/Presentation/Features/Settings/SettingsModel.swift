@@ -25,6 +25,8 @@ public final class SettingsModel {
     /// When true, require biometric authentication for each password
     /// reveal in the detail view.
     public var touchIDPerRevealEnabled: Bool
+    /// Git operation timeout in seconds (pull, push).
+    public var gitOperationTimeoutSeconds: Int
 
     /// Toggles while a discovery operation is in-flight.
     public private(set) var isDetectingBinaries: Bool = false
@@ -50,6 +52,8 @@ public final class SettingsModel {
         self.clipboardClearDelaySeconds = settings.value(for: SettingsKey<Int>(SettingsKeys.clipboardClearDelaySeconds))
             ?? SettingsKeys.defaultClipboardClearDelaySeconds
         self.touchIDPerRevealEnabled = settings.value(for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled)) ?? false
+        self.gitOperationTimeoutSeconds = settings.value(for: SettingsKey<Int>(SettingsKeys.gitOperationTimeoutSeconds))
+            ?? SettingsKeys.defaultGitOperationTimeoutSeconds
     }
 
     // MARK: - Actions
@@ -62,6 +66,7 @@ public final class SettingsModel {
         settings.set(pinentryBinaryOverride, for: SettingsKey<String>(SettingsKeys.pinentryBinaryOverride))
         settings.set(clipboardClearDelaySeconds, for: SettingsKey<Int>(SettingsKeys.clipboardClearDelaySeconds))
         settings.set(touchIDPerRevealEnabled, for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled))
+        settings.set(gitOperationTimeoutSeconds, for: SettingsKey<Int>(SettingsKeys.gitOperationTimeoutSeconds))
     }
 
     /// Remove override entries and restore the clipboard delay to the
@@ -79,6 +84,8 @@ public final class SettingsModel {
         // Reset biometric reveal setting to default (false).
         touchIDPerRevealEnabled = false
         settings.removeValue(forKey: SettingsKeys.touchIDPerRevealEnabled)
+        gitOperationTimeoutSeconds = SettingsKeys.defaultGitOperationTimeoutSeconds
+        settings.set(gitOperationTimeoutSeconds, for: SettingsKey<Int>(SettingsKeys.gitOperationTimeoutSeconds))
 
         // Reflect cleared overrides in-memory as well.
         storePathOverride = nil

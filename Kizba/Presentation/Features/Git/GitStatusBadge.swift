@@ -13,6 +13,7 @@ struct GitStatusBadge: View {
         } label: {
             HStack(spacing: theme.spacing.xs) {
                 Image(systemName: sfSymbolName)
+                    .accessibilityHidden(true)
                 Text(model.badgeText)
                     .font(theme.typography.caption)
             }
@@ -21,9 +22,21 @@ struct GitStatusBadge: View {
         .buttonStyle(.plain)
         .foregroundStyle(foregroundColor)
         .popover(isPresented: $isPopoverPresented) {
-            GitActionsPopover(model: model)
+            // MVP4 fix-pack v1, Fix 2 — explicitly wire EVERY action.
+            // Forgetting any of these is now a compile error
+            // (closures are required parameters).
+            GitActionsPopover(
+                model: model,
+                onPull: { await model.pull() },
+                onPush: { await model.push() },
+                onRefresh: { await model.loadStatus() },
+                onCancel: { model.cancelOperation() },
+                onOpenTerminal: { model.openTerminalAtStore() }
+            )
         }
+        .accessibilityElement(children: .combine)
         .accessibilityLabel(model.badgeAccessibilityLabel)
+        .accessibilityValue(model.badgeText)
         .accessibilityAddTraits(.isButton)
         .accessibilityHint("Opens git actions")
     }

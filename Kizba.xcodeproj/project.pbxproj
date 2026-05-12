@@ -19,12 +19,6 @@
 /* Begin PBXFileReference section */
 		E9411DAF2FAB8D6400ED03E6 /* Kizba.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Kizba.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E9411DBC2FAB8D6900ED03E6 /* KizbaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KizbaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		F00000012FAB8D6400ED03E6 /* GitStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GitStatus.swift; path = Domain/Models/GitStatus.swift; sourceTree = "<group>"; };
-		F00000022FAB8D6400ED03E6 /* GitStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GitStatusTests.swift; path = GitStatusTests.swift; sourceTree = "<group>"; };
-		F00000032FAB8D6400ED03E6 /* PassGitManaging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PassGitManaging.swift; path = Domain/Protocols/PassGitManaging.swift; sourceTree = "<group>"; };
-		F00000042FAB8D6400ED03E6 /* FakePassGitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FakePassGitManager.swift; path = Fixtures/FakePassGitManager.swift; sourceTree = "<group>"; };
-		F00000052FAB8D6400ED03E6 /* FakePassGitManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FakePassGitManagerTests.swift; path = FakePassGitManagerTests.swift; sourceTree = "<group>"; };
-
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -47,14 +41,14 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-        E9411DB12FAB8D6400ED03E6 /* Kizba */ = {
-            isa = PBXFileSystemSynchronizedRootGroup;
-            exceptions = (
-                E9411DE02FAB8D6900ED03E6 /* Exceptions for "Kizba" folder in "Kizba" target */,
-            );
-            path = Kizba;
-            sourceTree = "<group>";
-        };
+		E9411DB12FAB8D6400ED03E6 /* Kizba */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				E9411DE02FAB8D6900ED03E6 /* Exceptions for "Kizba" folder in "Kizba" target */,
+			);
+			path = Kizba;
+			sourceTree = "<group>";
+		};
 		E9411DBF2FAB8D6900ED03E6 /* KizbaTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = KizbaTests;
@@ -206,15 +200,15 @@
 		E9411DAB2FAB8D6400ED03E6 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
-            files = (
-            );
+			files = (
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		E9411DB82FAB8D6900ED03E6 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
-            files = (
-            );
+			files = (
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */

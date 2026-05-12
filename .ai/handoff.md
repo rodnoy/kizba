@@ -23,10 +23,10 @@ E.4 — COMPLETED (Docs & final regression sweep).
   `rg -n '\bas!\b' Kizba`
   `rg -n 'Logger.*stdin|print\(.*stdin' Kizba`
 - [ ] Optionally run opt-in Git E2E:
-  `KIZBA_E2E=1 KIZBA_GIT_E2E=1 xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/PassGitE2ETests`
+  `KIZBA_E2E=1 KIZBA_GIT_E2E=1 xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/PassGitIntegrationTests`
 - [ ] Tag release.
 - [ ] Update release notes.
 
 ## Next action
 
-MVP 4 complete. Next milestone: MVP 5 planning.
+Delegate to smart-worker: implement MVP5 Phase A.1 — SearchEngine domain service (EntrySearching protocol + LiveSearchEngine + SearchResult + tests)

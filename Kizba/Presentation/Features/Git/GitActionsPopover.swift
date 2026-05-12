@@ -12,20 +12,26 @@ struct GitActionsPopover: View {
 
     @Environment(\.theme) private var theme
 
+    // MVP4 fix-pack v1, Fix 2 — every closure is REQUIRED. Previously
+    // they defaulted to `{}` / `{ await model.loadStatus() }`, which
+    // made it possible (and common) for a callsite to forget to pass
+    // an action and silently end up with a no-op button. Forcing the
+    // parameters makes regressions a compile error instead of a
+    // dead-button.
     init(
         model: GitStatusModel,
-        onPull: (() async -> Void)? = nil,
-        onPush: (() async -> Void)? = nil,
-        onRefresh: (() async -> Void)? = nil,
-        onCancel: (() -> Void)? = nil,
-        onOpenTerminal: (() -> Void)? = nil
+        onPull: @escaping () async -> Void,
+        onPush: @escaping () async -> Void,
+        onRefresh: @escaping () async -> Void,
+        onCancel: @escaping () -> Void,
+        onOpenTerminal: @escaping () -> Void
     ) {
         self.model = model
-        self.onPull = onPull ?? {}
-        self.onPush = onPush ?? {}
-        self.onRefresh = onRefresh ?? { await model.loadStatus() }
-        self.onCancel = onCancel ?? { model.cancelCurrentLoad() }
-        self.onOpenTerminal = onOpenTerminal ?? {}
+        self.onPull = onPull
+        self.onPush = onPush
+        self.onRefresh = onRefresh
+        self.onCancel = onCancel
+        self.onOpenTerminal = onOpenTerminal
     }
 
     var body: some View {
@@ -44,6 +50,7 @@ struct GitActionsPopover: View {
             .buttonStyle(.borderedProminent)
             .frame(maxWidth: .infinity)
             .disabled(!model.canRefresh)
+            .accessibilityLabel("Refresh")
             .accessibilityHint("Refreshes the current git repository status")
 
             Button("Pull") {
@@ -52,6 +59,7 @@ struct GitActionsPopover: View {
             .buttonStyle(.bordered)
             .frame(maxWidth: .infinity)
             .disabled(!model.canPull)
+            .accessibilityLabel("Pull")
             .accessibilityHint("Pulls latest changes from the remote")
 
             Button("Push") {
@@ -60,6 +68,7 @@ struct GitActionsPopover: View {
             .buttonStyle(.bordered)
             .frame(maxWidth: .infinity)
             .disabled(!model.canPush)
+            .accessibilityLabel("Push")
             .accessibilityHint("Pushes local commits to the remote")
 
             Divider()
@@ -69,25 +78,40 @@ struct GitActionsPopover: View {
             }
             .buttonStyle(.bordered)
             .frame(maxWidth: .infinity)
+            .accessibilityLabel("Open Terminal")
             .accessibilityHint("Opens Terminal at the password store location")
 
             if GitActionsPopover.showsInFlightUI(for: model.operationState) {
                 HStack(spacing: theme.spacing.sm) {
                     ProgressView()
+                        .accessibilityLabel("Git operation in progress")
+                        .accessibilityValue(Self.progressAccessibilityValue(for: model.operationState))
 
                     Button("Cancel") {
                         onCancel()
                     }
                     .buttonStyle(.bordered)
+                    .accessibilityLabel("Cancel git operation")
                     .accessibilityHint("Cancels the current git operation")
+                    .accessibilityAddTraits(.isButton)
                 }
             }
         }
         .frame(minWidth: 240)
         .padding(theme.spacing.md)
+        .accessibilityElement(children: .contain)
     }
 
     static func showsInFlightUI(for state: GitStatusModel.OperationState) -> Bool {
         state != .idle
+    }
+
+    static func progressAccessibilityValue(for state: GitStatusModel.OperationState) -> String {
+        switch state {
+        case .pulling:
+            return "Pulling"
+        case .pushing, .idle:
+            return "Pushing"
+        }
     }
 }

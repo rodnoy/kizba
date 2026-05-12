@@ -25,7 +25,7 @@ MVP 2 ships a complete read + write surface over `pass(1)`:
 - Sidebar badge showing repository status (clean, local changes, ahead/behind, conflict) with an actions popover.
 - Pull / Push via the "Git" menu (Refresh Status — ⌘⇧R; Pull; Push). Conflict banner shows merge conflicts and a quick "Open Terminal at Store" action.
 - Settings: "Git operation timeout" stepper (10–300 seconds, default 60) controls network operation timeout.
-- Opt-in integration tests: run `KIZBA_E2E=1 KIZBA_GIT_E2E=1 xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/PassGitE2ETests`
+- Opt-in integration tests: run `KIZBA_E2E=1 KIZBA_GIT_E2E=1 xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/PassGitIntegrationTests`
 
 ## Visual identity
 

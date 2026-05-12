@@ -450,6 +450,82 @@ final class GitStatusModelTests: XCTestCase {
         XCTAssertEqual(pushCount, 0)
     }
 
+    // MARK: - cancelOperation() (Fix 6, MVP4 fix-pack v1)
+
+    func testCancelOperation_abortsInFlightPull() async {
+        let manager = FakePassGitManager()
+        await manager.setNextStatus(.success(GitStatus(
+            isGitRepository: true,
+            hasRemote: true
+        )))
+        await manager.setPullResults([.success(())])
+        let appState = AppState()
+        let model = makeModel(gitManager: manager, appState: appState)
+        // Refresh status quickly (no artificial delay yet).
+        await model.loadStatus()
+        // Now arm the long delay so the upcoming pull blocks until
+        // cancelled.
+        await manager.setArtificialDelay(.seconds(5))
+
+        let start = Date()
+        let task = Task { await model.pull() }
+        try? await Task.sleep(for: .milliseconds(50))
+        XCTAssertTrue(appState.activeWriteOps.contains(.gitPull))
+
+        model.cancelOperation()
+        await task.value
+        let elapsed = Date().timeIntervalSince(start)
+
+        // Must finish well within the 5-second artificial delay.
+        XCTAssertLessThan(elapsed, 2.0)
+        XCTAssertFalse(appState.anyWriteInFlight)
+        XCTAssertEqual(model.operationState, .idle)
+    }
+
+    func testCancelOperation_abortsInFlightPush() async {
+        let manager = FakePassGitManager()
+        await manager.setNextStatus(.success(GitStatus(
+            isGitRepository: true,
+            aheadCount: 1,
+            hasRemote: true
+        )))
+        await manager.setPushResults([.success(.pushed)])
+        let appState = AppState()
+        let model = makeModel(gitManager: manager, appState: appState)
+        await model.loadStatus()
+        await manager.setArtificialDelay(.seconds(5))
+
+        let start = Date()
+        let task = Task { await model.push() }
+        try? await Task.sleep(for: .milliseconds(50))
+        XCTAssertTrue(appState.activeWriteOps.contains(.gitPush))
+
+        model.cancelOperation()
+        await task.value
+        let elapsed = Date().timeIntervalSince(start)
+
+        XCTAssertLessThan(elapsed, 2.0)
+        XCTAssertFalse(appState.anyWriteInFlight)
+        XCTAssertEqual(model.operationState, .idle)
+    }
+
+    func testCancelOperation_idempotent_whenIdle() {
+        let model = makeModel()
+        model.cancelOperation()
+        model.cancelOperation()
+        XCTAssertEqual(model.operationState, .idle)
+    }
+
+    // MARK: - openTerminalAtStore() (Fix 4, MVP4 fix-pack v1)
+
+    func testOpenTerminalAtStore_doesNotCrash() {
+        // Cannot assert Terminal actually launches in tests, but the
+        // method must not throw / fatal under any condition; the
+        // single source-of-truth contract is what callers rely on.
+        let model = makeModel()
+        model.openTerminalAtStore()
+    }
+
     func testPush_setsWriteLockout_duringOperation() async {
         let manager = FakePassGitManager()
         await manager.setNextStatus(.success(GitStatus(

@@ -45,6 +45,22 @@ public final class FSEventsStoreWatcher: StoreWatching, @unchecked Sendable {
 
     public init() {}
 
+    // MVP4 fix-pack v1, Fix 1 — `true` when `path` lives under a
+    // `.git/` subtree (anywhere along its components). Public for
+    // unit-test reach (the FSEvents callback can't easily be exercised
+    // in isolation).
+    static func isGitInternalPath(_ path: String) -> Bool {
+        // Cheap substring check first — most non-git paths bail out
+        // here without allocating a component array.
+        guard path.contains("/.git/") || path.hasSuffix("/.git") || path.contains(".git/") else {
+            return false
+        }
+        // Make sure `.git` appears as an actual path component (so
+        // `foo.git-something/bar` is NOT a false positive).
+        let components = (path as NSString).pathComponents
+        return components.contains(".git")
+    }
+
     deinit {
         // Best-effort cleanup: perform invalidation on queue and finish continuations.
         queue.sync {
@@ -99,14 +115,57 @@ public final class FSEventsStoreWatcher: StoreWatching, @unchecked Sendable {
             var context = FSEventStreamContext(version: 0, info: Unmanaged.passUnretained(self).toOpaque(), retain: nil, release: nil, copyDescription: nil)
 
             // Callback
+            //
+            // MVP4 fix-pack v1, Fix 1 — filter out events that occur
+            // entirely under the store's `.git/` subdirectory. Git
+            // itself (gpg-agent IPC writes, `.git/index.lock`,
+            // `FETCH_HEAD` mtime bumps, refs, packed-refs, etc.)
+            // produces a constant trickle of FS events that have
+            // nothing to do with password-store entries. Letting
+            // those reach the debounce → `.bulk` → `loadStatus()`
+            // pipeline causes the GitStatusModel to flip into
+            // `.loading` repeatedly, which gates the Refresh button
+            // and makes the badge flicker. Drop those events at the
+            // source. If at least one event in the batch is OUTSIDE
+            // `.git/`, schedule the debounce as normal — that
+            // matches actual entry-tree changes.
             let callback: FSEventStreamCallback = { (_streamRef, clientCallBackInfo, numEvents, eventPaths, eventFlags, eventIds) in
                 guard let client = clientCallBackInfo else { return }
                 let watcher = Unmanaged<FSEventsStoreWatcher>.fromOpaque(client).takeUnretainedValue()
+
+                // With `kFSEventStreamCreateFlagUseCFTypes` set (see
+                // `flags` below), `eventPaths` is a `CFArrayRef` of
+                // `CFStringRef`. Bridge it to `NSArray` and inspect
+                // the paths so we can drop pure `.git/` batches at
+                // the source.
+                let paths = Unmanaged<CFArray>
+                    .fromOpaque(eventPaths)
+                    .takeUnretainedValue() as NSArray
+
+                var hasNonGitPath = false
+                for raw in paths {
+                    let path = (raw as? String) ?? ""
+                    if !FSEventsStoreWatcher.isGitInternalPath(path) {
+                        hasNonGitPath = true
+                        break
+                    }
+                }
+
+                guard hasNonGitPath else { return }
+
                 // We're already on the dispatch queue set for the stream; schedule debounce work here.
                 watcher.scheduleDebounce()
             }
 
-            let flags = FSEventStreamCreateFlags(kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagNoDefer)
+            // MVP4 fix-pack v1, Fix 1 — opt into CF-type event paths
+            // (`CFArrayRef<CFStringRef>`) so the callback can inspect
+            // the path components and filter out `.git/` chatter
+            // before it hits the debounce → `.bulk` pipeline.
+            let flags = FSEventStreamCreateFlags(
+                kFSEventStreamCreateFlagFileEvents
+                | kFSEventStreamCreateFlagNoDefer
+                | kFSEventStreamCreateFlagUseCFTypes
+            )
 
             let stream = FSEventStreamCreate(kCFAllocatorDefault, callback, &context, paths, FSEventStreamEventId(kFSEventStreamEventIdSinceNow), 0, flags)
             guard let stream = stream else { return }

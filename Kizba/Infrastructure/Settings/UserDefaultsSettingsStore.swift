@@ -45,6 +45,11 @@ public final class UserDefaultsSettingsStore: SettingsStoring, @unchecked Sendab
         if userDefaults.object(forKey: touchKey) == nil {
             userDefaults.register(defaults: [touchKey: false])
         }
+        // Ensure default for git operation timeout.
+        let gitTimeoutKey = namespaced(SettingsKeys.gitOperationTimeoutSeconds)
+        if userDefaults.object(forKey: gitTimeoutKey) == nil {
+            userDefaults.register(defaults: [gitTimeoutKey: SettingsKeys.defaultGitOperationTimeoutSeconds])
+        }
     }
 
     // MARK: - Namespacing helper

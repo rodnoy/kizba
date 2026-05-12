@@ -44,6 +44,26 @@ final class GitConflictBannerTests: XCTestCase {
         XCTAssertEqual(view.storePath, path)
     }
 
+    func testBanner_accessibility_storePathAndButtons() {
+        let router = AppRouter()
+        let model = makeModel(router: router)
+        let path = "/tmp/password-store"
+        router.presentGitConflictBanner()
+
+        var didCallOpenTerminal = false
+        let view = GitConflictBanner(
+            model: model,
+            storePath: path,
+            openTerminalAction: { didCallOpenTerminal = true }
+        )
+
+        XCTAssertEqual(view.storePath, path)
+        view.handleOpenTerminalTap()
+
+        XCTAssertTrue(didCallOpenTerminal)
+        XCTAssertFalse(router.isGitConflictBannerPresented)
+    }
+
     private func makeModel(router: AppRouter) -> GitStatusModel {
         let appState = AppState()
         return GitStatusModel(

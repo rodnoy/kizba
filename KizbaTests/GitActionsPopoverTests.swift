@@ -93,6 +93,14 @@ final class GitActionsPopoverTests: XCTestCase {
         XCTAssertFalse(GitActionsPopover.showsInFlightUI(for: .idle))
     }
 
+    func testInFlightAccessibility_progressLabelAndCancelHint() {
+        let model = makeModel(status: .notARepository)
+        model.operationState = .pulling
+
+        XCTAssertTrue(GitActionsPopover.showsInFlightUI(for: model.operationState))
+        XCTAssertEqual(GitActionsPopover.progressAccessibilityValue(for: model.operationState), "Pulling")
+    }
+
     private func makeModel(status: GitStatus) -> GitStatusModel {
         let gitManager = FakePassGitManager()
         let appState = AppState()

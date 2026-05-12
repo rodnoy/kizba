@@ -5,7 +5,7 @@ import Observation
 @MainActor
 public final class GitStatusModel {
 
-    private nonisolated static let gitOperationTimeoutSecondsKey = SettingsKey<Int>("gitOperationTimeoutSeconds")
+    private nonisolated static let gitOperationTimeoutSecondsKey = SettingsKey<Int>(SettingsKeys.gitOperationTimeoutSeconds)
 
     public enum LoadState: Sendable, Equatable {
         case idle
@@ -28,6 +28,13 @@ public final class GitStatusModel {
     private var generation: UInt64 = 0
     private var currentTask: Task<Void, Never>?
     private var changeSubscriptionTask: Task<Void, Never>?
+
+    /// MVP4 fix-pack v1, Fix 6 — task handle for the in-flight
+    /// pull/push so ``cancelOperation()`` can `Task.cancel()` it. The
+    /// cancellation propagates through `await
+    /// gitManager.gitPull/gitPush` → `ProcessShellRunner` SIGTERM
+    /// (see MVP2 E.2). Cleared on completion (success/failure/cancel).
+    private var operationTask: Task<Void, Never>?
 
     private let gitManager: any PassGitManaging
     private let passManager: any PassManaging
@@ -107,7 +114,11 @@ public final class GitStatusModel {
             for await _ in stream {
                 if Task.isCancelled { return }
                 guard let self else { return }
-                await self.loadStatus()
+                // MVP4 fix-pack v1, Fix 1 — auto-refresh path. Do NOT
+                // mutate `loadState`; otherwise the badge flickers
+                // and the Refresh button gates `canRefresh` against
+                // an in-flight reload it never asked for.
+                await self.refreshStatusQuietly()
             }
         }
         changeSubscriptionTask = task
@@ -119,6 +130,32 @@ public final class GitStatusModel {
         }
 
         changeSubscriptionTask = nil
+    }
+
+    /// MVP4 fix-pack v1, Fix 1 — auto-refresh seam used by FSEvents
+    /// subscribers and `scenePhase`-driven re-fetches. Updates
+    /// ``status`` / ``lastError`` on completion but does NOT touch
+    /// ``loadState``, so the user-visible "Refresh" affordance stays
+    /// clickable and the badge does not flicker into a "loading"
+    /// state for background work the user did not initiate.
+    func refreshStatusQuietly() async {
+        do {
+            let result = try await gitManager.gitStatus()
+            try Task.checkCancellation()
+            self.status = result
+            self.lastError = nil
+            self.refreshConflictAutoDismiss()
+        } catch is CancellationError {
+            // Quiet; no state change.
+        } catch {
+            // Quiet failure path: capture the mapped error so
+            // diagnostics can pick it up, but do NOT post a toast or
+            // flip into `.failed`. Manual `loadStatus()` remains the
+            // user-visible failure surface.
+            let mapped = (error as? PassError)
+                ?? PassError.shellFailure(exitCode: -1, stderrExcerpt: "")
+            self.lastError = mapped
+        }
     }
 
     public func stop() {
@@ -201,7 +238,28 @@ public final class GitStatusModel {
     public func pull() async {
         guard canPull else { return }
 
+        // MVP4 fix-pack v1, Fix 6 — wrap the operation in a Task so
+        // ``cancelOperation()`` can interrupt it via `Task.cancel()`.
+        // The Task body owns the lockout/state mutations so a
+        // mid-flight cancellation still releases `activeWriteOps`
+        // and resets `operationState`.
+        operationTask?.cancel()
+        let token = nextOperationToken()
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.runPull()
+        }
+        operationTask = task
+        await task.value
+        // Clear only if a newer operation has not replaced this one.
+        if operationToken == token {
+            operationTask = nil
+        }
+    }
+
+    private func runPull() async {
         var operationError: PassError?
+        var wasCancelled = false
         operationState = .pulling
         appState.beginWrite(.gitPull)
         defer {
@@ -215,7 +273,15 @@ public final class GitStatusModel {
                 Toast(severity: .success, title: "Pull complete", message: nil)
             )
         } catch is CancellationError {
-            // Silently cancelled.
+            // Silently cancelled — skip the post-op `loadStatus()`
+            // below so cancellation actually finishes promptly
+            // instead of running a fresh gitStatus call right after.
+            wasCancelled = true
+        } catch let error as PassError where error == .cancelled {
+            // Same: when the inner shell runner translates a
+            // Task.cancel() into `PassError.cancelled`, treat it as
+            // a cancellation and skip the post-op refresh.
+            wasCancelled = true
         } catch {
             let mappedError = (error as? PassError)
                 ?? PassError.shellFailure(exitCode: -1, stderrExcerpt: "")
@@ -234,7 +300,9 @@ public final class GitStatusModel {
             }
         }
 
-        await loadStatus()
+        if !wasCancelled {
+            await loadStatus()
+        }
         if let operationError {
             lastError = operationError
         }
@@ -243,7 +311,30 @@ public final class GitStatusModel {
     public func push() async {
         guard canPush else { return }
 
+        // MVP4 fix-pack v1, Fix 6 — see `pull()`.
+        operationTask?.cancel()
+        let token = nextOperationToken()
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.runPush()
+        }
+        operationTask = task
+        await task.value
+        if operationToken == token {
+            operationTask = nil
+        }
+    }
+
+    private var operationToken: UInt64 = 0
+
+    private func nextOperationToken() -> UInt64 {
+        operationToken &+= 1
+        return operationToken
+    }
+
+    private func runPush() async {
         var operationError: PassError?
+        var wasCancelled = false
         operationState = .pushing
         appState.beginWrite(.gitPush)
         defer {
@@ -264,7 +355,9 @@ public final class GitStatusModel {
                 )
             }
         } catch is CancellationError {
-            // Silently cancelled.
+            wasCancelled = true
+        } catch let error as PassError where error == .cancelled {
+            wasCancelled = true
         } catch {
             let mappedError = (error as? PassError)
                 ?? PassError.shellFailure(exitCode: -1, stderrExcerpt: "")
@@ -279,16 +372,45 @@ public final class GitStatusModel {
             )
         }
 
-        await loadStatus()
+        if !wasCancelled {
+            await loadStatus()
+        }
         if let operationError {
             lastError = operationError
         }
     }
 
+    /// MVP4 fix-pack v1, Fix 6 — cancels an in-flight pull/push. The
+    /// cancellation propagates via `Task.cancel()` →
+    /// `await gitManager.gitPull/gitPush` → `ProcessShellRunner`
+    /// SIGTERM (existing pattern from MVP2 E.2). Idempotent: a no-op
+    /// when no operation is in flight.
+    public func cancelOperation() {
+        operationTask?.cancel()
+    }
+
+    /// MVP4 fix-pack v1, Fix 4 — opens Terminal.app at the active
+    /// password-store directory. Single source of truth; the popover,
+    /// the `Git` menu, and the conflict-banner sheet all delegate
+    /// here. `NSWorkspace.open(URL)` opens a directory in Finder, NOT
+    /// Terminal — `open -a Terminal <path>` is the correct invocation.
+    public func openTerminalAtStore() {
+        let storeURL = passManager.storeLocation()
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        process.arguments = ["-a", "Terminal", storeURL.path]
+        // Errors are intentionally swallowed: the user-visible signal
+        // is whether Terminal launches. Logging via `Log.git` could
+        // be added later if a recurring failure surface needs
+        // diagnosis.
+        try? process.run()
+    }
+
     private var gitOperationTimeoutSeconds: Int {
         let configured = settingsStore.value(for: Self.gitOperationTimeoutSecondsKey)
-        guard let configured, configured > 0 else { return 60 }
-        return configured
+        let bounds = SettingsKeys.gitOperationTimeoutBounds
+        guard let configured else { return SettingsKeys.defaultGitOperationTimeoutSeconds }
+        return min(max(configured, bounds.lowerBound), bounds.upperBound)
     }
 
     private func userMessage(for error: PassError) -> String? {

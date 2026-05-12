@@ -37,17 +37,23 @@ struct GitConflictBanner: View {
                 .font(theme.typography.mono)
                 .foregroundStyle(theme.colors.onSurface)
                 .textSelection(.enabled)
+                .accessibilityLabel("Store path")
+                .accessibilityValue(storePath)
 
             HStack(spacing: theme.spacing.sm) {
                 Button("Open Terminal at Store") {
                     handleOpenTerminalTap()
                 }
                 .buttonStyle(.borderedProminent)
+                .accessibilityLabel("Open Terminal at Store")
+                .accessibilityHint("Opens Terminal.app at the password store location")
 
                 Button("Dismiss") {
                     handleDismissTap()
                 }
                 .buttonStyle(.bordered)
+                .accessibilityLabel("Dismiss conflict banner")
+                .accessibilityHint("Dismisses the merge conflict banner")
             }
         }
         .padding(theme.spacing.lg)

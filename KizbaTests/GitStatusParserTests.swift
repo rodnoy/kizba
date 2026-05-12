@@ -12,6 +12,9 @@ final class GitStatusParserTests: XCTestCase {
         XCTAssertFalse(status.hasConflicts)
         XCTAssertEqual(status.aheadCount, 0)
         XCTAssertEqual(status.behindCount, 0)
+        // Fix 5 (MVP4 fix-pack v1) — parser populates hasUpstream
+        // only; hasRemote is set later by ``LivePassGitManager``.
+        XCTAssertFalse(status.hasUpstream)
         XCTAssertFalse(status.hasRemote)
         XCTAssertNil(status.lastFetchAt)
     }
@@ -21,18 +24,18 @@ final class GitStatusParserTests: XCTestCase {
 
         XCTAssertTrue(status.isGitRepository)
         XCTAssertEqual(status.branch, "main")
-        XCTAssertTrue(status.hasRemote)
+        XCTAssertTrue(status.hasUpstream)
         XCTAssertEqual(status.aheadCount, 0)
         XCTAssertEqual(status.behindCount, 0)
         XCTAssertFalse(status.hasLocalChanges)
         XCTAssertFalse(status.hasConflicts)
     }
 
-    func testCleanRepoNoRemote_hasRemoteFalse() throws {
+    func testCleanRepoNoRemote_hasUpstreamFalse() throws {
         let status = GitStatusParser.parse(try fixture(named: "clean-no-remote"))
 
         XCTAssertEqual(status.branch, "main")
-        XCTAssertFalse(status.hasRemote)
+        XCTAssertFalse(status.hasUpstream)
         XCTAssertEqual(status.aheadCount, 0)
         XCTAssertEqual(status.behindCount, 0)
     }
@@ -97,14 +100,14 @@ final class GitStatusParserTests: XCTestCase {
         let status = GitStatusParser.parse(try fixture(named: "detached-head"))
 
         XCTAssertNil(status.branch)
-        XCTAssertFalse(status.hasRemote)
+        XCTAssertFalse(status.hasUpstream)
     }
 
     func testMultiSection_allFieldsCombined() throws {
         let status = GitStatusParser.parse(try fixture(named: "multi-section"))
 
         XCTAssertEqual(status.branch, "release/1.2")
-        XCTAssertTrue(status.hasRemote)
+        XCTAssertTrue(status.hasUpstream)
         XCTAssertEqual(status.aheadCount, 2)
         XCTAssertEqual(status.behindCount, 5)
         XCTAssertTrue(status.hasLocalChanges)
@@ -115,7 +118,7 @@ final class GitStatusParserTests: XCTestCase {
         let status = GitStatusParser.parse(try fixture(named: "unknown-lines"))
 
         XCTAssertEqual(status.branch, "main")
-        XCTAssertTrue(status.hasRemote)
+        XCTAssertTrue(status.hasUpstream)
         XCTAssertEqual(status.aheadCount, 4)
         XCTAssertEqual(status.behindCount, 1)
         XCTAssertFalse(status.hasLocalChanges)
@@ -137,7 +140,7 @@ final class GitStatusParserTests: XCTestCase {
 
         XCTAssertTrue(status.isGitRepository)
         XCTAssertNil(status.branch)
-        XCTAssertFalse(status.hasRemote)
+        XCTAssertFalse(status.hasUpstream)
         XCTAssertEqual(status.aheadCount, 0)
         XCTAssertEqual(status.behindCount, 0)
         XCTAssertFalse(status.hasLocalChanges)
@@ -149,7 +152,7 @@ final class GitStatusParserTests: XCTestCase {
         let status = GitStatusParser.parse(stdout)
 
         XCTAssertEqual(status.branch, "feature/foo/bar")
-        XCTAssertTrue(status.hasRemote)
+        XCTAssertTrue(status.hasUpstream)
         XCTAssertEqual(status.aheadCount, 7)
         XCTAssertEqual(status.behindCount, 3)
     }

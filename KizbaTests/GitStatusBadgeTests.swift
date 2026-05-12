@@ -126,6 +126,47 @@ final class GitStatusBadgeTests: XCTestCase {
         XCTAssertEqual(model.badgeAccessibilityLabel, "Git: merge conflict")
     }
 
+    func testBadge_accessibilityValue_and_label() {
+        let clean = makeModel(status: GitStatus(
+            isGitRepository: true,
+            branch: "main",
+            hasLocalChanges: false,
+            hasConflicts: false,
+            aheadCount: 0,
+            behindCount: 0,
+            hasRemote: true,
+            lastFetchAt: nil
+        ))
+        XCTAssertEqual(clean.badgeAccessibilityLabel, "Git: clean")
+        XCTAssertEqual(clean.badgeText, "✓")
+
+        let conflict = makeModel(status: GitStatus(
+            isGitRepository: true,
+            branch: "main",
+            hasLocalChanges: false,
+            hasConflicts: true,
+            aheadCount: 0,
+            behindCount: 0,
+            hasRemote: true,
+            lastFetchAt: nil
+        ))
+        XCTAssertEqual(conflict.badgeAccessibilityLabel, "Git: merge conflict")
+        XCTAssertEqual(conflict.badgeText, "⚠")
+
+        let aheadBehind = makeModel(status: GitStatus(
+            isGitRepository: true,
+            branch: "main",
+            hasLocalChanges: false,
+            hasConflicts: false,
+            aheadCount: 2,
+            behindCount: 3,
+            hasRemote: true,
+            lastFetchAt: nil
+        ))
+        XCTAssertEqual(aheadBehind.badgeAccessibilityLabel, "Git: 2 ahead, 3 behind")
+        XCTAssertEqual(aheadBehind.badgeText, "↑2 ↓3")
+    }
+
     private func makeModel(status: GitStatus) -> GitStatusModel {
         let gitManager = FakePassGitManager()
         let appState = AppState()
