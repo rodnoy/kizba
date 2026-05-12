@@ -245,6 +245,21 @@ public nonisolated struct PassCLI: Sendable {
             // explicit override is provided.
             env["HOME"] = parentHome
         }
+        // Force the classic RFC 4880 OpenPGP format (MDC, NOT AEAD) for
+        // every `gpg --encrypt` invocation triggered by `pass`. GnuPG 2.4+
+        // defaults to AEAD packets when the recipient's self-signature
+        // advertises AEAD support (e.g. cv25519 ECDH subkeys), but AEAD
+        // packets are not yet readable by every OpenPGP client in the
+        // wild — Pass for iOS (OpenPGP.js), Android Password Store,
+        // older GnuPG (< 2.4), and other RFC 4880 implementations all
+        // fail to decrypt with errors like "OpenPGP chain error".
+        // `pass` forwards `$PASSWORD_STORE_GPG_OPTS` to every `gpg`
+        // invocation (encrypt AND decrypt). For decrypt the flag is a
+        // no-op (gpg ignores format selectors when reading); for encrypt
+        // it pins the universally-compatible classic packet format.
+        // This single env var is the cleanest fix and avoids touching
+        // recipients, cipher selection, or the gpg binary in use.
+        env["PASSWORD_STORE_GPG_OPTS"] = "--rfc4880"
         return env
     }
 }

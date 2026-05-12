@@ -91,6 +91,12 @@ final class LivePassManagerWriteTests: XCTestCase {
             invocation.environment["PASSWORD_STORE_DIR"],
             Self.storeRoot.path
         )
+        // Env also forces classic RFC 4880 / MDC encryption (not AEAD)
+        // so that other OpenPGP clients can decrypt the resulting file.
+        XCTAssertEqual(
+            invocation.environment["PASSWORD_STORE_GPG_OPTS"],
+            "--rfc4880"
+        )
 
         // Scanner cache invalidated for the active store root.
         let invalidations = await scanner.invalidationCount

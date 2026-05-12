@@ -365,6 +365,87 @@ final class PassCLIWriteTests: XCTestCase {
         XCTAssertEqual(env["GNUPGHOME"], gnupg.path)
     }
 
+    // MARK: - RFC 4880 / AEAD-interop regression
+
+    /// Every write operation must export
+    /// `PASSWORD_STORE_GPG_OPTS=--rfc4880` so that `pass`'s underlying
+    /// `gpg --encrypt` invocation produces classic RFC 4880 / MDC
+    /// packets instead of GnuPG 2.4+'s default AEAD packets. AEAD
+    /// output is unreadable by Pass for iOS (OpenPGP.js), Android
+    /// Password Store, and older GnuPG (< 2.4); without this env var,
+    /// files written by Kizba to the shared store cannot be decrypted
+    /// by other OpenPGP clients on the user's other devices.
+    ///
+    /// This test guards against accidental removal of the fix in
+    /// `PassCLI.composedEnvironment()`. It exercises every write verb
+    /// (`insert`, `generate`, `generateInPlace`, `remove`, `move`)
+    /// because all five trigger encryption (`remove` does not encrypt
+    /// directly but `pass mv`/`pass rm` may re-encrypt via the same
+    /// env, and the env composition is shared across the surface).
+    func testWriteOperations_envForcesClassicOpenPGPFormat() async throws {
+        // insert
+        do {
+            let runner = FakeShellRunner(
+                response: .success(exitCode: 0, stdout: Data(), stderr: Data())
+            )
+            let cli = makeCLI(runner: runner)
+            try await cli.insert(path: "foo/bar", body: Data("x".utf8), force: false)
+            let env = try XCTUnwrap(runner.lastInvocation).environment
+            XCTAssertEqual(
+                env["PASSWORD_STORE_GPG_OPTS"], "--rfc4880",
+                "insert must force RFC 4880 to stay decryptable by non-AEAD OpenPGP clients"
+            )
+        }
+        // generate
+        do {
+            let runner = FakeShellRunner(
+                response: .success(
+                    exitCode: 0,
+                    stdout: Self.generateStdout.data(using: .utf8)!,
+                    stderr: Data()
+                )
+            )
+            let cli = makeCLI(runner: runner)
+            _ = try await cli.generate(path: "foo/bar", length: 24, noSymbols: false, force: false)
+            let env = try XCTUnwrap(runner.lastInvocation).environment
+            XCTAssertEqual(env["PASSWORD_STORE_GPG_OPTS"], "--rfc4880")
+        }
+        // generateInPlace
+        do {
+            let runner = FakeShellRunner(
+                response: .success(
+                    exitCode: 0,
+                    stdout: Self.generateStdout.data(using: .utf8)!,
+                    stderr: Data()
+                )
+            )
+            let cli = makeCLI(runner: runner)
+            _ = try await cli.generateInPlace(path: "foo/bar", length: 24, noSymbols: false)
+            let env = try XCTUnwrap(runner.lastInvocation).environment
+            XCTAssertEqual(env["PASSWORD_STORE_GPG_OPTS"], "--rfc4880")
+        }
+        // remove
+        do {
+            let runner = FakeShellRunner(
+                response: .success(exitCode: 0, stdout: Data(), stderr: Data())
+            )
+            let cli = makeCLI(runner: runner)
+            try await cli.remove(path: "foo/bar")
+            let env = try XCTUnwrap(runner.lastInvocation).environment
+            XCTAssertEqual(env["PASSWORD_STORE_GPG_OPTS"], "--rfc4880")
+        }
+        // move
+        do {
+            let runner = FakeShellRunner(
+                response: .success(exitCode: 0, stdout: Data(), stderr: Data())
+            )
+            let cli = makeCLI(runner: runner)
+            try await cli.move(from: "a/b", to: "c/d", force: false)
+            let env = try XCTUnwrap(runner.lastInvocation).environment
+            XCTAssertEqual(env["PASSWORD_STORE_GPG_OPTS"], "--rfc4880")
+        }
+    }
+
     // MARK: - Error mapping per command context
 
     func testInsert_alreadyExistsStderr_throwsEntryAlreadyExists() async {

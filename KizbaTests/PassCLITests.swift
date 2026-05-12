@@ -200,12 +200,18 @@ final class PassCLITests: XCTestCase {
         XCTAssertEqual(invocation.environment["PASSWORD_STORE_DIR"], storeDir.path)
         XCTAssertEqual(invocation.environment["GNUPGHOME"], gnupgHome.path)
         XCTAssertEqual(invocation.environment["HOME"], homeOverride)
+        // `PASSWORD_STORE_GPG_OPTS=--rfc4880` is set on every invocation
+        // to force the classic RFC 4880 OpenPGP packet format and avoid
+        // AEAD-encrypted output that other OpenPGP clients (Pass for
+        // iOS, older GnuPG, etc.) cannot decrypt. For `pass show` the
+        // flag is a no-op (gpg ignores format selectors during decrypt).
+        XCTAssertEqual(invocation.environment["PASSWORD_STORE_GPG_OPTS"], "--rfc4880")
 
-        // No surprise leakage: only the four sanctioned keys above are
+        // No surprise leakage: only the five sanctioned keys above are
         // exported when every override is supplied.
         XCTAssertEqual(
             Set(invocation.environment.keys),
-            ["PATH", "PASSWORD_STORE_DIR", "GNUPGHOME", "HOME"]
+            ["PATH", "PASSWORD_STORE_DIR", "GNUPGHOME", "HOME", "PASSWORD_STORE_GPG_OPTS"]
         )
 
         // Default timeout is the documented 120s when no value is
