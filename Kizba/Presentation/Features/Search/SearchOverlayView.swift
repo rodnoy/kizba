@@ -11,8 +11,7 @@ struct SearchOverlayView: View {
 
     var body: some View {
         ZStack {
-            Color.black
-                .opacity(0.35)
+            theme.colors.scrim
                 .ignoresSafeArea()
                 .onTapGesture {
                     onDismiss()
@@ -57,8 +56,8 @@ struct SearchOverlayView: View {
                                 .padding(.horizontal, theme.spacing.sm)
                                 .padding(.vertical, theme.spacing.xs)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(model.selectedIndex == index ? theme.colors.accent.opacity(0.16) : Color.clear)
+                                    RoundedRectangle(cornerRadius: theme.radius.sm)
+                                        .fill(model.selectedIndex == index ? theme.colors.accentMuted : Color.clear)
                                 )
                             }
                             .buttonStyle(.plain)
@@ -81,7 +80,7 @@ struct SearchOverlayView: View {
             .padding(theme.spacing.lg)
             .frame(minWidth: 480, maxWidth: 640)
             .background(theme.colors.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: theme.radius.lg, style: .continuous))
             .shadow(radius: 14)
         }
         .onAppear {
