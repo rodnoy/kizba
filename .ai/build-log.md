@@ -5,3 +5,13 @@ MVP5 Phase A.2 verification summary: Added `SearchModel` + `SearchView`, wired S
 MVP5 Phase A.3 verification summary: Added keyboard-first search selection state to `SearchModel`, introduced the new floating `SearchOverlayView` with submit/escape interactions, and moved search presentation wiring from app-level sheet into `RootSplitView` overlay for per-window routing integration. Added focused unit coverage in `KizbaTests/Presentation/Features/Search/SearchModelSelectionTests` (3/3 passing) via `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/SearchModelSelectionTests`, and verified project integrity with `xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'` (succeeded). Safety grep checks stayed clean: `rg -n '\bas!\b' Kizba` and `rg -n 'Logger.*stdin|print\(.*stdin' Kizba` returned no matches.
 
 MVP5 Phase A.4 verification summary: Wired `LiveSearchEngine` into `AppEnvironment` (`searchEngine`) and connected `EntryListModel`/`EntryListView` to run debounced async search for the existing sidebar `searchQuery`, preserving folder filtering when query is empty and using ordered search-result IDs when query is non-empty. Verified compile health with `xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'` (succeeded), then ran focused regression tests `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/EntryListModelTests -only-testing:KizbaTests/SearchTests` (10/10 passing). Safety grep checks remained clean: `rg -n '\bas!\b' Kizba` and `rg -n 'Logger.*stdin|print\(.*stdin' Kizba` returned no matches.
+
+2026-05-13 — MVP5 Phase A.5 verification summary:
+
+- Commands run:
+  - xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/LivePassManagerTests -only-testing:KizbaTests/PasswordStoreScannerTests -only-testing:KizbaTests/MockPassManagerTests
+  - xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+  - rg -n '\bas!\b' Kizba
+  - rg -n 'Logger.*stdin|print\(.*stdin' Kizba
+
+- Result: tests and build succeeded; grep bans clean. Targeted test suites passed (29 tests, 0 failures). Build succeeded. No banned patterns found.

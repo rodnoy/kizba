@@ -22,6 +22,16 @@ MVP5 Phase A.4 — COMPLETED.
 
 Delegate to smart-worker: implement MVP5 Phase A.5 per `.ai/plan.md`.
 
+MVP5 Phase A.5 — COMPLETED.
+
+### Shipped in A.5
+
+- PasswordStoreScanner (filesystem-backed listing) — Kizba/Infrastructure/Store/PasswordStoreScanner.swift
+- LivePassCLI / LivePassManager wiring (lazy `pass show` via LivePassCLI) — Kizba/Infrastructure/Pass/LivePassCLI.swift, Kizba/Infrastructure/Pass/LivePassManager.swift
+- AppEnvironment.live() wiring to compose PasswordStoreScanner + LivePassCLI into LivePassManager (AppEnvironment.live())
+
+Next action: MVP5 Phase A.6 per .ai/plan.md.
+
 ### A.3 task checklist
 
 - [x] Task 1 — Add selection state to SearchModel
