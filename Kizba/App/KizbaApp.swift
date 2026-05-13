@@ -5,11 +5,13 @@ import AppKit
 struct KizbaApp: App {
 
     private let environment: AppEnvironment
+    private let searchModel: SearchModel
     @State private var state: AppState
 
     init() {
         let env = AppEnvironment.live()
         self.environment = env
+        self.searchModel = SearchModel(searchEngine: LiveSearchEngine(passManager: env.passManager))
         // Phase G.1: `AppState` constructs an `ActionHistory` and
         // therefore needs the real `PassManaging` so undo invokes the
         // production CLI rather than a debug double.
@@ -46,10 +48,25 @@ struct KizbaApp: App {
                             )
                         }
                     }
+                    .sheet(
+                        isPresented: Binding(
+                            get: { state.router.isSearchSheetPresented },
+                            set: { state.router.isSearchSheetPresented = $0 }
+                        ),
+                        onDismiss: {
+                            searchModel.cancel()
+                        }
+                    ) {
+                        SearchView(model: searchModel) { result in
+                            state.router.selectedEntryID = result.id
+                            state.router.isSearchSheetPresented = false
+                        }
+                    }
             }
         }
             .commands {
             DiagnosticsCommands()
+            HelpCommands()
             EntryMenuCommands(state: state)
             if state.gitStatusModel != nil {
                 // MVP4 fix-pack v1, Fix 4 — pass `onOpenTerminal`
@@ -94,6 +111,18 @@ struct KizbaApp: App {
                 )
             }
         }
+        // Dedicated Help window, opened via `Help > Kizba Help…` (⌘⇧?)
+        // declared in `HelpCommands`. Reuses the SHARED clipboard
+        // instance from `environment.clipboard` so any future
+        // telemetry on copy events flows through the same actor as
+        // secret copies.
+        Window("Help", id: "help") {
+            ThemedRoot {
+                HelpView(
+                    model: HelpModel(clipboard: environment.clipboard)
+                )
+            }
+        }
     }
 }
 
@@ -113,6 +142,34 @@ private struct DiagnosticsCommands: Commands {
                 openWindow(id: "diagnostics")
             }
             .keyboardShortcut("d", modifiers: [.command, .option])
+        }
+    }
+}
+
+/// Adds a `Help > Kizba Help…` menu item bound to ⌘⇧? that opens
+/// the dedicated Help scene. Replaces the system-default Help item
+/// (which on macOS opens an HTML help bundle Kizba does not ship)
+/// while preserving the localised "Help" menu name. Lives in its
+/// own `Commands` value because `openWindow` must be read from the
+/// SwiftUI environment.
+///
+/// Visibility is `internal` (rather than the `private` used by
+/// `DiagnosticsCommands`) so `KizbaTests/HelpCommandCardTests` can
+/// assert `helpWindowID` without reflection.
+struct HelpCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+
+    /// Stable identifier for the Help scene. Exposed as a `static`
+    /// constant so `KizbaTests/HelpCommandCardTests` can assert
+    /// the value without reaching into the SwiftUI body.
+    static let helpWindowID: String = "help"
+
+    var body: some Commands {
+        CommandGroup(replacing: .help) {
+            Button("Kizba Help…") {
+                openWindow(id: HelpCommands.helpWindowID)
+            }
+            .keyboardShortcut("?", modifiers: [.command, .shift])
         }
     }
 }
@@ -143,6 +200,11 @@ private struct EntryMenuCommands: Commands {
 
     var body: some Commands {
         CommandMenu("Entry") {
+            Button("Search…") {
+                state.router.isSearchSheetPresented = true
+            }
+            .keyboardShortcut("k", modifiers: .command)
+
             // Phase G.6 — every write-side menu item is also gated
             // on `state.anyWriteInFlight`. The lockout matches the
             // toolbar buttons: while ANY write op is running, all

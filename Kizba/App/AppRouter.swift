@@ -37,6 +37,9 @@ final class AppRouter {
     /// Whether the Git conflict banner sheet is presented.
     var isGitConflictBannerPresented: Bool = false
 
+    /// Whether the Search sheet is presented.
+    var isSearchSheetPresented: Bool = false
+
     // MARK: - Selection
 
     /// Currently selected folder name, or `nil` when none is selected.
@@ -78,9 +81,19 @@ final class AppRouter {
         isGitConflictBannerPresented = true
     }
 
+    /// Present the Search sheet.
+    func presentSearch() {
+        isSearchSheetPresented = true
+    }
+
     /// Dismiss the Git conflict banner sheet.
     func dismissGitConflictBanner() {
         isGitConflictBannerPresented = false
+    }
+
+    /// Dismiss the Search sheet.
+    func dismissSearch() {
+        isSearchSheetPresented = false
     }
 
     /// Dismiss all presented sheets / dialogs.
@@ -91,6 +104,7 @@ final class AppRouter {
         isRegenerateInPlaceSheetPresented = false
         isDeleteConfirmationPresented = false
         isGitConflictBannerPresented = false
+        isSearchSheetPresented = false
     }
 
     /// Select a top-level folder (or clear selection by passing `nil`).
