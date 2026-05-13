@@ -21,6 +21,7 @@ struct SidebarView: View {
     @Binding var selection: String?
 
     @State private var model: SidebarModel
+    @State private var favoritesModel: FavoritesModel
     private let gitStatusModel: GitStatusModel?
     @Environment(\.theme) private var theme
 
@@ -31,12 +32,31 @@ struct SidebarView: View {
     ) {
         self._selection = selection
         self._model = State(initialValue: SidebarModel(passManager: environment.passManager))
+        self._favoritesModel = State(initialValue: FavoritesModel(store: environment.favoritesStore))
         self.gitStatusModel = gitStatusModel
     }
 
     var body: some View {
         VStack(spacing: 0) {
             List {
+                if !favoritesModel.favorites.isEmpty {
+                    Section("Favorites") {
+                        ForEach(favoritesModel.favorites, id: \.self) { entryPath in
+                            EntryRowView(
+                                leadingIconName: "star.fill",
+                                title: entryPath.components(separatedBy: "/").last ?? entryPath,
+                                isSelected: selection == entryPath
+                            )
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                selection = entryPath
+                            }
+                            .listRowBackground(Color.clear)
+                            .accessibilityLabel("\(entryPath), favorite")
+                        }
+                    }
+                }
+
                 Section("Folders") {
                     ForEach(model.folders) { folder in
                         EntryRowView(
@@ -75,6 +95,7 @@ struct SidebarView: View {
         }
         .navigationTitle("Kizba")
         .task {
+            await favoritesModel.load()
             await model.load()
         }
     }
