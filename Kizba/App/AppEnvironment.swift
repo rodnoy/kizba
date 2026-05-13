@@ -38,6 +38,9 @@ struct AppEnvironment: Sendable {
     /// no environment in which generation is unsupported.
     let passwordGenerator: any PasswordGenerating
 
+    /// Favorites storage used by the sidebar favorites model.
+    let favoritesStore: any FavoritesStoring
+
     /// Search engine used by entry-list filtering (`⌘F` sidebar search)
     /// and command-palette style queries.
     let searchEngine: any EntrySearching
@@ -70,6 +73,7 @@ struct AppEnvironment: Sendable {
         clipboard: any ClipboardServicing,
         settings: any SettingsStoring,
         passwordGenerator: any PasswordGenerating,
+        favoritesStore: any FavoritesStoring = UserDefaultsFavoritesStore(),
         searchEngine: any EntrySearching,
         biometricAuth: (any BiometricAuthenticating)? = nil,
         passCLI: LivePassCLI? = nil,
@@ -80,6 +84,7 @@ struct AppEnvironment: Sendable {
         self.clipboard = clipboard
         self.settings = settings
         self.passwordGenerator = passwordGenerator
+        self.favoritesStore = favoritesStore
         self.searchEngine = searchEngine
         self.biometricAuth = biometricAuth
         self.passCLI = passCLI
@@ -95,6 +100,7 @@ struct AppEnvironment: Sendable {
         clipboard: any ClipboardServicing,
         settings: any SettingsStoring,
         passwordGenerator: any PasswordGenerating,
+        favoritesStore: any FavoritesStoring = UserDefaultsFavoritesStore(),
         biometricAuth: (any BiometricAuthenticating)? = nil,
         passCLI: LivePassCLI? = nil,
         discovery: (any BinaryLocating)? = nil,
@@ -105,6 +111,7 @@ struct AppEnvironment: Sendable {
             clipboard: clipboard,
             settings: settings,
             passwordGenerator: passwordGenerator,
+            favoritesStore: favoritesStore,
             searchEngine: LiveSearchEngine(passManager: passManager),
             biometricAuth: biometricAuth,
             passCLI: passCLI,
@@ -243,6 +250,7 @@ extension AppEnvironment {
             clipboard: clipboard,
             settings: settings,
             passwordGenerator: LivePasswordGenerator(),
+            favoritesStore: UserDefaultsFavoritesStore(),
             searchEngine: searchEngine,
             biometricAuth: LocalAuthBiometricAuthenticator(),
             passCLI: passCLI,
@@ -315,6 +323,7 @@ extension AppEnvironment {
             clipboard: NoopClipboard(),
             settings: InMemorySettingsStore(),
             passwordGenerator: LivePasswordGenerator(),
+            favoritesStore: InMemoryFavoritesStore(),
             searchEngine: searchEngine,
             passCLI: nil,
             discovery: nil,
@@ -326,6 +335,7 @@ extension AppEnvironment {
             clipboard: UnavailableClipboard(),
             settings: UnavailableSettingsStore(),
             passwordGenerator: LivePasswordGenerator(),
+            favoritesStore: UnavailableFavoritesStore(),
             searchEngine: UnavailableSearchEngine(),
             passCLI: nil,
             discovery: nil
@@ -404,6 +414,23 @@ private struct UnavailableSettingsStore: SettingsStoring {
 private struct UnavailableSearchEngine: EntrySearching {
     func search(_ query: String) async throws -> [SearchResult] {
         fatalError("AppEnvironment: EntrySearching is unavailable in this build configuration.")
+    }
+}
+
+private struct UnavailableFavoritesStore: FavoritesStoring {
+    func isFavorite(_ id: String) async -> Bool { false }
+    func addFavorite(_ id: String) async {
+        fatalError("AppEnvironment: FavoritesStoring is unavailable in this build configuration.")
+    }
+    func removeFavorite(_ id: String) async {
+        fatalError("AppEnvironment: FavoritesStoring is unavailable in this build configuration.")
+    }
+    func toggleFavorite(_ id: String) async {
+        fatalError("AppEnvironment: FavoritesStoring is unavailable in this build configuration.")
+    }
+    func allFavorites() async -> Set<String> { [] }
+    var favoritesChanged: AsyncStream<Void> {
+        AsyncStream { _ in }
     }
 }
 
