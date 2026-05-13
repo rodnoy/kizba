@@ -66,6 +66,13 @@ struct EntryListView: View {
                 .onTapGesture {
                     model.select(entryID: entry.id)
                 }
+                .contextMenu {
+                    Button {
+                        Task { await environment.favoritesStore.toggleFavorite(entry.id) }
+                    } label: {
+                        Label("Toggle Favorite", systemImage: "star")
+                    }
+                }
                 .listRowBackground(Color.clear)
             }
         }

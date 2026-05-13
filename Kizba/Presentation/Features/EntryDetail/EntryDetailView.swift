@@ -36,6 +36,7 @@ struct EntryDetailView: View {
     @Bindable var state: AppState
 
     @State private var model: EntryDetailModel
+    @State private var favoritesModel: FavoritesModel
 
     /// Sheet-bound edit model held in `@State` so it survives parent
     /// re-renders. Constructed by the matching `.onChange(of:
@@ -64,6 +65,7 @@ struct EntryDetailView: View {
         self._model = State(
             initialValue: EntryDetailModel(environment: environment, state: state)
         )
+        self._favoritesModel = State(initialValue: FavoritesModel(store: environment.favoritesStore))
     }
 
     var body: some View {
@@ -144,6 +146,22 @@ struct EntryDetailView: View {
             // host below consumes.
             ToolbarItem {
                 Button {
+                    guard let path = state.router.selectedEntryID else { return }
+                    Task { await favoritesModel.toggle(path) }
+                } label: {
+                    Label(
+                        "Toggle Favorite",
+                        systemImage: {
+                            guard let path = state.router.selectedEntryID else { return "star" }
+                            return favoritesModel.favorites.contains(path) ? "star.fill" : "star"
+                        }()
+                    )
+                }
+                .disabled(state.router.selectedEntryID == nil)
+                .help("Toggle Favorite (⌘D)")
+            }
+            ToolbarItem {
+                Button {
                     state.router.isRegenerateInPlaceSheetPresented = true
                 } label: {
                     Label("Regenerate Password", systemImage: "dice")
@@ -219,6 +237,7 @@ struct EntryDetailView: View {
         // and `EntryDetailModel.observeChanges()` honours that
         // cancellation by exiting its `for await` loop cleanly.
         .task {
+            await favoritesModel.load()
             await model.observeChanges()
         }
     }

@@ -53,7 +53,7 @@ struct KizbaApp: App {
             .commands {
             DiagnosticsCommands()
             HelpCommands()
-            EntryMenuCommands(state: state)
+            EntryMenuCommands(state: state, favoritesStore: environment.favoritesStore)
             if state.gitStatusModel != nil {
                 // MVP4 fix-pack v1, Fix 4 — pass `onOpenTerminal`
                 // so the "Open Terminal at Store" menu item is no
@@ -183,6 +183,7 @@ private struct EntryMenuCommands: Commands {
     /// to a SwiftUI control inside the menu, only mutate the flag
     /// from a button action.
     let state: AppState
+    let favoritesStore: any FavoritesStoring
 
     var body: some Commands {
         CommandMenu("Entry") {
@@ -219,6 +220,13 @@ private struct EntryMenuCommands: Commands {
             }
             .disabled(state.router.selectedEntryID == nil || state.anyWriteInFlight)
             .keyboardShortcut("m", modifiers: [.command, .shift])
+
+            Button("Toggle Favorite") {
+                guard let id = state.router.selectedEntryID else { return }
+                Task { await favoritesStore.toggleFavorite(id) }
+            }
+            .disabled(state.router.selectedEntryID == nil)
+            .keyboardShortcut("d", modifiers: .command)
 
             // Phase G.5 — flip the shared
             // `isDeleteConfirmationPresented` flag; the actual
