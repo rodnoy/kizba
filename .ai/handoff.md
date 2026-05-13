@@ -20,17 +20,15 @@ MVP5 Phase A.4 — COMPLETED.
 
 ## Next action
 
-Delegate to smart-worker: implement MVP5 Phase A.5 per `.ai/plan.md`.
+MVP5 Phase A.6 — COMPLETED.
 
-MVP5 Phase A.5 — COMPLETED.
+### Shipped in A.6
 
-### Shipped in A.5
+- EntryDetailModel: live settings sampling for clipboard delay and copy behavior (EntryDetailModel copy behavior)
+- SettingsModel: defaults, bounds, and save behavior for clipboardDelay and gitOperationTimeout
+- UserDefaultsSettingsStore: defaults and save semantics for SettingsModel
 
-- PasswordStoreScanner (filesystem-backed listing) — Kizba/Infrastructure/Store/PasswordStoreScanner.swift
-- LivePassCLI / LivePassManager wiring (lazy `pass show` via LivePassCLI) — Kizba/Infrastructure/Pass/LivePassCLI.swift, Kizba/Infrastructure/Pass/LivePassManager.swift
-- AppEnvironment.live() wiring to compose PasswordStoreScanner + LivePassCLI into LivePassManager (AppEnvironment.live())
-
-Next action: MVP5 Phase A.6 per .ai/plan.md.
+Next action: MVP5 Phase A.7 per .ai/plan.md.
 
 ### A.3 task checklist
 

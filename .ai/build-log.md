@@ -15,3 +15,14 @@ MVP5 Phase A.4 verification summary: Wired `LiveSearchEngine` into `AppEnvironme
   - rg -n 'Logger.*stdin|print\(.*stdin' Kizba
 
 - Result: tests and build succeeded; grep bans clean. Targeted test suites passed (29 tests, 0 failures). Build succeeded. No banned patterns found.
+2026-05-13 — MVP5 Phase A.6 verification summary:
+
+- Commands run:
+  - xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/EntryDetailModelCopyTests -only-testing:KizbaTests/SettingsModelTests
+  - xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+  - rg -n '\bas!\b' Kizba
+  - rg -n 'Logger.*stdin|print\(.*stdin' Kizba
+
+- Result: Targeted tests passed (16 tests, 0 failures). Build succeeded. Grep bans are clean.
+
+Shipped artifacts: EntryDetailModel live settings sampling, SettingsModel defaults & save behavior, UserDefaultsSettingsStore defaults.
