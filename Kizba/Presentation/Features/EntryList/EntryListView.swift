@@ -207,6 +207,12 @@ struct EntryListView: View {
         }
         .task {
             await model.refresh()
+            await model.performSearch()
+        }
+        .onChange(of: state.searchQuery) { _, _ in
+            Task {
+                await model.performSearch()
+            }
         }
         // Phase F.5 — long-lived subscription to `pass.changes` so
         // any successful write (insert / update / remove / move /

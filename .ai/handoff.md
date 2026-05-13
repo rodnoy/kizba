@@ -5,6 +5,7 @@
 MVP5 Phase A.1 — COMPLETED.
 MVP5 Phase A.2 — COMPLETED.
 MVP5 Phase A.3 — COMPLETED.
+MVP5 Phase A.4 — COMPLETED.
 
 ### Shipped in A.2
 
@@ -19,7 +20,7 @@ MVP5 Phase A.3 — COMPLETED.
 
 ## Next action
 
-Delegate to smart-worker: implement MVP5 Phase A.4 per `.ai/plan.md`.
+Delegate to smart-worker: implement MVP5 Phase A.5 per `.ai/plan.md`.
 
 ### A.3 task checklist
 

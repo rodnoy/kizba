@@ -58,23 +58,27 @@ final class EntryListModelTests: XCTestCase {
 
         // Substring matching the AWS fixtures (work/aws/root, work/aws/ci).
         state.searchQuery = "AWS"
+        await model.performSearch()
         let aws = model.entries
         XCTAssertEqual(aws.count, 2)
         XCTAssertTrue(aws.allSatisfy { $0.path.lowercased().contains("aws") })
 
         // Case-insensitive: "POSTGRES" must match "postgres-prod" / "postgres-readonly".
         state.searchQuery = "POSTGRES"
+        await model.performSearch()
         XCTAssertEqual(model.entries.count, 2)
 
         // Combined folder + search filter.
         state.router.selectedFolder = "personal"
         state.searchQuery = "wifi"
+        await model.performSearch()
         let wifi = model.entries
         XCTAssertEqual(wifi.count, 2)
         XCTAssertTrue(wifi.allSatisfy { $0.path.hasPrefix("personal/wifi/") })
 
         // Empty query restores the folder-only filter.
         state.searchQuery = ""
+        await model.performSearch()
         XCTAssertEqual(model.entries.count, 7)
     }
 
@@ -95,6 +99,7 @@ final class EntryListModelTests: XCTestCase {
         // total. A folder-scoped search would return just 1.
         state.router.selectedFolder = "work"
         state.searchQuery = "personal"
+        await model.performSearch()
 
         let results = model.entries
         XCTAssertEqual(results.count, 8)

@@ -37,6 +37,10 @@ struct AppEnvironment: Sendable {
     /// route through this collaborator. Always populated — there is
     /// no environment in which generation is unsupported.
     let passwordGenerator: any PasswordGenerating
+
+    /// Search engine used by entry-list filtering (`⌘F` sidebar search)
+    /// and command-palette style queries.
+    let searchEngine: any EntrySearching
     /// Optional biometric authenticator. Injected in `live()` to the
     /// LA-backed implementation. `nil` in preview/test wirings.
     let biometricAuth: (any BiometricAuthenticating)?
@@ -66,6 +70,7 @@ struct AppEnvironment: Sendable {
         clipboard: any ClipboardServicing,
         settings: any SettingsStoring,
         passwordGenerator: any PasswordGenerating,
+        searchEngine: any EntrySearching,
         biometricAuth: (any BiometricAuthenticating)? = nil,
         passCLI: LivePassCLI? = nil,
         discovery: (any BinaryLocating)? = nil,
@@ -75,10 +80,37 @@ struct AppEnvironment: Sendable {
         self.clipboard = clipboard
         self.settings = settings
         self.passwordGenerator = passwordGenerator
+        self.searchEngine = searchEngine
         self.biometricAuth = biometricAuth
         self.passCLI = passCLI
         self.discovery = discovery
         self.invocationLog = invocationLog
+    }
+
+    /// Backward-compatible convenience initializer used by existing
+    /// test/preview call sites that do not pass a dedicated
+    /// `EntrySearching` implementation yet.
+    init(
+        passManager: any PassManaging,
+        clipboard: any ClipboardServicing,
+        settings: any SettingsStoring,
+        passwordGenerator: any PasswordGenerating,
+        biometricAuth: (any BiometricAuthenticating)? = nil,
+        passCLI: LivePassCLI? = nil,
+        discovery: (any BinaryLocating)? = nil,
+        invocationLog: InvocationLog? = nil
+    ) {
+        self.init(
+            passManager: passManager,
+            clipboard: clipboard,
+            settings: settings,
+            passwordGenerator: passwordGenerator,
+            searchEngine: LiveSearchEngine(passManager: passManager),
+            biometricAuth: biometricAuth,
+            passCLI: passCLI,
+            discovery: discovery,
+            invocationLog: invocationLog
+        )
     }
 }
 
@@ -194,6 +226,8 @@ extension AppEnvironment {
             storeWatcher: storeWatcher
         )
 
+        let searchEngine: any EntrySearching = LiveSearchEngine(passManager: passManager)
+
         // Phase 7.2: production clipboard wiring. `ClipboardService()`
         // (no-arg) wires the real `SystemPasteboardAdapter` on macOS;
         // outside `canImport(AppKit)` we fall back to the deterministic
@@ -209,6 +243,7 @@ extension AppEnvironment {
             clipboard: clipboard,
             settings: settings,
             passwordGenerator: LivePasswordGenerator(),
+            searchEngine: searchEngine,
             biometricAuth: LocalAuthBiometricAuthenticator(),
             passCLI: passCLI,
             discovery: discovery,
@@ -274,11 +309,13 @@ extension AppEnvironment {
     /// both configurations.
     static func preview() -> AppEnvironment {
         #if DEBUG
+        let searchEngine: any EntrySearching = LiveSearchEngine(passManager: MockPassManager.preview())
         return AppEnvironment(
             passManager: MockPassManager.preview(),
             clipboard: NoopClipboard(),
             settings: InMemorySettingsStore(),
             passwordGenerator: LivePasswordGenerator(),
+            searchEngine: searchEngine,
             passCLI: nil,
             discovery: nil,
             invocationLog: nil
@@ -289,6 +326,7 @@ extension AppEnvironment {
             clipboard: UnavailableClipboard(),
             settings: UnavailableSettingsStore(),
             passwordGenerator: LivePasswordGenerator(),
+            searchEngine: UnavailableSearchEngine(),
             passCLI: nil,
             discovery: nil
         )
@@ -361,6 +399,12 @@ private struct UnavailableSettingsStore: SettingsStoring {
     nonisolated func removeValue(forKey key: String) {}
     nonisolated func resetAll() {}
     nonisolated func registerDefaults(_ defaults: [String : Any]) {}
+}
+
+private struct UnavailableSearchEngine: EntrySearching {
+    func search(_ query: String) async throws -> [SearchResult] {
+        fatalError("AppEnvironment: EntrySearching is unavailable in this build configuration.")
+    }
 }
 
 // MARK: - Lightweight DEBUG fakes

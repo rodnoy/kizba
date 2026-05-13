@@ -80,7 +80,15 @@ final class EntryListModel {
     private(set) var deletionState: DeletionState = .idle
 
     private let passManager: any PassManaging
+    private let searchEngine: any EntrySearching
     private let state: AppState
+
+    /// Ordered IDs returned by the search engine for the current
+    /// non-empty query.
+    private var searchResultIDs: [String] = []
+
+    /// In-flight debounced search task (`performSearch`).
+    private var currentSearchTask: Task<Void, Never>?
 
     /// Long-lived subscription to `passManager.changes`. Started by
     /// ``observeChanges()`` (typically driven by the view's `.task`
@@ -91,6 +99,7 @@ final class EntryListModel {
 
     init(environment: AppEnvironment, state: AppState) {
         self.passManager = environment.passManager
+        self.searchEngine = environment.searchEngine
         self.state = state
         self.allEntries = []
     }
@@ -124,8 +133,9 @@ final class EntryListModel {
         let query = state.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if !query.isEmpty {
-            return allEntries.filter { entry in
-                entry.path.range(of: query, options: .caseInsensitive) != nil
+            let entriesByID = Dictionary(uniqueKeysWithValues: allEntries.map { ($0.id, $0) })
+            return searchResultIDs.compactMap { id in
+                entriesByID[id]
             }
         }
 
@@ -161,6 +171,39 @@ final class EntryListModel {
             if Task.isCancelled { return }
             self.allEntries = []
         }
+    }
+
+    /// Trigger debounced search for the current `state.searchQuery`.
+    ///
+    /// Cancels the previous in-flight search task, applies a short
+    /// debounce, then updates `searchResultIDs` with the ordered
+    /// `SearchResult.id` values returned by the search engine.
+    func performSearch() async {
+        currentSearchTask?.cancel()
+
+        let task = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .milliseconds(150))
+                guard let self else { return }
+
+                let query = self.state.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !query.isEmpty else {
+                    self.searchResultIDs = []
+                    return
+                }
+
+                let results = try await self.searchEngine.search(query)
+                self.searchResultIDs = results.map(\.id)
+            } catch is CancellationError {
+                return
+            } catch {
+                guard let self else { return }
+                self.searchResultIDs = []
+            }
+        }
+
+        currentSearchTask = task
+        await task.value
     }
 
     /// Update the shared selection in `AppState`. Called by the view
