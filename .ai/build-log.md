@@ -15,6 +15,22 @@ MVP5 Phase A.4 verification summary: Wired `LiveSearchEngine` into `AppEnvironme
   - rg -n 'Logger.*stdin|print\(.*stdin' Kizba
 
 - Result: tests and build succeeded; grep bans clean. Targeted test suites passed (29 tests, 0 failures). Build succeeded. No banned patterns found.
+2026-05-13 17:15:29 — Build verification:
+
+- Command: xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+- Result: BUILD SUCCEEDED
+
+2026-05-13 17:15:39 — FavoritesModelTests verification:
+
+- Command: xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/Presentation/Features/Sidebar/FavoritesModelTests
+- Result: TESTS RUN: 0 / 0 (no tests executed for the requested filter)
+
+2026-05-13 17:15:50 — Grep bans:
+
+- Commands:
+  - rg -n '\bas!\b' Kizba
+  - rg -n 'Logger.*stdin|print\(.*stdin' Kizba
+- Result: no matches found
 2026-05-13 — MVP5 Phase A.6 verification summary:
 
 - Commands run:
@@ -28,3 +44,11 @@ MVP5 Phase A.4 verification summary: Wired `LiveSearchEngine` into `AppEnvironme
 Shipped artifacts: EntryDetailModel live settings sampling, SettingsModel defaults & save behavior, UserDefaultsSettingsStore defaults.
 
 2026-05-13 — MVP5 Phase B.1 verification summary: Added `FavoritesStoring` protocol, implemented `UserDefaultsFavoritesStore` actor with namespaced UserDefaults persistence (`kizba.favorites`), and added `UserDefaultsFavoritesStoreTests` plus `FakeFavoritesStore` fixture for future phases. Ran `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/Infrastructure/Favorites/UserDefaultsFavoritesStoreTests -only-testing:KizbaTests/Fixtures/FakeFavoritesStore` (succeeded; `FakeFavoritesStore` path resolved to 0 selected tests because it is a fixture file), then validated with `xcodebuild test ... -only-testing:KizbaTests/UserDefaultsFavoritesStoreTests` (3/3 passing), and `xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'` (succeeded). Safety checks stayed clean: `rg -n '\bas!\b' Kizba` and `rg -n 'Logger.*stdin|print\(.*stdin' Kizba` returned no matches.
+
+2026-05-13 23:52:32 — Full test verification (clean run)
+
+- Commands run:
+  - xcodebuild clean build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+  - xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+
+- Result: TESTS RUN: 968, SKIPPED: 17, FAILURES: 0 — ALL TESTS SUCCEEDED

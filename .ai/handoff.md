@@ -6,20 +6,6 @@ MVP5 Phase A.1 — COMPLETED.
 MVP5 Phase A.2 — COMPLETED.
 MVP5 Phase A.3 — COMPLETED.
 MVP5 Phase A.4 — COMPLETED.
-
-### Shipped in A.2
-
-- Added `SearchModel` (`Kizba/Presentation/Features/Search/SearchModel.swift`) as `@Observable @MainActor` with query updates, task cancellation, optional 200ms debounce, and async search wiring to `EntrySearching`.
-- Added `SearchView` (`Kizba/Presentation/Features/Search/SearchView.swift`) with query field, loading state, results list, row selection callback, and basic accessibility labels.
-- Extended `AppRouter` (`Kizba/App/AppRouter.swift`) with `isSearchSheetPresented`, `presentSearch()`, and `dismissSearch()`.
-- Wired Search sheet in `KizbaApp` (`Kizba/App/KizbaApp.swift`): app-level `SearchModel` is created in `init`, sheet is presented from router flag, result selection updates `selectedEntryID` and dismisses sheet.
-- Added `Entry` menu action `Search…` with ⌘K shortcut in `EntryMenuCommands`.
-- Added tests in `KizbaTests/SearchModelUITests.swift`:
-  - `SearchModelTests.testSearchModel_updatesResultsOnQuery`
-  - `SearchModelUITests.testSearchView_selectCallsOnSelect`
-
-## Next action
-
 MVP5 Phase B.1 — COMPLETED.
 
 ### Shipped in B.1
@@ -29,27 +15,48 @@ MVP5 Phase B.1 — COMPLETED.
 - Added focused tests (`KizbaTests/Infrastructure/Favorites/UserDefaultsFavoritesStoreTests.swift`) for empty state, add/remove/toggle persistence across store instances, and idempotent duplicate add.
 - Added optional test fixture `FakeFavoritesStore` (`KizbaTests/Fixtures/FakeFavoritesStore.swift`) implementing `FavoritesStoring` with in-memory state and async change stream.
 
-Next action: MVP5 Phase B.2.
+## Next action
 
-### A.3 task checklist
+MVP5 Phase B.2 — READY.
 
-- [x] Task 1 — Add selection state to SearchModel
-- [x] Task 2 — Create SearchOverlayView
-- [x] Task 3 — Mount overlay in RootSplitView
-- [x] Task 4 — Update KizbaApp (remove sheet, pass searchModel)
-- [x] Task 5 — Add SearchModelSelectionTests
+Next action: Run smart-planner to create an executable .ai/plan.md for MVP5 B.2 (favorites wiring → FavoritesModel → SidebarView → tests)
 
-### Verification commands (run after all tasks)
+Status: TESTS GREEN — READY to proceed with smart-planner. Marking B.2 as READY.
+
+Hint: reproduce locally with:
+
+  xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/SourceGrepTests/testNoLiteralSwiftUIColor_inPresentationOutsideDS
+
+
+### B.2 task checklist
+
+- [ ] Task 1 — Add `favoritesStore` to AppEnvironment + `InMemoryFavoritesStore` (`#if DEBUG`)
+- [ ] Task 2 — Create `FavoritesModel` (`@Observable @MainActor`)
+- [ ] Task 3 — Add Favorites section to SidebarView
+- [ ] Task 4 — Add FavoritesModel unit tests
+- [ ] Task 5 — (Optional) SidebarView favorites integration test
+
+### Files to touch
+
+- `Kizba/App/AppEnvironment.swift` (modify — add `favoritesStore` property + wire in factories)
+- `Kizba/Infrastructure/Favorites/InMemoryFavoritesStore.swift` (create — `#if DEBUG` in-memory impl for preview)
+- `Kizba/Presentation/Features/Sidebar/FavoritesModel.swift` (create)
+- `Kizba/Presentation/Features/Sidebar/SidebarView.swift` (modify — add Favorites section)
+- `KizbaTests/Presentation/Features/Sidebar/FavoritesModelTests.swift` (create)
+- `KizbaTests/Presentation/Features/Sidebar/SidebarViewFavoritesTests.swift` (create, optional)
+
+### Verification commands
 
 ```sh
 xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/Presentation/Features/Search/SearchModelSelectionTests
-rg -n '\bas!\b' Kizba
-rg -n 'Logger.*stdin|print\(.*stdin' Kizba
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
+  -only-testing:KizbaTests/Presentation/Features/Sidebar/FavoritesModelTests
+rg -n '\bas!\b' Kizba/
+rg -n 'Logger.*stdin|print\(.*stdin' Kizba/
 ```
 
 ### Commit message
 
 ```
-feat(search): add search overlay + keyboard-first interactions (MVP5.A.3)
+feat(favorites): FavoritesModel + sidebar section + AppEnvironment wiring (MVP5.B.2)
 ```
