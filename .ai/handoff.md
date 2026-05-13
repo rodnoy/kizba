@@ -20,15 +20,16 @@ MVP5 Phase A.4 — COMPLETED.
 
 ## Next action
 
-MVP5 Phase A.6 — COMPLETED.
+MVP5 Phase B.1 — COMPLETED.
 
-### Shipped in A.6
+### Shipped in B.1
 
-- EntryDetailModel: live settings sampling for clipboard delay and copy behavior (EntryDetailModel copy behavior)
-- SettingsModel: defaults, bounds, and save behavior for clipboardDelay and gitOperationTimeout
-- UserDefaultsSettingsStore: defaults and save semantics for SettingsModel
+- Added `FavoritesStoring` protocol (`Kizba/Domain/Protocols/FavoritesStoring.swift`) with async favorite CRUD APIs and `favoritesChanged` stream.
+- Added `UserDefaultsFavoritesStore` actor (`Kizba/Infrastructure/Favorites/UserDefaultsFavoritesStore.swift`) with namespaced persistence key `kizba.favorites`, in-memory `Set<String>` cache, and mutation fan-out stream.
+- Added focused tests (`KizbaTests/Infrastructure/Favorites/UserDefaultsFavoritesStoreTests.swift`) for empty state, add/remove/toggle persistence across store instances, and idempotent duplicate add.
+- Added optional test fixture `FakeFavoritesStore` (`KizbaTests/Fixtures/FakeFavoritesStore.swift`) implementing `FavoritesStoring` with in-memory state and async change stream.
 
-Next action: MVP5 Phase A.7 per .ai/plan.md.
+Next action: MVP5 Phase B.2.
 
 ### A.3 task checklist
 
