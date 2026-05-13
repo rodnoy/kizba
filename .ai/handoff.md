@@ -4,6 +4,7 @@
 
 MVP5 Phase A.1 — COMPLETED.
 MVP5 Phase A.2 — COMPLETED.
+MVP5 Phase A.3 — COMPLETED.
 
 ### Shipped in A.2
 
@@ -18,4 +19,27 @@ MVP5 Phase A.2 — COMPLETED.
 
 ## Next action
 
-Delegate to smart-worker: implement MVP5 Phase A.3 — Search overlay/interaction polish and routing integration (keyboard-first flow).
+Delegate to smart-worker: implement MVP5 Phase A.4 per `.ai/plan.md`.
+
+### A.3 task checklist
+
+- [x] Task 1 — Add selection state to SearchModel
+- [x] Task 2 — Create SearchOverlayView
+- [x] Task 3 — Mount overlay in RootSplitView
+- [x] Task 4 — Update KizbaApp (remove sheet, pass searchModel)
+- [x] Task 5 — Add SearchModelSelectionTests
+
+### Verification commands (run after all tasks)
+
+```sh
+xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/Presentation/Features/Search/SearchModelSelectionTests
+rg -n '\bas!\b' Kizba
+rg -n 'Logger.*stdin|print\(.*stdin' Kizba
+```
+
+### Commit message
+
+```
+feat(search): add search overlay + keyboard-first interactions (MVP5.A.3)
+```

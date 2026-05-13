@@ -7,6 +7,7 @@ final class SearchModel {
     var query: String = ""
     var results: [SearchResult] = []
     var isLoading: Bool = false
+    var selectedIndex: Int? = nil
 
     private let searchEngine: any EntrySearching
     private var currentTask: Task<Void, Never>?
@@ -34,6 +35,7 @@ final class SearchModel {
         let trimmed = q.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             results = []
+            selectedIndex = nil
             isLoading = false
             return
         }
@@ -46,7 +48,36 @@ final class SearchModel {
         }
 
         results = res ?? []
+        selectedIndex = results.isEmpty ? nil : 0
         isLoading = false
+    }
+
+    func moveSelection(down: Bool) {
+        guard !results.isEmpty else {
+            selectedIndex = nil
+            return
+        }
+
+        guard let current = selectedIndex else {
+            selectedIndex = down ? 0 : results.count - 1
+            return
+        }
+
+        let delta = down ? 1 : -1
+        let next = min(max(current + delta, 0), results.count - 1)
+        selectedIndex = next
+    }
+
+    func selectCurrent() -> SearchResult? {
+        guard let selectedIndex, results.indices.contains(selectedIndex) else {
+            return nil
+        }
+
+        return results[selectedIndex]
+    }
+
+    func resetSelection() {
+        selectedIndex = results.isEmpty ? nil : 0
     }
 
     func cancel() {

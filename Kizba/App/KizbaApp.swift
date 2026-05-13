@@ -24,7 +24,7 @@ struct KizbaApp: App {
         // must happen at every scene root independently (Phase B.2).
         WindowGroup {
             ThemedRoot {
-                RootSplitView(environment: environment, state: state)
+                RootSplitView(environment: environment, searchModel: searchModel, state: state)
                     .task {
                         await environment.wireGitModelIfAvailable(into: state)
                     }
@@ -46,20 +46,6 @@ struct KizbaApp: App {
                                 // truth (`open -a Terminal <path>`).
                                 openTerminalAction: { gitModel.openTerminalAtStore() }
                             )
-                        }
-                    }
-                    .sheet(
-                        isPresented: Binding(
-                            get: { state.router.isSearchSheetPresented },
-                            set: { state.router.isSearchSheetPresented = $0 }
-                        ),
-                        onDismiss: {
-                            searchModel.cancel()
-                        }
-                    ) {
-                        SearchView(model: searchModel) { result in
-                            state.router.selectedEntryID = result.id
-                            state.router.isSearchSheetPresented = false
                         }
                     }
             }

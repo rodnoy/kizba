@@ -18,11 +18,13 @@ import SwiftUI
 struct RootSplitView: View {
 
     let environment: AppEnvironment
+    let searchModel: SearchModel
 
     @Bindable var state: AppState
 
-    init(environment: AppEnvironment, state: AppState) {
+    init(environment: AppEnvironment, searchModel: SearchModel, state: AppState) {
         self.environment = environment
+        self.searchModel = searchModel
         self.state = state
     }
 
@@ -48,6 +50,22 @@ struct RootSplitView: View {
         // automatically via `@Observable`.
         .overlay(alignment: .bottomTrailing) {
             ToastOverlay(toast: state.toastCenter.visible)
+        }
+        .overlay(alignment: .center) {
+            if state.router.isSearchSheetPresented {
+                SearchOverlayView(
+                    model: searchModel,
+                    onSelect: { result in
+                        state.router.selectedEntryID = result.id
+                        state.router.isSearchSheetPresented = false
+                        searchModel.cancel()
+                    },
+                    onDismiss: {
+                        state.router.isSearchSheetPresented = false
+                        searchModel.cancel()
+                    }
+                )
+            }
         }
     }
 }
