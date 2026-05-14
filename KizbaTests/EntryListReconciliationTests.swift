@@ -123,6 +123,44 @@ final class EntryListReconciliationTests: XCTestCase {
         )
     }
 
+    func testRemoved_cleansFavorite() async {
+        let entry = PassEntry(path: "fav/one")
+        let manager = MockPassManager(
+            entries: [entry],
+            secrets: [entry.path: PassSecret(password: "p")]
+        )
+        let favorites = FakeFavoritesStore(initialFavorites: [entry.path])
+        let env = AppEnvironment(
+            passManager: manager,
+            clipboard: NoopClipboard(),
+            settings: NoopSettings(),
+            passwordGenerator: LivePasswordGenerator(),
+            favoritesStore: favorites,
+            passCLI: nil,
+            discovery: nil
+        )
+        let state = AppState()
+        let model = EntryListModel(environment: env, state: state)
+
+        await model.refresh()
+        let isInitiallyFavorite = await favorites.isFavorite(entry.path)
+        XCTAssertTrue(isInitiallyFavorite)
+
+        let observer = await startObservation(model: model)
+        defer {
+            model.stop()
+            observer.cancel()
+        }
+
+        try? await manager.remove(entry)
+
+        await waitUntil(
+            { !model.allEntries.contains(where: { $0.path == entry.path }) },
+            message: "removed entry remained in EntryListModel.allEntries"
+        )
+        await waitUntil({ await favorites.isFavorite(entry.path) == false })
+    }
+
     // MARK: - 3. .moved re-lists
 
     func testSubscription_receivesMovedEvent_andRefreshesEntries() async {
@@ -153,6 +191,52 @@ final class EntryListReconciliationTests: XCTestCase {
             },
             message: "moved entry: old path still present or new path missing"
         )
+    }
+
+    func testMoved_updatesFavoritePath() async {
+        let entry = PassEntry(path: "old/fav")
+        let manager = MockPassManager(
+            entries: [entry],
+            secrets: [entry.path: PassSecret(password: "p")]
+        )
+        let favorites = FakeFavoritesStore(initialFavorites: [entry.path])
+        let env = AppEnvironment(
+            passManager: manager,
+            clipboard: NoopClipboard(),
+            settings: NoopSettings(),
+            passwordGenerator: LivePasswordGenerator(),
+            favoritesStore: favorites,
+            passCLI: nil,
+            discovery: nil
+        )
+        let state = AppState()
+        let model = EntryListModel(environment: env, state: state)
+
+        await model.refresh()
+        let isInitiallyFavorite = await favorites.isFavorite("old/fav")
+        XCTAssertTrue(isInitiallyFavorite)
+
+        let observer = await startObservation(model: model)
+        defer {
+            model.stop()
+            observer.cancel()
+        }
+
+        _ = try? await manager.move(from: entry, to: "new/fav", force: false)
+
+        await waitUntil(
+            {
+                !model.allEntries.contains(where: { $0.path == "old/fav" })
+                    && model.allEntries.contains(where: { $0.path == "new/fav" })
+            },
+            message: "moved entry: old path still present or new path missing"
+        )
+
+        await waitUntil {
+            let oldPathFavorite = await favorites.isFavorite("old/fav")
+            let newPathFavorite = await favorites.isFavorite("new/fav")
+            return oldPathFavorite == false && newPathFavorite
+        }
     }
 
     // MARK: - 4. Multiple events in sequence

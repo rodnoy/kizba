@@ -81,6 +81,7 @@ final class EntryListModel {
 
     private let passManager: any PassManaging
     private let searchEngine: any EntrySearching
+    private let favoritesStore: any FavoritesStoring
     private let state: AppState
 
     /// Ordered IDs returned by the search engine for the current
@@ -100,6 +101,7 @@ final class EntryListModel {
     init(environment: AppEnvironment, state: AppState) {
         self.passManager = environment.passManager
         self.searchEngine = environment.searchEngine
+        self.favoritesStore = environment.favoritesStore
         self.state = state
         self.allEntries = []
     }
@@ -503,12 +505,20 @@ final class EntryListModel {
 
         case .moved(let from, let to):
             await refresh()
+            guard from != to else { break }
+            // Keep favorites consistent when an entry path changes.
+            if await favoritesStore.isFavorite(from) {
+                await favoritesStore.removeFavorite(from)
+                await favoritesStore.addFavorite(to)
+            }
             if state.router.selectedEntryID == from {
                 state.router.selectedEntryID = to
             }
 
         case .removed(let path):
             await refresh()
+            // Remove stale favorites when the entry disappears.
+            await favoritesStore.removeFavorite(path)
             if state.router.selectedEntryID == path {
                 state.router.selectedEntryID = nil
             }
