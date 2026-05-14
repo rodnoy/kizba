@@ -51,4 +51,13 @@ Shipped artifacts: EntryDetailModel live settings sampling, SettingsModel defaul
   - xcodebuild clean build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
   - xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
 
-- Result: TESTS RUN: 968, SKIPPED: 17, FAILURES: 0 — ALL TESTS SUCCEEDED
+  - Result: TESTS RUN: 970, SKIPPED: 17, FAILURES: 0 — ALL TESTS SUCCEEDED
+Step incremented to 3 on 2026-05-14
+
+2026-05-14 12:04:06 — Full verification run (B.4):
+
+- Commands run:
+  - xcodebuild clean build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+  - xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+
+- Result: TESTS RUN: 970, SKIPPED: 17, FAILURES: 0 — ALL TESTS SUCCEEDED
