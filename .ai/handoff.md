@@ -12,8 +12,7 @@ MVP5 Phase C — IN_PROGRESS.
 
 ## Next action
 
-Phase C remains IN_PROGRESS.
-Run smart-stepper to increment step then Run smart-planner for Phase D planning.
+Phase D is IN_PROGRESS. Run smart-worker to implement D.2 (MenuBarModel + MenuBarPopoverView).
 
 ### Note
 
