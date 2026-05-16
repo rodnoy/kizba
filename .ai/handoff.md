@@ -12,8 +12,8 @@ MVP5 Phase C — IN_PROGRESS.
 
 ## Next action
 
-Run smart-worker to implement Task C.3 (Search boosts for recents/favorites).
-Extend search context and apply score boosts for recent and favorite paths.
+Phase C remains IN_PROGRESS.
+Run smart-reviewer to review search changes and then smart-builder for full verification.
 
 ### Note
 

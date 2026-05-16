@@ -11,7 +11,7 @@ final class SearchModelSelectionTests: XCTestCase {
             self.cannedResults = cannedResults
         }
 
-        func search(_ query: String) async throws -> [SearchResult] {
+        func search(_ query: String, context: SearchContext?) async throws -> [SearchResult] {
             guard !query.isEmpty else { return [] }
             return cannedResults
         }

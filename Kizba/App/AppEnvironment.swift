@@ -422,7 +422,7 @@ private struct UnavailableSettingsStore: SettingsStoring {
 }
 
 private struct UnavailableSearchEngine: EntrySearching {
-    func search(_ query: String) async throws -> [SearchResult] {
+    func search(_ query: String, context: SearchContext?) async throws -> [SearchResult] {
         fatalError("AppEnvironment: EntrySearching is unavailable in this build configuration.")
     }
 }

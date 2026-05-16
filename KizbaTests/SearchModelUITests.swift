@@ -12,7 +12,7 @@ final class SearchModelTests: XCTestCase {
             self.cannedResults = cannedResults
         }
 
-        func search(_ query: String) async throws -> [SearchResult] {
+        func search(_ query: String, context: SearchContext?) async throws -> [SearchResult] {
             guard !query.isEmpty else { return [] }
             return cannedResults
         }
@@ -38,7 +38,7 @@ final class SearchModelTests: XCTestCase {
 final class SearchModelUITests: XCTestCase {
 
     private actor FakeSearchEngine: EntrySearching {
-        func search(_ query: String) async throws -> [SearchResult] {
+        func search(_ query: String, context: SearchContext?) async throws -> [SearchResult] {
             []
         }
     }
