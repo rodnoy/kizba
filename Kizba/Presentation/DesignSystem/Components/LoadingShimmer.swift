@@ -28,13 +28,19 @@ public struct LoadingShimmer: View {
             .frame(width: width, height: height)
             .overlay {
                 if !reduceMotion {
+                    let p1 = min(max(phase, 0), 1)
+                    let p2 = min(max(phase + 0.25, 0), 1)
+                    let p3 = min(max(phase + 0.5, 0), 1)
+                    let p2ordered = max(p2, p1)
+                    let p3ordered = max(p3, p2ordered)
+
                     shape
                         .fill(
                             LinearGradient(
                                 stops: [
-                                    .init(color: .clear, location: max(0, phase)),
-                                    .init(color: theme.colors.surfaceHover, location: max(0, min(1, phase + 0.25))),
-                                    .init(color: .clear, location: min(1, phase + 0.5))
+                                    .init(color: .clear, location: p1),
+                                    .init(color: theme.colors.surfaceHover, location: p2ordered),
+                                    .init(color: .clear, location: p3ordered)
                                 ],
                                 startPoint: .leading,
                                 endPoint: .trailing
