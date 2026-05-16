@@ -61,3 +61,11 @@ Step incremented to 3 on 2026-05-14
   - xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
 
 - Result: TESTS RUN: 970, SKIPPED: 17, FAILURES: 0 — ALL TESTS SUCCEEDED
+
+2026-05-16 21:58:17 — Full verification run (post-C.2):
+
+- Commands run:
+  - xcodebuild clean build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+  - xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+
+- Result: TESTS RUN: 980, SKIPPED: 17, FAILURES: 0 — ALL TESTS SUCCEEDED
