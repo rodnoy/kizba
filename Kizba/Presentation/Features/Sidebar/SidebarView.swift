@@ -22,6 +22,7 @@ struct SidebarView: View {
 
     @State private var model: SidebarModel
     @State private var favoritesModel: FavoritesModel
+    @State private var recentsModel: RecentsModel
     private let gitStatusModel: GitStatusModel?
     @Environment(\.theme) private var theme
 
@@ -33,6 +34,7 @@ struct SidebarView: View {
         self._selection = selection
         self._model = State(initialValue: SidebarModel(passManager: environment.passManager))
         self._favoritesModel = State(initialValue: FavoritesModel(store: environment.favoritesStore))
+        self._recentsModel = State(initialValue: RecentsModel(store: environment.recentStore))
         self.gitStatusModel = gitStatusModel
     }
 
@@ -53,6 +55,23 @@ struct SidebarView: View {
                             }
                             .listRowBackground(Color.clear)
                             .accessibilityLabel("\(entryPath), favorite")
+                        }
+                    }
+                }
+
+                if !recentsModel.recents.isEmpty {
+                    Section("Recents") {
+                        ForEach(recentsModel.recents, id: \.self) { entryPath in
+                            EntryRowView(
+                                title: entryPath.components(separatedBy: "/").last ?? entryPath,
+                                isSelected: selection == entryPath
+                            )
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                selection = entryPath
+                            }
+                            .listRowBackground(Color.clear)
+                            .accessibilityLabel("\(entryPath), recent")
                         }
                     }
                 }
@@ -96,6 +115,7 @@ struct SidebarView: View {
         .navigationTitle("Kizba")
         .task {
             await favoritesModel.load()
+            await recentsModel.load()
             await model.load()
         }
     }

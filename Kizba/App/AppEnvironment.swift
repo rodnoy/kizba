@@ -41,6 +41,9 @@ struct AppEnvironment: Sendable {
     /// Favorites storage used by the sidebar favorites model.
     let favoritesStore: any FavoritesStoring
 
+    /// Recent entries storage used by the sidebar recents model.
+    let recentStore: any RecentEntriesStoring
+
     /// Search engine used by entry-list filtering (`⌘F` sidebar search)
     /// and command-palette style queries.
     let searchEngine: any EntrySearching
@@ -74,6 +77,7 @@ struct AppEnvironment: Sendable {
         settings: any SettingsStoring,
         passwordGenerator: any PasswordGenerating,
         favoritesStore: any FavoritesStoring = UserDefaultsFavoritesStore(),
+        recentStore: any RecentEntriesStoring = UserDefaultsRecentEntriesStore(),
         searchEngine: any EntrySearching,
         biometricAuth: (any BiometricAuthenticating)? = nil,
         passCLI: LivePassCLI? = nil,
@@ -85,6 +89,7 @@ struct AppEnvironment: Sendable {
         self.settings = settings
         self.passwordGenerator = passwordGenerator
         self.favoritesStore = favoritesStore
+        self.recentStore = recentStore
         self.searchEngine = searchEngine
         self.biometricAuth = biometricAuth
         self.passCLI = passCLI
@@ -101,6 +106,7 @@ struct AppEnvironment: Sendable {
         settings: any SettingsStoring,
         passwordGenerator: any PasswordGenerating,
         favoritesStore: any FavoritesStoring = UserDefaultsFavoritesStore(),
+        recentStore: any RecentEntriesStoring = UserDefaultsRecentEntriesStore(),
         biometricAuth: (any BiometricAuthenticating)? = nil,
         passCLI: LivePassCLI? = nil,
         discovery: (any BinaryLocating)? = nil,
@@ -112,6 +118,7 @@ struct AppEnvironment: Sendable {
             settings: settings,
             passwordGenerator: passwordGenerator,
             favoritesStore: favoritesStore,
+            recentStore: recentStore,
             searchEngine: LiveSearchEngine(passManager: passManager),
             biometricAuth: biometricAuth,
             passCLI: passCLI,
@@ -251,6 +258,7 @@ extension AppEnvironment {
             settings: settings,
             passwordGenerator: LivePasswordGenerator(),
             favoritesStore: UserDefaultsFavoritesStore(),
+            recentStore: UserDefaultsRecentEntriesStore(),
             searchEngine: searchEngine,
             biometricAuth: LocalAuthBiometricAuthenticator(),
             passCLI: passCLI,
@@ -324,6 +332,7 @@ extension AppEnvironment {
             settings: InMemorySettingsStore(),
             passwordGenerator: LivePasswordGenerator(),
             favoritesStore: InMemoryFavoritesStore(),
+            recentStore: InMemoryRecentEntriesStore(),
             searchEngine: searchEngine,
             passCLI: nil,
             discovery: nil,
@@ -336,6 +345,7 @@ extension AppEnvironment {
             settings: UnavailableSettingsStore(),
             passwordGenerator: LivePasswordGenerator(),
             favoritesStore: UnavailableFavoritesStore(),
+            recentStore: UnavailableRecentEntriesStore(),
             searchEngine: UnavailableSearchEngine(),
             passCLI: nil,
             discovery: nil
@@ -430,6 +440,19 @@ private struct UnavailableFavoritesStore: FavoritesStoring {
     }
     func allFavorites() async -> Set<String> { [] }
     var favoritesChanged: AsyncStream<Void> {
+        AsyncStream { _ in }
+    }
+}
+
+private struct UnavailableRecentEntriesStore: RecentEntriesStoring {
+    func record(_ path: String) async {
+        fatalError("AppEnvironment: RecentEntriesStoring is unavailable in this build configuration.")
+    }
+    func recentPaths() async -> [String] { [] }
+    func clear() async {
+        fatalError("AppEnvironment: RecentEntriesStoring is unavailable in this build configuration.")
+    }
+    var recentsChanged: AsyncStream<Void> {
         AsyncStream { _ in }
     }
 }

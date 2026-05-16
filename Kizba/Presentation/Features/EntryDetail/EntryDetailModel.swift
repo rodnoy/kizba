@@ -136,11 +136,15 @@ final class EntryDetailModel {
         state = .loading
 
         let passManager = environment.passManager
+        let recentStore = environment.recentStore
         loadTask = Task { [weak self] in
             do {
                 let secret = try await passManager.show(entry)
                 try Task.checkCancellation()
-                self?.apply(.loaded(secret), generation: myGeneration)
+                guard let self, myGeneration == self.generation else { return }
+                self.apply(.loaded(secret), generation: myGeneration)
+                // Record recent access only after a successful show.
+                await recentStore.record(entry.path)
             } catch is CancellationError {
                 self?.apply(.idle, generation: myGeneration, onlyIfCurrent: false)
             } catch let passError as PassError {
