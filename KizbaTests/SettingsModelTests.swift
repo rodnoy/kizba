@@ -28,13 +28,33 @@ final class SettingsModelTests: XCTestCase {
         settings: any SettingsStoring,
         discovery: any BinaryLocating,
         recentStore: any RecentEntriesStoring = FakeRecentEntriesStore(),
+        biometricAuth: (any BiometricAuthenticating)? = nil,
         savedFlashDuration: Duration = .milliseconds(10)
     ) -> SettingsModel {
         SettingsModel(
             settings: settings,
             discovery: discovery,
             recentStore: recentStore,
+            biometricAuth: biometricAuth,
             savedFlashDuration: savedFlashDuration
+        )
+    }
+
+    /// Helper for the MVP6 D.3 biometric-toggle matrix. Seeds the
+    /// in-memory store with the desired initial value for the
+    /// `touchIDPerRevealEnabled` key, then constructs a SettingsModel
+    /// with the supplied fake authenticator injected.
+    private func makeModelWithBiometric(
+        initialEnabled: Bool,
+        fake: FakeBiometricAuthenticator
+    ) -> SettingsModel {
+        let store = makeInMemoryStore()
+        store.set(initialEnabled, for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled))
+        let discovery = TestBinaryLocator(paths: [:])
+        return makeModel(
+            settings: store,
+            discovery: discovery,
+            biometricAuth: fake
         )
     }
 
@@ -435,6 +455,94 @@ final class SettingsModelTests: XCTestCase {
         model.resetToDefaults()
 
         XCTAssertFalse(model.hasChanges)
+    }
+
+    // MARK: - MVP6 Phase D.3 — biometric toggle behaviour matrix
+
+    func testToggleBiometricOff_requiresAuth_successPersists() async {
+        let fake = FakeBiometricAuthenticator(
+            availability: .available,
+            nextResult: .success
+        )
+        let model = makeModelWithBiometric(initialEnabled: true, fake: fake)
+        XCTAssertTrue(model.touchIDPerRevealEnabled)
+
+        let result = await model.requestToggleBiometric(false)
+
+        // `Result<Void, …>` is not Equatable (Void is not Equatable), so
+        // assert via pattern match instead of `XCTAssertEqual`.
+        guard case .success = result else {
+            XCTFail("Expected success, got \(result)"); return
+        }
+        XCTAssertFalse(model.touchIDPerRevealEnabled,
+                       "Successful biometric auth must persist the disable")
+        XCTAssertEqual(fake.authenticateCalls.count, 1,
+                       "Disable path must present exactly one biometric prompt")
+        XCTAssertTrue(fake.authenticateCalls[0].localizedCaseInsensitiveContains("Touch ID"),
+                      "Prompt reason should mention Touch ID for user clarity")
+    }
+
+    func testToggleBiometricOff_authCancelled_leavesEnabled() async {
+        let fake = FakeBiometricAuthenticator(
+            availability: .available,
+            nextResult: .cancelled
+        )
+        let model = makeModelWithBiometric(initialEnabled: true, fake: fake)
+
+        let result = await model.requestToggleBiometric(false)
+
+        guard case .failure(let err) = result else {
+            XCTFail("Expected failure, got \(result)"); return
+        }
+        XCTAssertEqual(err, .cancelled)
+        XCTAssertTrue(model.touchIDPerRevealEnabled,
+                      "Value must remain enabled when auth is cancelled")
+        XCTAssertEqual(fake.authenticateCalls.count, 1)
+    }
+
+    func testToggleBiometricOn_persistsWithoutAuth() async {
+        let fake = FakeBiometricAuthenticator(
+            availability: .available,
+            nextResult: .success
+        )
+        let model = makeModelWithBiometric(initialEnabled: false, fake: fake)
+
+        let result = await model.requestToggleBiometric(true)
+
+        guard case .success = result else {
+            XCTFail("Expected success, got \(result)"); return
+        }
+        XCTAssertTrue(model.touchIDPerRevealEnabled)
+        XCTAssertEqual(fake.authenticateCalls.count, 0,
+                       "Enabling biometric protection must not prompt the user")
+    }
+
+    func testBiometricAvailability_propagatesFromAuth() {
+        let fake = FakeBiometricAuthenticator(availability: .unavailable(.notEnrolled))
+        let model = makeModelWithBiometric(initialEnabled: false, fake: fake)
+
+        XCTAssertEqual(model.biometricAvailability, .unavailable(.notEnrolled))
+
+        fake.availability = .available
+        XCTAssertEqual(model.biometricAvailability, .available)
+    }
+
+    func testToggleBiometricOff_failedAuth_leavesEnabled_andReturnsFailure() async {
+        let fake = FakeBiometricAuthenticator(
+            availability: .available,
+            nextResult: .failed(.userFailed)
+        )
+        let model = makeModelWithBiometric(initialEnabled: true, fake: fake)
+
+        let result = await model.requestToggleBiometric(false)
+
+        guard case .failure(let err) = result else {
+            XCTFail("Expected failure, got \(result)"); return
+        }
+        XCTAssertEqual(err, .failed(.userFailed))
+        XCTAssertTrue(model.touchIDPerRevealEnabled,
+                      "Failed auth must NOT persist the disable")
+        XCTAssertEqual(fake.authenticateCalls.count, 1)
     }
 
     func testSnapshot_treatsNilAndEmptyOverrideAsDifferent() async {
