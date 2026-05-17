@@ -13,7 +13,14 @@ import Foundation
 
 /// Reasons why biometric authentication may be unavailable on the
 /// current device. Kept intentionally minimal and backend-agnostic.
-public enum BiometricUnavailableReason: Sendable, Equatable {
+///
+/// `nonisolated` because the target's `default-isolation=MainActor`
+/// would otherwise pin synthesized `Equatable` to MainActor, breaking
+/// composition with non-MainActor consumers (e.g. nested in
+/// `nonisolated` error enums) under Swift 6
+/// `InferIsolatedConformances`. Domain protocol types must stay
+/// actor-neutral by contract.
+public nonisolated enum BiometricUnavailableReason: Sendable, Equatable {
     case notEnrolled
     case hardwareUnavailable
     case passcodeNotSet
@@ -22,7 +29,7 @@ public enum BiometricUnavailableReason: Sendable, Equatable {
 }
 
 /// Represents whether biometric authentication is available or not.
-public enum BiometricAvailability: Sendable, Equatable {
+public nonisolated enum BiometricAvailability: Sendable, Equatable {
     case available
     case unavailable(BiometricUnavailableReason)
 }
@@ -31,7 +38,7 @@ public enum BiometricAvailability: Sendable, Equatable {
 
 /// Failure reasons for a biometric authentication attempt. Mapped by
 /// infrastructure from platform errors into this neutral shape.
-public enum BiometricFailureReason: Sendable, Equatable {
+public nonisolated enum BiometricFailureReason: Sendable, Equatable {
     case userFailed
     case systemCancel
     case appCancel
@@ -40,7 +47,7 @@ public enum BiometricFailureReason: Sendable, Equatable {
 }
 
 /// Result of an authentication attempt.
-public enum BiometricResult: Sendable, Equatable {
+public nonisolated enum BiometricResult: Sendable, Equatable {
     /// Authentication succeeded and the caller may proceed.
     case success
     /// The user cancelled the prompt (explicit cancel / tapped cancel).

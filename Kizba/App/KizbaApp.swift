@@ -126,7 +126,8 @@ struct KizbaApp: App {
                     model: SettingsModel(
                         settings: environment.settings,
                         discovery: environment.discovery!,
-                        recentStore: environment.recentStore
+                        recentStore: environment.recentStore,
+                        biometricAuth: environment.biometricAuth
                     )
                 )
             }

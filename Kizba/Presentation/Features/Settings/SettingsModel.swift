@@ -55,6 +55,31 @@ public final class SettingsModel {
         case saved
     }
 
+    // MARK: - Biometric toggle (MVP6 Phase D.1)
+
+    /// Failure modes surfaced by ``requestToggleBiometric(_:)``. Maps the
+    /// neutral ``BiometricResult`` / ``BiometricAvailability`` shapes from
+    /// the domain protocol into a single Result-friendly error so the UI
+    /// (SecurityTab — MVP6 D.2) can render a single banner per case.
+    ///
+    /// `nonisolated` because the domain `BiometricUnavailableReason` /
+    /// `BiometricFailureReason` enums (declared in the domain layer with
+    /// `Sendable, Equatable`) carry nonisolated `Equatable` conformances;
+    /// nesting a main-actor-isolated `Equatable` here would refuse to
+    /// compose with them under Swift 6 `InferIsolatedConformances`.
+    public nonisolated enum ToggleBiometricError: Error, Equatable {
+        /// Biometric authentication is not currently available (no hardware,
+        /// not enrolled, etc). The persisted value is unchanged.
+        case unavailable(BiometricUnavailableReason)
+        /// The user dismissed the OS biometric prompt. The persisted value
+        /// is unchanged. Distinct from ``failed`` so the UI can stay quiet
+        /// on explicit cancel (matches platform conventions).
+        case cancelled
+        /// Authentication attempt completed but did not succeed
+        /// (wrong fingerprint, system cancel, etc).
+        case failed(BiometricFailureReason)
+    }
+
     /// Live snapshot of every editable field in this model. Excludes
     /// transient state (``isDetectingBinaries``, ``saveState``).
     ///
@@ -112,6 +137,11 @@ public final class SettingsModel {
     private let settings: any SettingsStoring
     private let discovery: any BinaryLocating
     private let recentStore: any RecentEntriesStoring
+    /// Optional biometric authenticator. `nil` in tests/previews that have
+    /// no real authenticator wired — in that case
+    /// ``requestToggleBiometric(_:)`` permits a disable without prompt
+    /// because there is no real protection to defeat (MVP6 Phase D.1).
+    private let biometricAuth: (any BiometricAuthenticating)?
     private let savedFlashDuration: Duration
 
     // MARK: - Init
@@ -132,11 +162,13 @@ public final class SettingsModel {
         settings: any SettingsStoring,
         discovery: any BinaryLocating,
         recentStore: any RecentEntriesStoring,
+        biometricAuth: (any BiometricAuthenticating)? = nil,
         savedFlashDuration: Duration = .milliseconds(1500)
     ) {
         self.settings = settings
         self.discovery = discovery
         self.recentStore = recentStore
+        self.biometricAuth = biometricAuth
         self.savedFlashDuration = savedFlashDuration
 
         // Read initial values from the store. Use SettingsKeys constants
@@ -287,5 +319,79 @@ public final class SettingsModel {
         isDetectingBinaries = true
         defer { isDetectingBinaries = false }
         await discovery.reDetect()
+    }
+
+    // MARK: - Biometric toggle (MVP6 Phase D.1)
+
+    /// Current biometric availability reported by the injected
+    /// authenticator. When no authenticator is wired (tests/preview),
+    /// reports `.unavailable(.hardwareUnavailable)` so UI gating
+    /// (SecurityTab — D.2) treats the row as disabled rather than
+    /// pretending biometrics work.
+    public var biometricAvailability: BiometricAvailability {
+        biometricAuth?.isAvailable() ?? .unavailable(.hardwareUnavailable)
+    }
+
+    /// Request a flip of ``touchIDPerRevealEnabled`` with the platform's
+    /// "enable freely, prompt-to-disable" semantics (see
+    /// `.ai/decisions.md` — MVP6.D.1):
+    ///
+    /// - Enabling (`desired == true`): persists immediately without a
+    ///   biometric prompt. Matches the macOS FileVault / Touch ID
+    ///   settings pane UX — turning protection ON is low-stakes.
+    /// - Disabling (`desired == false`) with an authenticator wired:
+    ///   requires a successful `authenticate(reason:)` call. On
+    ///   cancel/failure the persisted value is unchanged and the UI
+    ///   surfaces the failure via the returned ``ToggleBiometricError``.
+    /// - Disabling with NO authenticator wired (tests/preview): permitted
+    ///   without prompt, because there is no real protection to defeat.
+    ///
+    /// On every successful persist the dirty-tracking baseline
+    /// (``initialSnapshot``) is refreshed so the B.2 `hasChanges` flag
+    /// does not falsely mark the row dirty — this method writes to the
+    /// store directly, bypassing ``save()``.
+    public func requestToggleBiometric(_ desired: Bool) async -> Result<Void, ToggleBiometricError> {
+        // Enable path: no prompt, persist immediately. Matches FileVault /
+        // Touch ID system settings UX.
+        if desired {
+            touchIDPerRevealEnabled = true
+            settings.set(true, for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled))
+            // Refresh snapshot so hasChanges (B.2 dirty tracking) reflects
+            // only un-persisted UI mutations — this write bypasses save().
+            initialSnapshot = currentSnapshot
+            return .success(())
+        }
+
+        // Disable path: no authenticator wired (tests/preview). There is no
+        // real protection to defeat, so let the disable through.
+        guard let auth = biometricAuth else {
+            touchIDPerRevealEnabled = false
+            settings.set(false, for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled))
+            initialSnapshot = currentSnapshot
+            return .success(())
+        }
+
+        // Disable path: real authenticator. Check availability first to
+        // avoid presenting an OS dialog we know will fail.
+        switch auth.isAvailable() {
+        case .unavailable(let reason):
+            return .failure(.unavailable(reason))
+        case .available:
+            break
+        }
+
+        // Present the biometric prompt; map the neutral result back into
+        // our Result-friendly error shape.
+        switch await auth.authenticate(reason: "Confirm to disable Touch ID protection") {
+        case .success:
+            touchIDPerRevealEnabled = false
+            settings.set(false, for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled))
+            initialSnapshot = currentSnapshot
+            return .success(())
+        case .cancelled:
+            return .failure(.cancelled)
+        case .failed(let reason):
+            return .failure(.failed(reason))
+        }
     }
 }
