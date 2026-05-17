@@ -1,28 +1,22 @@
-Phase: MVP6.B (COMPLETED)
-Status: Phase B SHIPPED — Settings tabs + Save feedback + InfoTooltip
+Phase: MVP6.G.1
+Status: COMPLETED
 
-Next action: Run smart-planner to open Phase C (App-wide tooltips). Replace .ai/plan.md with operational Phase C plan.
+Next action: Run smart-worker on Task G.2 (Sidebar tap routing fix: introduce entrySelection binding so Recents/Favorites taps land in selectedEntryID instead of selectedFolder).
 
 Notes:
-- B.4: Applied InfoTooltip to 10 controls across Settings tabs:
-  * GeneralTab: clipboard delay, menu bar toggle, recents visibility toggle, recents limit (4)
-  * SecurityTab: Touch ID per-reveal toggle (1)
-  * GitTab: git operation timeout, store path override (2)
-  * AdvancedTab: pass / gpg / pinentry binary overrides (3)
-- Replaced inline `helpText` with `infoText` on these rows; B.1 priority rule (infoText suppresses helpText, errorText still wins) takes effect. 6 `helpText:"…"` literals removed across the four tab files; `Menu Bar` row, plus the three Advanced binary rows previously had no helpText and only gained `infoText`.
-- `infoAccessibilityLabel:` was NOT specified for any row — the default "More information about <label>" from `FormFieldRow.defaultInfoAccessibilityLabel(for:)` is contextually adequate for all 10 controls.
-- No changes to persistence, validation, Stepper bounds, Re-detect action, NSOpenPanel pickers, or footer behaviour.
-- `rg infoText: Kizba/Presentation/Features/Settings/Tabs/` → exactly 10 matches. `rg 'helpText:.*"' Kizba/Presentation/Features/Settings/Tabs/` → 0 matches.
-- DS-literal grep on Tabs/ (`Color.*`, numeric `cornerRadius:`, numeric `.opacity(0.x)`) → 0 hits. `as!` ban → 0 hits in Kizba/. `Logger.*stdin|print(.*stdin` → only the self-refs in SourceGrepTests.swift.
-- Phase B acceptance criteria — ALL MET:
-  * InfoTooltip DS component + FormFieldRow.infoText (B.1) ✓
-  * SettingsModel dirty-tracking + async SaveState with flash (B.2) ✓
-  * Save button disabled state + inline status text (B.2) ✓
-  * TabView split 4 tabs + shared footer (B.3) ✓
-  * Recents under General (B.3) ✓
-  * ≥10 InfoTooltips applied (B.4) ✓
-  * Touch ID behaviour unchanged (verbatim move, Phase D will rework) ✓
-- Full suite: 1038 tests, 17 skipped, 0 failures. Build OK (Debug + Release prior in B.3). DS grep + bans clean.
-- Commits this phase: 3476416 (B.1), a9d0953 (B.2), b1b25cb (B.3), <new B.4 — added after commit>.
+- Symmetric Favorites controls landed: SettingsKeys.showFavorites (Bool, default true) + SettingsKeys.defaultShowFavorites = true. UserDefaultsSettingsStore registers the default inside init() using the existing namespaced(_:) helper.
+- SettingsModel: public var showFavorites: Bool; extended private SettingsSnapshot + currentSnapshot + initialSnapshot + init() loader + save() write. resetToDefaults() intentionally NOT changed — symmetric with showRecents, which is a user preference and is not part of the "reset overrides + clipboard delay" semantic.
+- GeneralTab: new private favoritesSection placed above recentsSection (mirrors the sidebar order). Uses FormSection("Favorites") + FormFieldRow(label: "Visibility", infoText: "Display starred entries at the top of the sidebar.") wrapping Toggle("Show Favorites in Sidebar", isOn: $model.showFavorites). Same FormFieldRow(label:infoText:) API as the Recents Visibility row.
+- SidebarView: added @AppStorage("app.kizba.settings.showFavorites") private var showFavorites: Bool = true plus @AppStorage("kizba.sidebar.favoritesExpanded") private var favoritesExpanded: Bool = true. Favorites section now reads "if showFavorites && !favoritesModel.favorites.isEmpty { Section { DisclosureGroup(isExpanded: $favoritesExpanded) { ForEach... } label: { Text("Favorites") } } }" — identical shape to the Phase A.3 Recents block.
+- @AppStorage key string matches `UserDefaultsSettingsStore.namespaced(SettingsKeys.showFavorites)` exactly (`"app.kizba.settings.showFavorites"`). Comment in SidebarView calls this out to deter drift.
+- Tests added: 5 total.
+  * KizbaTests/UserDefaultsSettingsStoreTests.swift: testShowFavorites_defaultsTrue, testShowFavorites_roundTrip.
+  * KizbaTests/SettingsModelTests.swift: testShowFavorites_defaultIsTrue, testShowFavorites_persists, testHasChanges_flipsWhenShowFavoritesMutated (regression test for the SettingsSnapshot extension).
+- Full suite: 1044 tests, 17 skipped, 0 failures (1039 baseline + 5 new).
+- Build (Debug, macOS): SUCCEEDED. Grep bans clean: `as!` 0 in Kizba/, stdin only self-references in SourceGrepTests.
+- SourceGrepTests.testIconOnlyButtonsHaveHelp_inAuditedFeatures stays green — the SidebarView changes do not introduce new icon-only Buttons.
+- Commit: e219afa on main.
 
-Timestamp: 2026-05-17T16:53:00+02:00
+Plan: .ai/plan.md has been rewritten to cover Phase G (G.1–G.3) + Phase D (D.1–D.3) with full task envelopes (Description / Files / Tests / Verification / Branch / Commit / Difficulty / Risks), sequencing rationale (G before D, by-risk inside G), acceptance criteria, final verification commands, open questions and suggested current step. G.1 is now marked complete in this handoff; the plan itself does not encode per-task done flags (consistent with prior plan.md files).
+
+Timestamp: 2026-05-17T17:53:00+02:00

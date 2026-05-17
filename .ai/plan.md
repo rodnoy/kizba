@@ -1,116 +1,260 @@
-# MVP6 — Phase B: Settings Tabs + Save Feedback + InfoTooltip
+# MVP6 — Phase D (Biometric availability) + Phase G (3 critical bugs)
 
-## Status of prior phase
+## Status of prior phases
 
-Phase A (Recents in Sidebar) — DONE. 4 commits landed on `main`. Test suite: 1019 tests, 0 failures. `SettingsModel.init` extended with `recentStore:`. Recents section appended to current `SettingsView` (ScrollView + VStack of `FormSection`s). `HelpModel.copiedBlockID` + `flashResetTask` established the 1500ms flash-feedback pattern that Phase B mirrors for Save state.
+Phase A (Recents controls) — DONE. Phase B (Settings tabs + Save feedback + InfoTooltip) — DONE. Phase C (App-wide tooltips + advisory grep rule) — DONE. Baseline: **1039 tests, 17 skipped, 0 failures**. Release build clean.
 
 ## Goal
 
-Restructure Settings UX:
-1. Introduce a reusable `InfoTooltip` DS component (greenfield — no `info.circle` popover exists yet).
-2. Add dirty-tracking + Save state machine (`idle → saving → saved → idle`) to `SettingsModel`, with the Save button disabled when there are no changes.
-3. Split the current monolithic Settings scroll into a `TabView` (General / Security / Git / Advanced) with a shared footer (Save / Reset / version) outside the tabs.
-4. Roll out `InfoTooltip` to the key Settings controls, replacing inline `helpText` on those rows.
+1. **Phase G** — close three regressions discovered after Phase C ship:
+   - G.1 Favorites section has no visibility toggle and no collapse memory (asymmetric with Recents after Phase A).
+   - G.2 Tapping a Recents/Favorites row in the sidebar writes the entry path into `state.router.selectedFolder`, never into `selectedEntryID`. Detail column does not open.
+   - G.3 The Recents and Favorites persistence layers use bare keys (`"kizba.recentEntries"`, `"kizba.favorites"`) that collide with the DEBUG `MockPassManager` fixture corpus, so a Release build started after a DEBUG launch reads fixture paths it cannot resolve.
+2. **Phase D** — finish the MVP6 roadmap item "Biometric availability + confirm-to-disable":
+   - D.1 Inject `BiometricAuthenticating` into `SettingsModel`; add a guarded `requestToggleBiometric(_:)`.
+   - D.2 Gate the SecurityTab toggle on `biometricAvailability` and surface auth failures.
+   - D.3 Add `FakeBiometricAuthenticator` + four behaviour tests.
 
-No behavioural changes to persistence, keychain, discovery, or recents. Touch ID is left as-is (full rework is Phase D).
+No new dependencies. No `as!`. English literals only. DS-tokens only in `Features/**`.
 
-## Constraints
+## Constraints (durable)
 
-- Swift 5.10, macOS 14, strict concurrency complete. `SettingsModel` stays `@MainActor @Observable`.
-- DS-only styling: tokens from `theme.typography.*` / `theme.spacing.*` / `theme.colors.*` / `theme.radius.*`. No inline `Color.<name>`, numeric `cornerRadius:`, numeric `.opacity(0.x)` in `Kizba/Presentation/Features/**` outside DesignSystem.
-- No new third-party deps. No localization layer — UI strings remain English literals.
-- Existing `FormFieldRow` / `FormSection` APIs stay backwards-compatible (additive parameters only).
-- Footer (Save / Reset + version) appears once, outside the `TabView`.
-- Save flash duration injectable for tests (`savedFlashDuration: Duration = .milliseconds(1500)`).
-- SourceGrepTests must stay green.
+- Swift 5.10, macOS 14, strict concurrency complete.
+- No `as!`, no third-party deps, no stdin/stdout logging.
+- DS-only styling (tokens; no inline `Color.<name>`, numeric cornerRadius, numeric opacity in `Features/**`).
+- English-only literals.
+- `SourceGrepTests` must stay green (including `testIconOnlyButtonsHaveHelp_inAuditedFeatures` from C.2).
+- Settings persistence allow-list (String / URL / Int / Double / Bool) — do not extend.
 
-## Open decisions
+## Sequencing decision — G first, then D
 
-- **ViewInspector availability** — check before B.3 tests; if vendored, add 4-tab smoke test; otherwise skip and rely on manual smoke.
-- **Snapshot equality of binary-override `String?`** — treat `nil` and `""` as distinct (matches current persistence). Document in the snapshot struct.
-- **`Reset` semantics** — Reset writes defaults via persistence and then rebuilds `initialSnapshot` (or calls `load()`) so `hasChanges == false` afterwards.
-- **Tab order** — General / Security / Git / Advanced (matches user-facing frequency).
+G is sequenced before D for three reasons:
 
----
+1. **G is user-visible breakage.** G.2 makes Recents and Favorites rows look interactive but produce nothing in the detail column — anyone who lands on the sidebar after Phase A.3 hits it immediately. G.3 silently leaks DEBUG fixture data into Release. Both block credible QA on D.
+2. **G unblocks the D test plan.** Phase D adds biometric assertions that rely on a clean Settings tab and a stable sidebar — G.1 normalises the Favorites controls so the D.2 SecurityTab demo doesn't surface the asymmetric Favorites row right next to the new gated Touch ID toggle.
+3. **G's risk profile rises with each task** (G.1 additive → G.2 API change → G.3 persistence + migration). Sequencing inside G is by risk; sequencing G before D keeps the high-risk persistence migration off the same branch as the new biometric injection.
+
+Inside G: **G.1 → G.2 → G.3**. Inside D: **D.1 → D.2 → D.3**.
 
 ## Tasks
 
-### B.1 — `InfoTooltip` DS component + `FormFieldRow` integration
+### G.1 — Favorites visibility toggle + collapsible section
 
-**Description:** Add a reusable popover-based info tooltip and wire it into `FormFieldRow` via an additive `infoText:` parameter. When `infoText` is provided, render the `InfoTooltip` after the label and suppress the inline `helpText` for that row.
+**Description:** Mirror the Phase A Recents controls for Favorites. Add a `showFavorites` settings key (Bool, default `true`), surface a Toggle in `GeneralTab`, and gate the Favorites sidebar section through `@AppStorage` + wrap rows in a `DisclosureGroup` whose expansion persists across launches.
 
 **Agent:** smart-worker
 
 **Files:**
-- NEW `Kizba/Presentation/DesignSystem/Components/InfoTooltip.swift`:
-  - `struct InfoTooltip: View`
-  - `init(text: String, accessibilityLabel: String, title: String? = nil)`
-  - `@State private var isOpen = false`
-  - Button with SF Symbol `info.circle` (DS-styled, `.buttonStyle(.plain)`, `.help(accessibilityLabel)`).
-  - `.popover(isPresented: $isOpen, arrowEdge: .top) { ... }` body: optional bold `title` then `Text(text)` with `theme.typography.caption`, padded with `theme.spacing.*`, max width ~280pt.
-  - `.accessibilityLabel(accessibilityLabel)` on the button.
-- MOD `Kizba/Presentation/DesignSystem/Components/FormFieldRow.swift`:
-  - Add `infoText: String?` (default `nil`) and optional `infoAccessibilityLabel: String?` to existing initializers.
-  - When `infoText != nil`, render `InfoTooltip` next to the label and skip rendering `helpText`.
+- MOD `Kizba/Domain/Protocols/SettingsStoring.swift` — add `SettingsKeys.showFavorites = "showFavorites"` and `defaultShowFavorites: Bool = true` next to their `showRecents` siblings.
+- MOD `Kizba/Infrastructure/Settings/UserDefaultsSettingsStore.swift` — register default `true` for `showFavorites` inside `init`, reusing the existing `namespaced(_:)` helper.
+- MOD `Kizba/Presentation/Features/Settings/SettingsModel.swift` — add `public var showFavorites: Bool`, extend `SettingsSnapshot` + `currentSnapshot` + `initialSnapshot`, load in `init`, persist in `save()`.
+- MOD `Kizba/Presentation/Features/Settings/Tabs/GeneralTab.swift` — add a `FormFieldRow` with a `Toggle("Show Favorites in Sidebar", isOn: $model.showFavorites)` placed inside a `FormSection("Favorites")` above `recentsSection` (Favorites already render above Recents in the sidebar; keep order parallel).
+- MOD `Kizba/Presentation/Features/Sidebar/SidebarView.swift` — add `@AppStorage("app.kizba.settings.showFavorites") private var showFavorites: Bool = true` and `@AppStorage("kizba.sidebar.favoritesExpanded") private var favoritesExpanded: Bool = true`. Gate the Favorites section via `if showFavorites && !favoritesModel.favorites.isEmpty`. Wrap the row `ForEach` inside `DisclosureGroup(isExpanded: $favoritesExpanded)` with a `Text("Favorites")` label.
 
 **Tests:**
-- NEW `KizbaTests/Presentation/DesignSystem/InfoTooltipTests.swift`:
-  - `testInfoTooltip_defaultsToClosed`
-  - `testInfoTooltip_accessibilityLabelIsSet`
-  - `testInfoTooltip_togglesOpenOnTap` (via bound state harness or `@State` inspection)
-- Optional: extend `FormFieldRow` structure test if one exists to assert `helpText` is suppressed when `infoText` is set.
+- `KizbaTests/UserDefaultsSettingsStoreTests.swift`:
+  - `testShowFavorites_defaultsTrue`
+  - `testShowFavorites_roundTrip`
+- `KizbaTests/SettingsModelTests.swift`:
+  - `testShowFavorites_defaultIsTrue`
+  - `testShowFavorites_persists`
+  - `testHasChanges_flipsWhenShowFavoritesMutated`
+
+**Verification:**
+```sh
+xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
+  -only-testing:KizbaTests/SettingsModelTests \
+  -only-testing:KizbaTests/UserDefaultsSettingsStoreTests
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+rg -n 'showFavorites' Kizba/ KizbaTests/
+```
+
+**Branch:** `mvp6/g1-favorites-toggle`
+**Commit:** `feat(sidebar): Favorites visibility toggle + collapsible section (MVP6.G.1)`
+**Difficulty:** S
+**Risks:**
+- `@AppStorage` key string must match the namespaced UserDefaults key produced by `UserDefaultsSettingsStore.namespaced(SettingsKeys.showFavorites)` exactly — drift means the toggle and the sidebar reference different slots.
+- `SettingsSnapshot` is a private struct; forgetting to extend both `currentSnapshot` and `initialSnapshot` silently breaks `hasChanges`. Tests catch this.
+
+---
+
+### G.2 — Sidebar tap routing fix (Recents/Favorites)
+
+**Description:** Today `SidebarView.selection` is bound to `state.router.selectedFolder`; Recents and Favorites rows write entry paths into it via `.onTapGesture { selection = entryPath }`, but `selectedFolder` is consumed by the middle column as a folder name, so the detail column never opens. Introduce a second binding for the entry selection and route Recents/Favorites taps through it. Folder rows continue to use the existing folder binding.
+
+**Agent:** smart-worker
+
+**Files:**
+- MOD `Kizba/Presentation/Features/Sidebar/SidebarView.swift`:
+  - Add `@Binding var entrySelection: String?`.
+  - Extend `init` with a matching parameter.
+  - Replace `.onTapGesture { selection = entryPath }` inside the Recents and Favorites `ForEach` bodies with `.onTapGesture { entrySelection = entryPath }`.
+  - Update the `isSelected` checks for Recents/Favorites rows to compare against `entrySelection`.
+  - Folder rows continue to bind to `selection`.
+- MOD `Kizba/Presentation/Root/RootSplitView.swift` (or wherever `SidebarView(...)` is instantiated) — pass `entrySelection: Binding(get: { state.router.selectedEntryID }, set: { state.router.selectedEntryID = $0 })`.
+- Optional: extract a file-private (or `internal` for testability) helper `applyEntrySelection(path:state:)` that owns the routing decision so it can be unit-tested without spinning up SwiftUI.
+
+**Tests:**
+- If the helper is extracted: `KizbaTests/Sidebar/SidebarEntryRoutingTests.swift` (or extend an existing Sidebar test file) — verify `selectedEntryID` is set and `selectedFolder` is left untouched.
+- Otherwise: rely on the AppState round-trip in existing `AppRouterTests` plus a manual smoke noted in the commit message.
 
 **Verification:**
 ```sh
 xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
-  -only-testing:KizbaTests/InfoTooltipTests
+  -only-testing:KizbaTests/SidebarModelTests
 xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-rg -n 'Color\.\w+|cornerRadius:\s*\d+|\.opacity\(0\.\d+\)' Kizba/Presentation/DesignSystem/Components/InfoTooltip.swift
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
 ```
 
-**Branch:** `mvp6/b1-info-tooltip`
-**Commit:** `feat(ds): add InfoTooltip component and FormFieldRow.infoText integration (MVP6.B.1)`
+**Branch:** `mvp6/g2-sidebar-entry-selection`
+**Commit:** `fix(sidebar): route Recents/Favorites taps to selectedEntryID (MVP6.G.2)`
 **Difficulty:** S
-**Risks:** popover clipping inside `Form`/`TabView`. Mitigation: `.popover(attachmentAnchor: .point(.center), arrowEdge: .top)`.
+**Risks:**
+- `SidebarView.init` gains a new required parameter — every call site must be updated. The compiler surfaces the regression loudly; no behavioural fallback to mask it.
+- Folder taps must keep their existing semantics (write `selectedFolder`, do not clear `selectedEntryID` unless that is the existing behaviour).
 
 ---
 
-### B.2 — `SettingsModel` dirty-tracking + `SaveState`
+### G.3 — Persisted leak fix (namespace recents/favorites keys + migration)
 
-**Description:** Introduce a `SettingsSnapshot` value type capturing all editable fields, capture an `initialSnapshot` on `load()`, expose `var hasChanges: Bool`, and convert `save()` into an async method that drives a `SaveState` machine (`idle → saving → saved → idle`) with an injectable flash duration. `Reset` rebuilds the snapshot so `hasChanges` returns to `false`.
+**Description:** `UserDefaultsRecentEntriesStore` and `UserDefaultsFavoritesStore` write to bare keys (`"kizba.recentEntries"`, `"kizba.favorites"`) inside `UserDefaults.standard`. DEBUG builds wired with `MockPassManager` write fixture entry paths to those same slots, and a subsequent Release launch reads them back as if they were real entries. Fix by namespacing both keys to `app.kizba.<feature>.entries.v1`. Migrate **Favorites only** (user-curated data is worth preserving) and start Recents fresh (auto-collected; migrating risks promoting fixture noise into Release).
+
+**Agent:** smart-worker
+
+**Files:**
+- ADD `Kizba/Infrastructure/Storage/StorageKeys.swift` (new file) — centralised constants:
+  - `recentsEntriesV1 = "app.kizba.recents.entries.v1"`
+  - `favoritesEntriesV1 = "app.kizba.favorites.entries.v1"`
+  - `legacyRecentsEntries = "kizba.recentEntries"`
+  - `legacyFavoritesEntries = "kizba.favorites"`
+- MOD `Kizba/Infrastructure/Recents/UserDefaultsRecentEntriesStore.swift`:
+  - Switch the persistence key to `StorageKeys.recentsEntriesV1`.
+  - In `init`, best-effort `defaults.removeObject(forKey: StorageKeys.legacyRecentsEntries)` — no value migration.
+- MOD `Kizba/Infrastructure/Favorites/UserDefaultsFavoritesStore.swift`:
+  - Switch the persistence key to `StorageKeys.favoritesEntriesV1`.
+  - In `init`, one-shot migration: if `object(forKey: new) == nil` and `array(forKey: legacy) != nil`, copy the array and then `removeObject(forKey: legacy)`. Idempotent on second construction.
+- VERIFY (no edit) `Kizba/Presentation/Features/Sidebar/SidebarView.swift` — Recents section is already gated by `if showRecents && !recents.isEmpty` after Phase A.3.
+
+**Tests:**
+- `KizbaTests/Infrastructure/UserDefaultsRecentEntriesStoreTests.swift`:
+  - `testInit_readsFromNewNamespacedKey`
+  - `testInit_ignoresLegacyKey_andRemovesIt`
+  - `testRecord_persistsToNewKey_only`
+- `KizbaTests/Infrastructure/UserDefaultsFavoritesStoreTests.swift`:
+  - `testInit_migratesLegacyFavorites_onceWhenNewKeyAbsent`
+  - `testInit_doesNotOverwriteNewKey_whenBothPresent`
+  - `testInit_idempotent_secondConstructionIsNoOp`
+- Use isolated `UserDefaults(suiteName:)` per test; tear down via `removePersistentDomain(forName:)`.
+
+**Verification:**
+```sh
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
+  -only-testing:KizbaTests/UserDefaultsRecentEntriesStoreTests \
+  -only-testing:KizbaTests/UserDefaultsFavoritesStoreTests
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+rg -n '"kizba\.recentEntries"' Kizba/ KizbaTests/   # only StorageKeys.legacy* match
+rg -n '"kizba\.favorites"'      Kizba/ KizbaTests/  # only StorageKeys.legacy* match
+rg -n 'app\.kizba\.(recents|favorites)\.entries\.v1' Kizba/ KizbaTests/
+```
+
+**Branch:** `mvp6/g3-storage-key-namespace`
+**Commit:** `fix(storage): namespace recents/favorites keys + migrate favorites (MVP6.G.3)`
+**Difficulty:** M
+**Risks:**
+- Migration must be idempotent — second construction must not re-import legacy values once the new key is populated. The `testInit_idempotent_secondConstructionIsNoOp` test pins this.
+- Existing pure-DEBUG users will see Recents reset to empty on first run after the fix. Intentional: better than promoting fixture entries.
+
+---
+
+### D.1 — Inject `BiometricAuthenticating` into `SettingsModel`
+
+**Description:** `SettingsModel` currently flips `touchIDPerRevealEnabled` with no biometric pre-flight. Inject `BiometricAuthenticating` and add a guarded toggle method.
 
 **Agent:** smart-worker
 
 **Files:**
 - MOD `Kizba/Presentation/Features/Settings/SettingsModel.swift`:
-  - `private struct SettingsSnapshot: Equatable` containing every editable field currently in `SettingsModel` (clipboardClearDelaySeconds, touchIDPerRevealEnabled, gitOperationTimeoutSeconds, showInMenuBar, showRecents, recentsLimit, storePathOverride, passBinaryOverride, gpgBinaryOverride, pinentryBinaryOverride). Exclude transient fields (`isDetectingBinaries`, `saveState`).
-  - `enum SaveState: Equatable { case idle, saving, saved }`.
-  - `var saveState: SaveState = .idle`.
-  - `private var initialSnapshot: SettingsSnapshot` rebuilt on `load()` and after successful `save()` / `reset()`.
-  - `var hasChanges: Bool { currentSnapshot != initialSnapshot }`.
-  - `private var currentSnapshot: SettingsSnapshot { ... }`.
-  - Convert `func save()` → `func save() async`:
-    1. Guard `hasChanges`; else return.
-    2. `saveState = .saving`.
-    3. Perform existing persistence work (including dispatch to `recentStore.setMaxCount`).
-    4. Rebuild `initialSnapshot`.
-    5. `saveState = .saved`.
-    6. `try? await Task.sleep(for: savedFlashDuration)`; if still `.saved` → `.idle`.
-  - Add init parameter `savedFlashDuration: Duration = .milliseconds(1500)`.
-  - Ensure `reset()` rebuilds `initialSnapshot` so `hasChanges == false` afterwards.
-- MOD `Kizba/Presentation/Features/Settings/SettingsView.swift` (light touch only — full split in B.3):
-  - Save button: `disabled(!model.hasChanges || model.saveState == .saving)`.
-  - Adjacent inline status mirroring `saveState` (`"Saving…"` / `"Saved"`) using DS typography; hidden when `.idle`.
-  - Save action becomes `await model.save()` (wrap in `Task { ... }` if Button can't be async directly).
+  - Extend `init` with `biometricAuth: (any BiometricAuthenticating)? = nil` (`nil` default keeps existing tests/previews compiling).
+  - Store as `private let biometricAuth`.
+  - Add `public var biometricAvailability: BiometricAvailability` computed off the injected service (or a cached `private(set) var` refreshed at init + after an explicit `refreshBiometricAvailability()`).
+  - Add `public enum ToggleBiometricError: Error, Equatable { case cancelled; case unavailable; case failed(String) }`.
+  - Add `public func requestToggleBiometric(_ desired: Bool) async -> Result<Void, ToggleBiometricError>`:
+    - **Enable (`desired == true`):** persist immediately, no prompt. Matches Apple's FileVault / Touch-ID-for-Apple-Pay UX where enabling does not require a confirmation prompt — the *next protected action* will surface the system sheet anyway.
+    - **Disable (`desired == false`):** call `await biometricAuth.authenticate(reason: "Confirm to disable Touch ID protection")`. On `.success`: persist. On `.cancelled`/`.failed`: return `.failure(...)` and DO NOT mutate the persisted flag.
+    - **`biometricAuth == nil`:** permit disable without prompt (test/preview convenience).
+- MOD `Kizba/App/KizbaApp.swift` (and any other call site that constructs `SettingsModel`) — thread `environment.biometricAuth` into the model.
+- ADD entry to `.ai/decisions.md`: "Enabling Touch ID protection does not require a confirmation prompt; disabling does. A previously-enabled-but-now-unavailable setting is NOT auto-flipped to off — instead the SecurityTab renders an explanatory disabled row (D.2)."
 
-**Tests:**
-- MOD `KizbaTests/Presentation/Features/Settings/SettingsModelTests.swift`:
-  - `testHasChanges_isFalseAfterLoad`
-  - `testHasChanges_becomesTrueAfterMutation_andFalseAfterSave`
-  - `testSaveState_transitions_idle_saving_saved_idle` (use `savedFlashDuration: .milliseconds(10)`)
-  - `testSave_isNoopWhenNoChanges` (state stays `.idle`)
-  - `testReset_clearsHasChanges`
-  - `testSnapshot_treatsNilAndEmptyOverrideAsDifferent`
+**Tests:** covered in D.3.
+
+**Verification:**
+```sh
+xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+```
+
+**Branch:** `mvp6/d1-biometric-injection`
+**Commit:** `feat(settings): inject BiometricAuthenticating + requestToggleBiometric (MVP6.D.1)`
+**Difficulty:** M
+**Risks:**
+- Existing tests that build `SettingsModel` without a biometric service must continue to compile (default `nil`) — verify with a clean build before adding D.3 tests.
+
+---
+
+### D.2 — SecurityTab UI gating + auth-failure banner
+
+**Description:** Branch the Touch ID toggle on `model.biometricAvailability`. Render an informational disabled row when unavailable; surface failed disable attempts through a toast (or an inline error if `ToastCenter` is not wired here).
+
+**Agent:** smart-worker
+
+**Files:**
+- MOD `Kizba/Presentation/Features/Settings/Tabs/SecurityTab.swift`:
+  - Branch on `model.biometricAvailability`:
+    - **`.available`:** render a Toggle whose binding invokes `Task { _ = await model.requestToggleBiometric(newValue) }`. On `.failure`, surface via `ToastCenter` (see `RootSplitView.swift:52`). Fallback: if `ToastCenter` is not reachable here, render an inline `lastBiometricError: String?` field below the row (the field lives on `SettingsModel`).
+    - **`.unavailable(let reason)`:** disabled `FormFieldRow(label: "Require Touch ID for reveal", infoText: "Touch ID is not available on this Mac: \(reasonText(reason)).")` with `Text("Unavailable")` as the value.
+  - Add a file-private helper `func reasonText(_ reason: BiometricUnavailableReason) -> String` mapping cases to short user-facing phrases.
+- DS-tokens only: `theme.colors.onSurfaceMuted`, `theme.typography.caption`, etc.
+
+**Tests:** covered in D.3 (model layer) + manual smoke documented in commit message.
+
+**Verification:**
+```sh
+xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+```
+
+**Branch:** `mvp6/d2-security-tab-gating`
+**Commit:** `feat(settings): SecurityTab biometric gating + failure toast (MVP6.D.2)`
+**Difficulty:** S
+**Risks:**
+- DS-token compliance — `SourceGrepTests` catches numeric opacity / literal colours.
+- `ToastCenter` availability — fall back to inline error if not present at this level.
+
+---
+
+### D.3 — `FakeBiometricAuthenticator` + 4 tests
+
+**Description:** Add a recordable fake conforming to `BiometricAuthenticating`. Cover the four corners of the toggle behaviour matrix.
+
+**Agent:** smart-worker
+
+**Files:**
+- ADD (or REUSE if it already exists) `KizbaTests/Fixtures/FakeBiometricAuthenticator.swift`:
+  ```swift
+  final class FakeBiometricAuthenticator: BiometricAuthenticating, @unchecked Sendable {
+      private let lock = NSLock()
+      private var _availability: BiometricAvailability
+      private var _authenticateResult: AuthenticationResult
+      private(set) var authenticateCalls: [String] = []
+      // setters / getters guarded by `lock`
+  }
+  ```
+- MOD `KizbaTests/SettingsModelTests.swift`:
+  - `testToggleBiometricOff_requiresAuth_successPersists`
+  - `testToggleBiometricOff_authCancelled_leavesEnabled`
+  - `testToggleBiometricOn_persistsWithoutAuth`
+  - `testBiometricAvailability_propagatesFromAuth`
 
 **Verification:**
 ```sh
@@ -119,126 +263,44 @@ xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=ma
 xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
 ```
 
-**Branch:** `mvp6/b2-save-state`
-**Commit:** `feat(settings): add dirty-tracking and async SaveState with flash feedback (MVP6.B.2)`
-**Difficulty:** M
-**Risks:**
-- Snapshot drift if a future field is added without updating `SettingsSnapshot`. Mitigation: `// MARK: keep in sync with SettingsModel fields` comment.
-- Async `save()` race: `hasChanges` guard + disabled binding prevent reentry; assert with a test.
-
----
-
-### B.3 — `TabView` split (General / Security / Git / Advanced)
-
-**Description:** Convert `SettingsView` into a thin host that owns the shared footer (Save / Reset / version) and embeds a `TabView` with four tabs. Each tab is its own file under `Tabs/`, takes `@Bindable var model: SettingsModel`, and renders the relevant `FormSection`s using existing DS components. Recents stays in **General**.
-
-**Agent:** smart-worker
-
-**Files:**
-- MOD `Kizba/Presentation/Features/Settings/SettingsView.swift`:
-  - Replace current `ScrollView { VStack { … } }` with:
-    ```
-    VStack(spacing: 0) {
-        TabView {
-            GeneralTab(model: model).tabItem { Label("General", systemImage: "gear") }
-            SecurityTab(model: model).tabItem { Label("Security", systemImage: "lock") }
-            GitTab(model: model).tabItem { Label("Git", systemImage: "arrow.triangle.branch") }
-            AdvancedTab(model: model).tabItem { Label("Advanced", systemImage: "slider.horizontal.3") }
-        }
-        SettingsFooter(model: model, version: …)
-    }
-    .frame(minWidth: 520)
-    ```
-  - Remove existing `.safeAreaInset(.bottom)` footer; move content into new `SettingsFooter` subview rendered once below `TabView`.
-- NEW `Kizba/Presentation/Features/Settings/Tabs/GeneralTab.swift` — Clipboard auto-clear delay, Show in menu bar, Show Recents toggle, Recents limit.
-- NEW `Kizba/Presentation/Features/Settings/Tabs/SecurityTab.swift` — Touch ID per-reveal toggle (verbatim move; Phase D will rework).
-- NEW `Kizba/Presentation/Features/Settings/Tabs/GitTab.swift` — Git timeout, Store path override.
-- NEW `Kizba/Presentation/Features/Settings/Tabs/AdvancedTab.swift` — pass / gpg / pinentry overrides + Re-detect button.
-- NEW (or inline in `SettingsView.swift`) `SettingsFooter` view with Save button, Reset button, save status text, app version.
-
-**Tests:**
-- If ViewInspector vendored: NEW smoke test in `KizbaTests/Presentation/Features/Settings/SettingsViewTests.swift` asserting four tab labels + footer renders Save + Reset once.
-- If not: skip UI structure tests; rely on B.2 model tests + manual smoke.
-
-**Verification:**
-```sh
-xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-```
-Manual smoke: four tabs visible with SF Symbols; switching tabs preserves state; footer Save/Reset/version visible across tabs; Recents lives under General.
-
-**Branch:** `mvp6/b3-settings-tabs`
-**Commit:** `refactor(settings): split SettingsView into TabView with shared footer (MVP6.B.3)`
-**Difficulty:** M
-**Risks:**
-- Window-sizing jitter when switching tabs of differing content height — set `minWidth: 520`, let SwiftUI manage height.
-- Hidden coupling on `.safeAreaInset` removal — verify no other view depends on it.
-
----
-
-### B.4 — `InfoTooltip` rollout in Settings
-
-**Description:** Replace inline `helpText` with `InfoTooltip` on key controls across tabs. Texts short, single-sentence, English literals.
-
-**Agent:** smart-worker
-
-**Files:**
-- MOD `Kizba/Presentation/Features/Settings/Tabs/GeneralTab.swift`:
-  - Clipboard auto-clear delay → `infoText: "Secrets copied to the clipboard are cleared automatically after this delay."`
-  - Show in menu bar → `infoText: "Show the Kizba icon in the macOS menu bar for quick access."`
-  - Show Recents in Sidebar → `infoText: "Display recently used password entries at the top of the sidebar."`
-  - Recents limit → `infoText: "How many recent entries to show in the sidebar (3–7)."`
-- MOD `Kizba/Presentation/Features/Settings/Tabs/SecurityTab.swift`:
-  - Touch ID → `infoText: "Require Touch ID authentication for every secret reveal."`
-- MOD `Kizba/Presentation/Features/Settings/Tabs/GitTab.swift`:
-  - Git timeout → `infoText: "Maximum seconds to wait for any git operation before aborting."`
-  - Store path → `infoText: "Override the default password-store location (~/.password-store)."`
-- MOD `Kizba/Presentation/Features/Settings/Tabs/AdvancedTab.swift`:
-  - pass override → `infoText: "Absolute path to the pass binary. Leave empty for auto-detection."`
-  - gpg override → `infoText: "Absolute path to the gpg binary. Leave empty for auto-detection."`
-  - pinentry override → `infoText: "Absolute path to the pinentry binary. Leave empty for auto-detection."`
-- For each affected row: pass `helpText: nil` (or remove the parameter) + `infoText:` + descriptive `infoAccessibilityLabel:`.
-
-**Tests:** none (UI strings only).
-
-**Verification:**
-```sh
-xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-rg -n 'infoText:' Kizba/Presentation/Features/Settings/Tabs   # expect ≥10
-```
-
-**Branch:** `mvp6/b4-info-tooltip-rollout`
-**Commit:** `feat(settings): adopt InfoTooltip across Settings tabs (MVP6.B.4)`
+**Branch:** `mvp6/d3-fake-biometric-tests`
+**Commit:** `test(settings): biometric toggle behaviour matrix (MVP6.D.3)`
 **Difficulty:** S
-**Risks:** tooltip text drift vs. behaviour — keep wording neutral and behavioural.
+**Risks:** none beyond standard test-fixture upkeep.
 
 ---
 
-## Acceptance criteria — Phase B
+## Acceptance criteria — Phase D + Phase G
 
-- [ ] `InfoTooltip` exists as a DS component, uses theme tokens only, has tests covering default-closed, accessibility label, toggle behaviour.
-- [ ] `FormFieldRow` accepts `infoText:` additively; existing call sites unchanged.
-- [ ] `SettingsModel.hasChanges` is `false` immediately after `load()` and after `save()` / `reset()`; becomes `true` on any editable mutation.
-- [ ] `SettingsModel.saveState` transitions `idle → saving → saved → idle` on a successful save, with the `.saved` flash duration injectable for tests.
-- [ ] Save button is disabled when `!hasChanges || saveState == .saving`.
-- [ ] `SettingsView` is a `TabView` with exactly four tabs (General / Security / Git / Advanced) and a single shared footer rendered once below the tabs.
-- [ ] Recents controls live under General tab.
-- [ ] At least the ten enumerated controls in B.4 use `InfoTooltip` instead of inline `helpText`.
-- [ ] Test suite remains green; no regressions from the 1019-test Phase A baseline.
-- [ ] DS grep guards remain green.
-- [ ] Touch ID behaviour unchanged (verbatim move into `SecurityTab`).
+- [ ] G.1: `showFavorites` toggle persists; Favorites section honours both the toggle and the disclosure state across launches.
+- [ ] G.2: Tapping a Recents or Favorites row opens the corresponding entry in the detail column; folder taps still select the folder.
+- [ ] G.3: No production code reads or writes the legacy `"kizba.recentEntries"` / `"kizba.favorites"` keys (only `StorageKeys.legacy*` declarations match the greps); Favorites survive the rename; Recents start empty after migration.
+- [ ] D.1: `SettingsModel` exposes `biometricAvailability` + `requestToggleBiometric(_:)`; enable persists without prompt, disable requires successful auth.
+- [ ] D.2: SecurityTab renders an `.unavailable` informational row when biometrics are missing; failure to disable surfaces through `ToastCenter` (or inline fallback).
+- [ ] D.3: Four new behaviour tests green; `FakeBiometricAuthenticator` records call counts.
+- [ ] Full suite green: ≥1045 tests (1039 baseline + ~6 from G.1 + ~6 from G.3 + ~4 from D.3, minus any subsumed cases), 0 failures.
+- [ ] Release build clean.
+- [ ] Grep bans clean.
 
-## Verification commands (Phase B final)
+## Verification commands (Phase D + Phase G final)
 
 ```sh
 xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
 xcodebuild build -scheme Kizba -project Kizba.xcodeproj -configuration Release -destination 'platform=macOS'
 rg -n '\bas!\b' Kizba/
 rg -n 'Logger.*stdin|print\(.*stdin' Kizba/ KizbaTests/
-rg -n 'safeAreaInset' Kizba/Presentation/Features/Settings
-rg -n 'infoText:' Kizba/Presentation/Features/Settings/Tabs
+rg -n '"kizba\.recentEntries"' Kizba/ KizbaTests/   # only StorageKeys.legacy* match
+rg -n '"kizba\.favorites"'      Kizba/ KizbaTests/  # only StorageKeys.legacy* match
+rg -n 'app\.kizba\.(recents|favorites)\.entries\.v1' Kizba/ KizbaTests/   # new keys
 ```
+
+## Open questions / assumptions
+
+- `ToastCenter` is reachable from the SecurityTab call stack (per `RootSplitView.swift:52`). If not — fall back to an inline `lastBiometricError: String?` on `SettingsModel` rendered below the row.
+- ViewInspector is NOT available in this project (consistent with B.3 / C.1). G.2 testability comes from extracting `applyEntrySelection(path:state:)`; the view body itself stays untested at the unit level.
+- `StorageKeys` lives in a dedicated file `Kizba/Infrastructure/Storage/StorageKeys.swift` rather than inline inside the two stores, so a future Phase H can extend it without re-opening either store.
+- `BiometricAvailability` and `BiometricUnavailableReason` already exist as part of `BiometricAuthenticating` (Phase B work). If not — D.1 must define them first; revisit the plan in that case.
 
 ## Suggested current step
 
-Run **smart-worker** on **Task B.1** — Implement `InfoTooltip` DS component and extend `FormFieldRow` with `infoText:`. Smallest isolated change; unblocks B.4 entirely; independent of B.2 model refactor and B.3 view split.
+Run **smart-worker** on **Task G.1** — additive, lowest risk, mirrors the proven Phase A pattern, and warms up the persistence / settings touch-points before the higher-risk G.2 (API change on `SidebarView.init`) and G.3 (persistence migration).
