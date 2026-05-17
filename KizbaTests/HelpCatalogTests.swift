@@ -126,6 +126,122 @@ final class HelpCatalogTests: XCTestCase {
         }
     }
 
+    // MARK: - Phase E setup topics — presence + shape
+
+    func testCatalog_containsSetupPassAndGPGTopic() {
+        XCTAssertNotNil(
+            HelpCatalog.all.first(where: { $0.id == "setup-pass-and-gpg" }),
+            "Catalog must contain the pass-store / GPG setup topic by id"
+        )
+    }
+
+    func testCatalog_containsSetupGitRemoteTopic() {
+        XCTAssertNotNil(
+            HelpCatalog.all.first(where: { $0.id == "setup-git-remote" }),
+            "Catalog must contain the git-remote setup topic by id"
+        )
+    }
+
+    func testCatalog_containsConfigurePinentryTopic() {
+        XCTAssertNotNil(
+            HelpCatalog.all.first(where: { $0.id == "configure-pinentry" }),
+            "Catalog must contain the pinentry-mac configuration topic by id"
+        )
+    }
+
+    func testSetupTopics_haveAccessors() {
+        XCTAssertEqual(HelpCatalog.setupPassAndGPG.id, "setup-pass-and-gpg")
+        XCTAssertEqual(HelpCatalog.setupGitRemote.id, "setup-git-remote")
+        XCTAssertEqual(HelpCatalog.configurePinentry.id, "configure-pinentry")
+    }
+
+    func testSetupTopics_haveExpectedSectionCount() {
+        // Each setup topic ships ~5 sections by design (4...6 acceptable).
+        for topic in [
+            HelpCatalog.setupPassAndGPG,
+            HelpCatalog.setupGitRemote,
+            HelpCatalog.configurePinentry,
+        ] {
+            XCTAssertTrue(
+                (4...6).contains(topic.sections.count),
+                "Topic \(topic.id) should ship 4-6 sections, got \(topic.sections.count)"
+            )
+        }
+    }
+
+    func testSetupTopics_containCommandAndWarningBlocks() {
+        // Setup topics must mix at least one command-style block
+        // (.command or .commandSequence) with at least one .warning
+        // so users get both actionable steps and explicit pitfalls.
+        for topic in [
+            HelpCatalog.setupPassAndGPG,
+            HelpCatalog.setupGitRemote,
+            HelpCatalog.configurePinentry,
+        ] {
+            let allBlocks = topic.sections.flatMap(\.body)
+            let hasCommand = allBlocks.contains { block in
+                switch block {
+                case .command, .commandSequence: return true
+                default: return false
+                }
+            }
+            let hasWarning = allBlocks.contains { block in
+                if case .warning = block { return true }
+                return false
+            }
+            XCTAssertTrue(hasCommand, "Topic \(topic.id) must contain at least one command block")
+            XCTAssertTrue(hasWarning, "Topic \(topic.id) must contain at least one warning block")
+        }
+    }
+
+    func testSetupTopics_blockIDsAreUniqueWithinTopic() {
+        for topic in [
+            HelpCatalog.setupPassAndGPG,
+            HelpCatalog.setupGitRemote,
+            HelpCatalog.configurePinentry,
+        ] {
+            let blockIDs = topic.sections.flatMap { $0.body.map(\.id) }
+            XCTAssertEqual(
+                Set(blockIDs).count,
+                blockIDs.count,
+                "Duplicate block ids inside topic \(topic.id): \(blockIDs)"
+            )
+        }
+    }
+
+    func testSetupTopics_everyCommandIsNonEmpty() {
+        for topic in [
+            HelpCatalog.setupPassAndGPG,
+            HelpCatalog.setupGitRemote,
+            HelpCatalog.configurePinentry,
+        ] {
+            for section in topic.sections {
+                for block in section.body {
+                    switch block {
+                    case let .command(_, _, command, _):
+                        XCTAssertFalse(
+                            command.isEmpty,
+                            "Empty command in \(section.id)"
+                        )
+                    case let .commandSequence(_, _, commands, _):
+                        XCTAssertFalse(
+                            commands.isEmpty,
+                            "Empty commandSequence in \(section.id)"
+                        )
+                        for line in commands {
+                            XCTAssertFalse(
+                                line.isEmpty,
+                                "Empty line in commandSequence in \(section.id)"
+                            )
+                        }
+                    default:
+                        break
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: - D1 anchor: discovery script uses `find`, not bash globstar
 
     /// The Section 6 discovery script must not regress to bash

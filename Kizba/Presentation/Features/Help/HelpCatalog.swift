@@ -20,8 +20,19 @@ public enum HelpCatalog {
 
     /// Every topic the Help window can display. Order mirrors the
     /// sidebar.
+    ///
+    /// IMPORTANT — append-only: new topics MUST be added at the end
+    /// of this array. Block / section identifiers are positional
+    /// (`"<topicID>/<sectionIndex>/<blockIndex>"`) and several tests
+    /// in `HelpCatalogTests` assume the existing ordering. Inserting
+    /// a topic in the middle is API-stable but rearranges nothing
+    /// observable — still, keep new topics at the bottom so future
+    /// readers can match accessors to sidebar order at a glance.
     public static let all: [HelpTopic] = [
-        Self.makeAEADMDCCompatibility()
+        Self.makeAEADMDCCompatibility(),
+        Self.makeSetupPassAndGPG(),
+        Self.makeSetupGitRemote(),
+        Self.makeConfigurePinentry(),
     ]
 
     /// First-class accessor for the AEAD/MDC compatibility topic so
@@ -37,6 +48,30 @@ public enum HelpCatalog {
             // catalog contains the topic, so this branch is
             // unreachable in well-formed builds.
             return Self.makeAEADMDCCompatibility()
+        }
+        return topic
+    }
+
+    /// First-class accessor for the pass-store / GPG bootstrap topic.
+    public static var setupPassAndGPG: HelpTopic {
+        guard let topic = all.first(where: { $0.id == "setup-pass-and-gpg" }) else {
+            return Self.makeSetupPassAndGPG()
+        }
+        return topic
+    }
+
+    /// First-class accessor for the git-remote sync topic.
+    public static var setupGitRemote: HelpTopic {
+        guard let topic = all.first(where: { $0.id == "setup-git-remote" }) else {
+            return Self.makeSetupGitRemote()
+        }
+        return topic
+    }
+
+    /// First-class accessor for the pinentry-mac configuration topic.
+    public static var configurePinentry: HelpTopic {
+        guard let topic = all.first(where: { $0.id == "configure-pinentry" }) else {
+            return Self.makeConfigurePinentry()
         }
         return topic
     }
@@ -206,6 +241,329 @@ public enum HelpCatalog {
             title: "Cross-client compatibility (AEAD vs MDC)",
             subtitle: "Why your iOS / Android client may silently fail to open Kizba entries — and how to fix it for good.",
             sections: [section1, section2, section3, section4, section5, section6, section7]
+        )
+    }
+
+    /// Build the pass-store / GPG bootstrap topic. Walks a first-time
+    /// user from a clean macOS box to a working `pass` install with
+    /// a usable GPG identity. Commands assume Homebrew is already
+    /// installed (the standard macOS dev baseline); a missing
+    /// Homebrew is out of scope for this topic.
+    private static func makeSetupPassAndGPG() -> HelpTopic {
+        let topicID = "setup-pass-and-gpg"
+
+        // Section 1 — Install via Homebrew
+        let section1 = makeSection(
+            topicID: topicID,
+            sectionIndex: 0,
+            heading: "Step 1 — Install via Homebrew",
+            blocks: [
+                .paragraph(
+                    text: "Kizba is a UI on top of the standard `pass` (passwordstore.org) and GnuPG toolchain — both must be installed locally. The single command below pulls in `pass` and a current GnuPG 2.x. If Homebrew itself isn't installed yet, grab it from brew.sh first."
+                ),
+                .commandSequence(
+                    label: "Install pass and GnuPG",
+                    commands: [
+                        "brew install pass gnupg",
+                    ],
+                    note: "Safe to re-run: Homebrew is a no-op when both formulae are already present."
+                ),
+            ]
+        )
+
+        // Section 2 — Generate a GPG key
+        let section2 = makeSection(
+            topicID: topicID,
+            sectionIndex: 1,
+            heading: "Step 2 — Generate a GPG key",
+            blocks: [
+                .paragraph(
+                    text: "`pass` encrypts every entry to a GPG public key, so you need one. The interactive wizard below asks for key type (choose `RSA and RSA`, 4096 bits), expiration (`0` = never is fine for personal use), and an identity (your name + email)."
+                ),
+                .command(
+                    label: "Generate a new key pair",
+                    command: "gpg --full-generate-key",
+                    note: "Pick RSA / 4096 bits / never expires for a no-fuss personal key. Set a passphrase you can actually remember."
+                ),
+                .warning(
+                    text: "The passphrase protects your private key. There is no recovery: lose it and every password you ever stored becomes unreadable. Back up your passphrase the way you'd back up a master password."
+                ),
+            ]
+        )
+
+        // Section 3 — Initialize the store
+        let section3 = makeSection(
+            topicID: topicID,
+            sectionIndex: 2,
+            heading: "Step 3 — Initialize the store",
+            blocks: [
+                .paragraph(
+                    text: "`pass init` creates `~/.password-store` and binds it to the GPG key you just generated. `<your-gpg-id>` is either the email you used in the wizard or the long key id."
+                ),
+                .command(
+                    label: "List your secret keys to find the id",
+                    command: "gpg --list-secret-keys --keyid-format LONG",
+                    note: "Look for the 16-character id after `sec  rsa4096/` — that's your key id. Your email also works."
+                ),
+                .command(
+                    label: "Initialise the store",
+                    command: "pass init <your-gpg-id>",
+                    note: "Replace `<your-gpg-id>` with the email or 16-character key id from the previous command."
+                ),
+            ]
+        )
+
+        // Section 4 — Verify it works
+        let section4 = makeSection(
+            topicID: topicID,
+            sectionIndex: 3,
+            heading: "Step 4 — Verify it works",
+            blocks: [
+                .paragraph(
+                    text: "Round-trip a throwaway entry to confirm the encrypt / decrypt path is wired up. `pass insert` will prompt for a value; `pass <path>` decrypts it. If both succeed, Kizba will too."
+                ),
+                .commandSequence(
+                    label: "Insert and read a test entry",
+                    commands: [
+                        "pass insert test/example",
+                        "pass test/example",
+                    ],
+                    note: "Delete it afterwards with `pass rm test/example` if you want a clean store."
+                ),
+            ]
+        )
+
+        // Section 5 — Troubleshooting
+        let section5 = makeSection(
+            topicID: topicID,
+            sectionIndex: 4,
+            heading: "Step 5 — Troubleshooting",
+            blocks: [
+                .warning(
+                    text: "If `pass init` reports `gpg: <id>: skipped: No public key` or `pass` returns `gpg: decryption failed: No secret key`, GnuPG can't find the key id you passed in. Run `gpg --list-secret-keys` to confirm the key exists and re-run `pass init` with the exact email or fingerprint shown there."
+                ),
+                .paragraph(
+                    text: "Reference docs: [passwordstore.org](https://www.passwordstore.org) for `pass` itself, [gnupg.org](https://www.gnupg.org/documentation) for GPG. If passphrase prompts never appear, see the separate `Configure pinentry-mac` Help topic."
+                ),
+            ]
+        )
+
+        return HelpTopic(
+            id: topicID,
+            title: "Install pass-store and GPG",
+            subtitle: "Bootstrap a working `pass` + GnuPG environment on macOS from a clean install.",
+            sections: [section1, section2, section3, section4, section5]
+        )
+    }
+
+    /// Build the git-remote sync topic. Assumes the user has already
+    /// completed the pass / GPG bootstrap topic — this one only
+    /// covers turning a local store into a multi-device store via
+    /// `pass git`.
+    private static func makeSetupGitRemote() -> HelpTopic {
+        let topicID = "setup-git-remote"
+
+        // Section 1 — Initialize git in your store
+        let section1 = makeSection(
+            topicID: topicID,
+            sectionIndex: 0,
+            heading: "Step 1 — Initialize git in your store",
+            blocks: [
+                .paragraph(
+                    text: "`pass git init` creates `~/.password-store/.git` and starts tracking your encrypted entries. Every later `pass insert`, `pass edit` and `pass rm` automatically commits — you do not need to run `git add` yourself."
+                ),
+                .command(
+                    label: "Turn the store into a git repository",
+                    command: "pass git init",
+                    note: "Safe to run on an existing store: it commits the current contents as the initial commit."
+                ),
+            ]
+        )
+
+        // Section 2 — Add a remote
+        let section2 = makeSection(
+            topicID: topicID,
+            sectionIndex: 1,
+            heading: "Step 2 — Add a remote",
+            blocks: [
+                .paragraph(
+                    text: "Use a private repository — your store contains encrypted secrets, but you still want zero exposure of metadata (entry paths). Private GitHub, private GitLab, Gitea, or any self-hosted git server all work; `pass git` is plain git underneath."
+                ),
+                .command(
+                    label: "Bind a remote called `origin`",
+                    command: "pass git remote add origin <your-repo-url>",
+                    note: "Replace `<your-repo-url>` with the SSH or HTTPS URL of your private repo, e.g. `git@github.com:you/password-store.git`."
+                ),
+            ]
+        )
+
+        // Section 3 — First push
+        let section3 = makeSection(
+            topicID: topicID,
+            sectionIndex: 2,
+            heading: "Step 3 — First push",
+            blocks: [
+                .command(
+                    label: "Push the local branch and set upstream",
+                    command: "pass git push -u origin main",
+                    note: "The `-u` flag binds the local branch to the remote so later `pass git push` / `pass git pull` work without arguments."
+                ),
+                .warning(
+                    text: "Some hosts (and older `git` installs) still default to `master` instead of `main`. Run `pass git branch` to see your local branch name and swap `main` for `master` in the push command if needed."
+                ),
+            ]
+        )
+
+        // Section 4 — Sync between devices
+        let section4 = makeSection(
+            topicID: topicID,
+            sectionIndex: 3,
+            heading: "Step 4 — Sync between devices",
+            blocks: [
+                .paragraph(
+                    text: "On every other machine, clone the same remote into `~/.password-store` (and import the same GPG key) — then the loop below keeps every device in step. Pull before you edit, push after."
+                ),
+                .commandSequence(
+                    label: "Pull, edit, push loop",
+                    commands: [
+                        "pass git pull --rebase",
+                        "# make changes via pass insert / pass edit / pass rm",
+                        "pass git push",
+                    ],
+                    note: "`--rebase` keeps the history linear so concurrent edits from different machines don't produce merge commits."
+                ),
+            ]
+        )
+
+        // Section 5 — Conflicts
+        let section5 = makeSection(
+            topicID: topicID,
+            sectionIndex: 4,
+            heading: "Step 5 — Conflicts",
+            blocks: [
+                .warning(
+                    text: "Git cannot 3-way-merge `.gpg` files: the ciphertext is opaque. If two machines edit the same entry between pulls, you must resolve manually — decrypt both sides with `gpg --decrypt`, merge the plaintext by hand, re-encrypt with `gpg --encrypt -r <your-gpg-id>`, then `pass git add <file>` and `pass git commit` to finish the rebase."
+                ),
+                .paragraph(
+                    text: "Easiest prevention: always run `pass git pull --rebase` before editing on a device you haven't touched in a while. Conflicts that do occur are rare and localised to single entries."
+                ),
+            ]
+        )
+
+        return HelpTopic(
+            id: topicID,
+            title: "Sync your store via Git",
+            subtitle: "Turn `~/.password-store` into a multi-device store using `pass git` and a private remote.",
+            sections: [section1, section2, section3, section4, section5]
+        )
+    }
+
+    /// Build the pinentry-mac configuration topic. Covers the
+    /// macOS-specific frontend that makes GPG passphrase prompts
+    /// appear as native dialogs instead of failing silently in
+    /// non-TTY contexts (which includes Kizba).
+    private static func makeConfigurePinentry() -> HelpTopic {
+        let topicID = "configure-pinentry"
+
+        // Section 1 — Install pinentry-mac
+        let section1 = makeSection(
+            topicID: topicID,
+            sectionIndex: 0,
+            heading: "Step 1 — Install pinentry-mac",
+            blocks: [
+                .paragraph(
+                    text: "`pinentry-mac` is a native macOS dialog that GnuPG calls whenever it needs your key passphrase. Without it, GPG falls back to a terminal prompt — which never appears when Kizba (or any other GUI app) invokes GPG, so decryption silently fails."
+                ),
+                .command(
+                    label: "Install via Homebrew",
+                    command: "brew install pinentry-mac",
+                    note: nil
+                ),
+            ]
+        )
+
+        // Section 2 — Find the binary path
+        let section2 = makeSection(
+            topicID: topicID,
+            sectionIndex: 1,
+            heading: "Step 2 — Find the binary path",
+            blocks: [
+                .paragraph(
+                    text: "GnuPG needs the absolute path to the pinentry binary. The location depends on your Mac's architecture: Apple Silicon (M1+) installs to `/opt/homebrew/bin/pinentry-mac`, Intel to `/usr/local/bin/pinentry-mac`."
+                ),
+                .command(
+                    label: "Print the resolved path",
+                    command: "which pinentry-mac",
+                    note: "Copy the output verbatim — you will paste it into the agent config in the next step."
+                ),
+                .warning(
+                    text: "Do not guess the path or copy it from another machine. Apple Silicon and Intel diverge, and passing the wrong path makes the agent fail with `Invalid value passed to PIN` on every prompt."
+                ),
+            ]
+        )
+
+        // Section 3 — Configure gpg-agent
+        let section3 = makeSection(
+            topicID: topicID,
+            sectionIndex: 2,
+            heading: "Step 3 — Configure gpg-agent",
+            blocks: [
+                .paragraph(
+                    text: "Append a `pinentry-program` line to `~/.gnupg/gpg-agent.conf` pointing at the path you just discovered. The snippet below uses the Apple Silicon path — substitute the Intel path (`/usr/local/bin/pinentry-mac`) if `which` printed that instead."
+                ),
+                .commandSequence(
+                    label: "Write the agent config (Apple Silicon path)",
+                    commands: [
+                        "mkdir -p ~/.gnupg",
+                        "echo 'pinentry-program /opt/homebrew/bin/pinentry-mac' >> ~/.gnupg/gpg-agent.conf",
+                    ],
+                    note: "On Intel Macs, replace the path with `/usr/local/bin/pinentry-mac` before running the second line."
+                ),
+                .warning(
+                    text: "If the file already contains a `pinentry-program` line for a different binary, edit `~/.gnupg/gpg-agent.conf` by hand instead of appending — two lines will leave whichever appears last in effect, which is rarely what you want."
+                ),
+            ]
+        )
+
+        // Section 4 — Restart the agent
+        let section4 = makeSection(
+            topicID: topicID,
+            sectionIndex: 3,
+            heading: "Step 4 — Restart the agent",
+            blocks: [
+                .paragraph(
+                    text: "`gpg-agent` reads its config once at startup, so it must be restarted to pick up the new pinentry. `gpgconf --kill` is safe: the agent relaunches on the next GPG call with the updated config."
+                ),
+                .command(
+                    label: "Stop the running agent",
+                    command: "gpgconf --kill gpg-agent",
+                    note: nil
+                ),
+            ]
+        )
+
+        // Section 5 — Smoke test
+        let section5 = makeSection(
+            topicID: topicID,
+            sectionIndex: 4,
+            heading: "Step 5 — Smoke test",
+            blocks: [
+                .paragraph(
+                    text: "Sign a throwaway string to force a passphrase prompt. A native pinentry-mac dialog should appear — that confirms Kizba will also see the dialog when it next decrypts an entry."
+                ),
+                .command(
+                    label: "Sign test input",
+                    command: "echo \"test\" | gpg --clearsign",
+                    note: "If a terminal prompt appears instead (or nothing happens), recheck the path in `~/.gnupg/gpg-agent.conf` and re-run Step 4."
+                ),
+            ]
+        )
+
+        return HelpTopic(
+            id: topicID,
+            title: "Configure pinentry-mac",
+            subtitle: "Make GPG passphrase prompts appear as native macOS dialogs so Kizba can decrypt entries.",
+            sections: [section1, section2, section3, section4, section5]
         )
     }
 
