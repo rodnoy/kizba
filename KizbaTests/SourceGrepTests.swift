@@ -161,6 +161,46 @@ final class SourceGrepTests: XCTestCase {
         XCTAssertFalse((PassSecret.self as Any) is CustomDebugStringConvertible.Type)
     }
 
+    /// (5b) `SearchResult` must not gain `Codable`/`Encodable`/`Decodable`
+    /// or `CustomStringConvertible`/`CustomDebugStringConvertible`
+    /// conformances. Mirrors the `PassSecret` discipline: search hits
+    /// carry sensitive metadata (entry paths) and must never be serialised
+    /// to disk/network nor reach logs via implicit string interpolation.
+    /// See `.ai/decisions.md`.
+    func testNoCodableOrCustomStringConvertible_onSearchResult() throws {
+        let kizbaRoot = Self.repoRoot.appendingPathComponent("Kizba", isDirectory: true)
+        let pattern = #"(?:struct|extension)\s+SearchResult\b[^:{]*:\s*([^{]*?\b(?:Codable|Encodable|Decodable|CustomStringConvertible|CustomDebugStringConvertible)\b[^{]*)"#
+        let regex = try NSRegularExpression(pattern: pattern, options: [])
+
+        var hits: [String] = []
+        let files = try Self.swiftFiles(under: kizbaRoot)
+        for url in files {
+            let contents = try String(contentsOf: url, encoding: .utf8)
+            let nsRange = NSRange(contents.startIndex..., in: contents)
+            regex.enumerateMatches(in: contents, options: [], range: nsRange) { match, _, _ in
+                guard let match else { return }
+                let lineNumber = Self.lineNumber(of: match.range.location, in: contents)
+                let snippet = (contents as NSString).substring(with: match.range)
+                hits.append("\(url.path):\(lineNumber): \(snippet)")
+            }
+        }
+
+        if !hits.isEmpty {
+            XCTFail(
+                "SearchResult must NOT conform to Codable/Encodable/Decodable/"
+                + "CustomStringConvertible/CustomDebugStringConvertible. "
+                + "See .ai/decisions.md. Offending declarations:\n"
+                + hits.joined(separator: "\n")
+            )
+        }
+
+        // Runtime checks complement the regex scan.
+        XCTAssertFalse((SearchResult.self as Any) is Encodable.Type)
+        XCTAssertFalse((SearchResult.self as Any) is Decodable.Type)
+        XCTAssertFalse((SearchResult.self as Any) is CustomStringConvertible.Type)
+        XCTAssertFalse((SearchResult.self as Any) is CustomDebugStringConvertible.Type)
+    }
+
     func testGitDomainTypesNonConformances() throws {
         let kizbaRoot = Self.repoRoot.appendingPathComponent("Kizba", isDirectory: true)
         let pattern = #"(?:struct|extension)\s+GitStatus\b[^:{]*:\s*([^{]*?\b(?:Codable|Encodable|Decodable|CustomStringConvertible|CustomDebugStringConvertible)\b[^{]*)"#
