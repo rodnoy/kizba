@@ -12,7 +12,7 @@ MVP5 Phase C — IN_PROGRESS.
 
 ## Next action
 
-Phase D is IN_PROGRESS. Run smart-worker to implement D.2 (MenuBarModel + MenuBarPopoverView).
+Phase D is IN_PROGRESS. Run smart-worker to implement D.3 (Settings toggle).
 
 ### Note
 
