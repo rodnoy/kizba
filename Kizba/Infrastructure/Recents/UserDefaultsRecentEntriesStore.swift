@@ -15,16 +15,17 @@ public actor UserDefaultsRecentEntriesStore: RecentEntriesStoring {
         let clamped = Self.clamp(maxCount)
         self.maxCount = clamped
 
-        if let stored = defaults.array(forKey: StorageKeys.recentsEntriesV1) as? [String] {
+        if let stored = defaults.array(forKey: StorageKeys.recentsEntriesV2) as? [String] {
             self.paths = Self.normalized(stored, maxCount: clamped)
         } else {
             self.paths = []
         }
 
-        // G.3: best-effort cleanup of legacy un-namespaced key.
-        // No value migration — Recents is auto-collected; safer to drop polluted DEBUG fixture data
-        // than to risk promoting it to production.
+        // H.1: schema bump v1 → v2 to discard fixture pollution from earlier DEBUG builds
+        // that shared UserDefaults.standard with Release. No value migration — Recents is
+        // auto-collected; fresh start prevents fixture promotion across schema versions.
         defaults.removeObject(forKey: StorageKeys.legacyRecentsEntries)
+        defaults.removeObject(forKey: StorageKeys.legacyRecentsEntriesV1)
     }
 
     public func record(_ path: String) async {
@@ -79,7 +80,7 @@ public actor UserDefaultsRecentEntriesStore: RecentEntriesStoring {
     }
 
     private func persistPaths() {
-        defaults.set(paths, forKey: StorageKeys.recentsEntriesV1)
+        defaults.set(paths, forKey: StorageKeys.recentsEntriesV2)
     }
 
     private func emitChange() {

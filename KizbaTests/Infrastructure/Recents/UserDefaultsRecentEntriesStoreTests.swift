@@ -229,13 +229,13 @@ final class UserDefaultsRecentEntriesStoreTests: XCTestCase {
         XCTAssertEqual(emitted, 0, "setMaxCount must be a no-op when the clamped value is unchanged")
     }
 
-    // MARK: - MVP6.G.3 — namespaced storage key + legacy cleanup
+    // MARK: - MVP6.G.3 / H.1 — namespaced storage key + legacy cleanup
 
     func testInit_readsFromNewNamespacedKey() async {
         let (suiteName, defaults) = makeIsolatedDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
-        defaults.set(["a", "b"], forKey: StorageKeys.recentsEntriesV1)
+        defaults.set(["a", "b"], forKey: StorageKeys.recentsEntriesV2)
 
         let store = UserDefaultsRecentEntriesStore(defaults: defaults)
         let paths = await store.recentPaths()
@@ -267,13 +267,52 @@ final class UserDefaultsRecentEntriesStoreTests: XCTestCase {
         await store.record("x")
 
         XCTAssertEqual(
-            defaults.array(forKey: StorageKeys.recentsEntriesV1) as? [String],
+            defaults.array(forKey: StorageKeys.recentsEntriesV2) as? [String],
             ["x"]
         )
         XCTAssertNil(
             defaults.object(forKey: StorageKeys.legacyRecentsEntries),
-            "record() must never write to the legacy key"
+            "record() must never write to the bare legacy key"
         )
+        XCTAssertNil(
+            defaults.object(forKey: StorageKeys.legacyRecentsEntriesV1),
+            "record() must never write to the legacy .v1 key"
+        )
+    }
+
+    // MARK: - MVP6.H.1 — fixture-leak hotfix (v1 → v2 schema bump)
+
+    func testInit_ignoresLegacyV1Key_andRemovesIt() async {
+        let (suiteName, defaults) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        // Seed the polluted .v1 slot (the actual MVP6.H.1 fixture-leak vector —
+        // DEBUG MockPassManager wrote fixture paths here before G.3 even shipped).
+        defaults.set(["fixture/old/path"], forKey: StorageKeys.legacyRecentsEntriesV1)
+
+        let store = UserDefaultsRecentEntriesStore(defaults: defaults)
+        let paths = await store.recentPaths()
+
+        XCTAssertTrue(paths.isEmpty, "Legacy .v1 fixtures must not migrate to .v2")
+        XCTAssertNil(
+            defaults.object(forKey: StorageKeys.legacyRecentsEntriesV1),
+            "Legacy .v1 key must be removed on init"
+        )
+    }
+
+    func testInit_ignoresBothLegacyKeys() async {
+        let (suiteName, defaults) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(["bare/legacy"], forKey: StorageKeys.legacyRecentsEntries)
+        defaults.set(["v1/fixture"], forKey: StorageKeys.legacyRecentsEntriesV1)
+
+        let store = UserDefaultsRecentEntriesStore(defaults: defaults)
+        let paths = await store.recentPaths()
+
+        XCTAssertTrue(paths.isEmpty, "Neither legacy key may seed .v2")
+        XCTAssertNil(defaults.object(forKey: StorageKeys.legacyRecentsEntries))
+        XCTAssertNil(defaults.object(forKey: StorageKeys.legacyRecentsEntriesV1))
     }
 
     private actor EventCounter {
