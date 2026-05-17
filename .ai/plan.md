@@ -1,203 +1,244 @@
-# MVP6 Phase A — Recents settings + fold/unfold
+# MVP6 — Phase B: Settings Tabs + Save Feedback + InfoTooltip
 
-## Status of prior milestone
+## Status of prior phase
 
-- MVP5 shipped: Search ⌘K + Favorites + Recents + Menu-bar + Polish.
-- Suite: 1000 tests, 0 failures. Release build clean. Grep bans clean.
+Phase A (Recents in Sidebar) — DONE. 4 commits landed on `main`. Test suite: 1019 tests, 0 failures. `SettingsModel.init` extended with `recentStore:`. Recents section appended to current `SettingsView` (ScrollView + VStack of `FormSection`s). `HelpModel.copiedBlockID` + `flashResetTask` established the 1500ms flash-feedback pattern that Phase B mirrors for Save state.
 
-## Goal Phase A
+## Goal
 
-Give the user control over the Recents sidebar section: hide/show entirely, set the cap (range 3–7, default 7), collapse the section in place. Replace the hard-coded `maxCount = 20` default in stores with a settings-driven default.
+Restructure Settings UX:
+1. Introduce a reusable `InfoTooltip` DS component (greenfield — no `info.circle` popover exists yet).
+2. Add dirty-tracking + Save state machine (`idle → saving → saved → idle`) to `SettingsModel`, with the Save button disabled when there are no changes.
+3. Split the current monolithic Settings scroll into a `TabView` (General / Security / Git / Advanced) with a shared footer (Save / Reset / version) outside the tabs.
+4. Roll out `InfoTooltip` to the key Settings controls, replacing inline `helpText` on those rows.
 
-## Constraints (durable)
+No behavioural changes to persistence, keychain, discovery, or recents. Touch ID is left as-is (full rework is Phase D).
 
-- Swift 5.10, macOS 14, `SWIFT_STRICT_CONCURRENCY = complete`.
-- No `as!`. No `Logger.*stdin|print\(.*stdin` patterns.
-- No third-party dependencies.
-- English in code, comments, commits, docs.
-- `@Observable` + manual DI via initializers; actor-based stores.
-- Design-system tokens in `Kizba/Presentation/Features/**` (no inline `Color.<name>`, numeric `cornerRadius`, numeric `.opacity()`).
-- `SourceGrepTests` must remain green.
+## Constraints
 
-## Open decision (locked in A.1)
+- Swift 5.10, macOS 14, strict concurrency complete. `SettingsModel` stays `@MainActor @Observable`.
+- DS-only styling: tokens from `theme.typography.*` / `theme.spacing.*` / `theme.colors.*` / `theme.radius.*`. No inline `Color.<name>`, numeric `cornerRadius:`, numeric `.opacity(0.x)` in `Kizba/Presentation/Features/**` outside DesignSystem.
+- No new third-party deps. No localization layer — UI strings remain English literals.
+- Existing `FormFieldRow` / `FormSection` APIs stay backwards-compatible (additive parameters only).
+- Footer (Save / Reset + version) appears once, outside the `TabView`.
+- Save flash duration injectable for tests (`savedFlashDuration: Duration = .milliseconds(1500)`).
+- SourceGrepTests must stay green.
 
-- `recentsLimit` range = `3...7`, default = `7`.
-- Previous hard-coded cap of 20 in stores is removed; default flows from `SettingsKeys.defaultRecentsLimit`.
+## Open decisions
+
+- **ViewInspector availability** — check before B.3 tests; if vendored, add 4-tab smoke test; otherwise skip and rely on manual smoke.
+- **Snapshot equality of binary-override `String?`** — treat `nil` and `""` as distinct (matches current persistence). Document in the snapshot struct.
+- **`Reset` semantics** — Reset writes defaults via persistence and then rebuilds `initialSnapshot` (or calls `load()`) so `hasChanges == false` afterwards.
+- **Tab order** — General / Security / Git / Advanced (matches user-facing frequency).
 
 ---
 
 ## Tasks
 
-### A.1 — SettingsKeys + default migration
+### B.1 — `InfoTooltip` DS component + `FormFieldRow` integration
 
-**Description:** Add two new settings keys and a single source of truth for the recents default; remove `20` literals from store constructors.
+**Description:** Add a reusable popover-based info tooltip and wire it into `FormFieldRow` via an additive `infoText:` parameter. When `infoText` is provided, render the `InfoTooltip` after the label and suppress the inline `helpText` for that row.
 
 **Agent:** smart-worker
 
-**Files to modify:**
-- `Kizba/Infrastructure/Settings/SettingsKeys.swift`:
-  - `static let showRecents = "kizba.settings.showRecents"`  (Bool, default `true`).
-  - `static let recentsLimit = "kizba.settings.recentsLimit"` (Int, default `7`, bounds `3...7`).
-  - `static let defaultRecentsLimit: Int = 7`.
-- `Kizba/Domain/Protocols/SettingsStoring.swift` — add typed accessors for both keys.
-- `Kizba/Infrastructure/Settings/UserDefaultsSettingsStore.swift`:
-  - Implement get/set with `max(3, min(7, value))` clamp on write for `recentsLimit`.
-  - Provide defaulted reads (`true` for `showRecents`, `defaultRecentsLimit` for `recentsLimit`).
+**Files:**
+- NEW `Kizba/Presentation/DesignSystem/Components/InfoTooltip.swift`:
+  - `struct InfoTooltip: View`
+  - `init(text: String, accessibilityLabel: String, title: String? = nil)`
+  - `@State private var isOpen = false`
+  - Button with SF Symbol `info.circle` (DS-styled, `.buttonStyle(.plain)`, `.help(accessibilityLabel)`).
+  - `.popover(isPresented: $isOpen, arrowEdge: .top) { ... }` body: optional bold `title` then `Text(text)` with `theme.typography.caption`, padded with `theme.spacing.*`, max width ~280pt.
+  - `.accessibilityLabel(accessibilityLabel)` on the button.
+- MOD `Kizba/Presentation/DesignSystem/Components/FormFieldRow.swift`:
+  - Add `infoText: String?` (default `nil`) and optional `infoAccessibilityLabel: String?` to existing initializers.
+  - When `infoText != nil`, render `InfoTooltip` next to the label and skip rendering `helpText`.
 
 **Tests:**
-- `KizbaTests/Settings/SettingsKeysTests.swift`:
-  - `testDefaults_present`
-  - `testRecentsLimit_clampLow` (2 → 3)
-  - `testRecentsLimit_clampHigh` (99 → 7)
-- `KizbaTests/Settings/UserDefaultsSettingsStoreTests.swift`:
-  - `testShowRecents_roundTrip`
-  - `testRecentsLimit_roundTrip`
+- NEW `KizbaTests/Presentation/DesignSystem/InfoTooltipTests.swift`:
+  - `testInfoTooltip_defaultsToClosed`
+  - `testInfoTooltip_accessibilityLabelIsSet`
+  - `testInfoTooltip_togglesOpenOnTap` (via bound state harness or `@State` inspection)
+- Optional: extend `FormFieldRow` structure test if one exists to assert `helpText` is suppressed when `infoText` is set.
 
 **Verification:**
 ```sh
 xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
-  -only-testing:KizbaTests/Settings/SettingsKeysTests \
-  -only-testing:KizbaTests/Settings/UserDefaultsSettingsStoreTests
-rg -n '\bmaxCount\s*=\s*20\b' Kizba/Infrastructure/Recents/
-rg -n '\bas!\b' Kizba/
-rg -n 'Logger.*stdin|print\(.*stdin' Kizba/ KizbaTests/
+  -only-testing:KizbaTests/InfoTooltipTests
+xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+rg -n 'Color\.\w+|cornerRadius:\s*\d+|\.opacity\(0\.\d+\)' Kizba/Presentation/DesignSystem/Components/InfoTooltip.swift
 ```
 
-**Branch:** `mvp6/a1-settings-keys-recents`
-**Commit:** `feat(settings): add showRecents + recentsLimit keys with clamp (MVP6.A.1)`
-**Difficulty:** low
-**Risks:** Hidden `20` literals elsewhere — grep before/after; if found, flag for A.2 instead of inline-fixing here.
+**Branch:** `mvp6/b1-info-tooltip`
+**Commit:** `feat(ds): add InfoTooltip component and FormFieldRow.infoText integration (MVP6.B.1)`
+**Difficulty:** S
+**Risks:** popover clipping inside `Form`/`TabView`. Mitigation: `.popover(attachmentAnchor: .point(.center), arrowEdge: .top)`.
 
 ---
 
-### A.2 — Recents store: actor mutator + default replacement
+### B.2 — `SettingsModel` dirty-tracking + `SaveState`
 
-**Description:** Replace `let maxCount` with mutable actor state; add `setMaxCount(_:)`; apply to production and DEBUG stores; emit a single `changes` event after persistence.
+**Description:** Introduce a `SettingsSnapshot` value type capturing all editable fields, capture an `initialSnapshot` on `load()`, expose `var hasChanges: Bool`, and convert `save()` into an async method that drives a `SaveState` machine (`idle → saving → saved → idle`) with an injectable flash duration. `Reset` rebuilds the snapshot so `hasChanges` returns to `false`.
 
 **Agent:** smart-worker
 
-**Files to modify:**
-- `Kizba/Domain/Protocols/RecentEntriesStoring.swift` — add `func setMaxCount(_ newValue: Int) async`.
-- `Kizba/Infrastructure/Recents/UserDefaultsRecentEntriesStore.swift`:
-  - `let maxCount` → `var maxCount`.
-  - Default-initialised constructor reads `SettingsKeys.defaultRecentsLimit`.
-  - `setMaxCount(_:)` clamps `3...7`, truncates `entries` to the new cap, persists, then yields exactly one `changes` event.
-- `Kizba/Infrastructure/Recents/InMemoryRecentEntriesStore.swift` (`#if DEBUG`) — mirror behaviour; same `setMaxCount` semantics.
+**Files:**
+- MOD `Kizba/Presentation/Features/Settings/SettingsModel.swift`:
+  - `private struct SettingsSnapshot: Equatable` containing every editable field currently in `SettingsModel` (clipboardClearDelaySeconds, touchIDPerRevealEnabled, gitOperationTimeoutSeconds, showInMenuBar, showRecents, recentsLimit, storePathOverride, passBinaryOverride, gpgBinaryOverride, pinentryBinaryOverride). Exclude transient fields (`isDetectingBinaries`, `saveState`).
+  - `enum SaveState: Equatable { case idle, saving, saved }`.
+  - `var saveState: SaveState = .idle`.
+  - `private var initialSnapshot: SettingsSnapshot` rebuilt on `load()` and after successful `save()` / `reset()`.
+  - `var hasChanges: Bool { currentSnapshot != initialSnapshot }`.
+  - `private var currentSnapshot: SettingsSnapshot { ... }`.
+  - Convert `func save()` → `func save() async`:
+    1. Guard `hasChanges`; else return.
+    2. `saveState = .saving`.
+    3. Perform existing persistence work (including dispatch to `recentStore.setMaxCount`).
+    4. Rebuild `initialSnapshot`.
+    5. `saveState = .saved`.
+    6. `try? await Task.sleep(for: savedFlashDuration)`; if still `.saved` → `.idle`.
+  - Add init parameter `savedFlashDuration: Duration = .milliseconds(1500)`.
+  - Ensure `reset()` rebuilds `initialSnapshot` so `hasChanges == false` afterwards.
+- MOD `Kizba/Presentation/Features/Settings/SettingsView.swift` (light touch only — full split in B.3):
+  - Save button: `disabled(!model.hasChanges || model.saveState == .saving)`.
+  - Adjacent inline status mirroring `saveState` (`"Saving…"` / `"Saved"`) using DS typography; hidden when `.idle`.
+  - Save action becomes `await model.save()` (wrap in `Task { ... }` if Button can't be async directly).
 
 **Tests:**
-- `KizbaTests/Recents/RecentEntriesStoreTests.swift` (extend existing):
-  - `testSetMaxCount_truncatesAndEmitsOnce`
-  - `testSetMaxCount_clampsLow` and `_clampsHigh`
-  - `testInit_usesDefaultFromSettingsKey`
-- Optional: assertion in `KizbaTests/SourceGrepTests.swift` that `InMemoryRecentEntriesStore` is only referenced inside `#if DEBUG` blocks (Release build cannot accidentally bind it).
+- MOD `KizbaTests/Presentation/Features/Settings/SettingsModelTests.swift`:
+  - `testHasChanges_isFalseAfterLoad`
+  - `testHasChanges_becomesTrueAfterMutation_andFalseAfterSave`
+  - `testSaveState_transitions_idle_saving_saved_idle` (use `savedFlashDuration: .milliseconds(10)`)
+  - `testSave_isNoopWhenNoChanges` (state stays `.idle`)
+  - `testReset_clearsHasChanges`
+  - `testSnapshot_treatsNilAndEmptyOverrideAsDifferent`
 
 **Verification:**
 ```sh
 xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
-  -only-testing:KizbaTests/Recents/RecentEntriesStoreTests
-xcodebuild build -scheme Kizba -project Kizba.xcodeproj -configuration Release -destination 'platform=macOS'
+  -only-testing:KizbaTests/SettingsModelTests
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
 ```
 
-**Branch:** `mvp6/a2-recents-store-mutator`
-**Commit:** `refactor(recents): mutable maxCount + setMaxCount actor API (MVP6.A.2)`
-**Difficulty:** medium
+**Branch:** `mvp6/b2-save-state`
+**Commit:** `feat(settings): add dirty-tracking and async SaveState with flash feedback (MVP6.B.2)`
+**Difficulty:** M
 **Risks:**
-- Emit-before-persist would leak stale data to observers — persist first, then yield.
-- Strict-concurrency: ensure the protocol method is `async` (not `async throws` unless needed) and the actor isolation is preserved through generic constraints (`any RecentEntriesStoring`).
+- Snapshot drift if a future field is added without updating `SettingsSnapshot`. Mitigation: `// MARK: keep in sync with SettingsModel fields` comment.
+- Async `save()` race: `hasChanges` guard + disabled binding prevent reentry; assert with a test.
 
 ---
 
-### A.3 — Sidebar: DisclosureGroup + showRecents gating
+### B.3 — `TabView` split (General / Security / Git / Advanced)
 
-**Description:** Wrap the Recents section in a `DisclosureGroup`, persist expansion via `@AppStorage`, and elide the section entirely when `showRecents == false`.
+**Description:** Convert `SettingsView` into a thin host that owns the shared footer (Save / Reset / version) and embeds a `TabView` with four tabs. Each tab is its own file under `Tabs/`, takes `@Bindable var model: SettingsModel`, and renders the relevant `FormSection`s using existing DS components. Recents stays in **General**.
 
 **Agent:** smart-worker
 
-**Files to modify:**
-- `Kizba/Presentation/Features/Sidebar/SidebarView.swift`:
-  - `@AppStorage("kizba.settings.showRecents") private var showRecents: Bool = true`
-  - `@AppStorage("kizba.sidebar.recentsExpanded") private var recentsExpanded: Bool = true`
-  - Wrap Recents in `if showRecents { DisclosureGroup(isExpanded: $recentsExpanded) { ... } label: { ... } }`, styled with DS tokens.
-- If `SidebarView` becomes cluttered, extract `SidebarRecentsSection.swift` under the same folder.
+**Files:**
+- MOD `Kizba/Presentation/Features/Settings/SettingsView.swift`:
+  - Replace current `ScrollView { VStack { … } }` with:
+    ```
+    VStack(spacing: 0) {
+        TabView {
+            GeneralTab(model: model).tabItem { Label("General", systemImage: "gear") }
+            SecurityTab(model: model).tabItem { Label("Security", systemImage: "lock") }
+            GitTab(model: model).tabItem { Label("Git", systemImage: "arrow.triangle.branch") }
+            AdvancedTab(model: model).tabItem { Label("Advanced", systemImage: "slider.horizontal.3") }
+        }
+        SettingsFooter(model: model, version: …)
+    }
+    .frame(minWidth: 520)
+    ```
+  - Remove existing `.safeAreaInset(.bottom)` footer; move content into new `SettingsFooter` subview rendered once below `TabView`.
+- NEW `Kizba/Presentation/Features/Settings/Tabs/GeneralTab.swift` — Clipboard auto-clear delay, Show in menu bar, Show Recents toggle, Recents limit.
+- NEW `Kizba/Presentation/Features/Settings/Tabs/SecurityTab.swift` — Touch ID per-reveal toggle (verbatim move; Phase D will rework).
+- NEW `Kizba/Presentation/Features/Settings/Tabs/GitTab.swift` — Git timeout, Store path override.
+- NEW `Kizba/Presentation/Features/Settings/Tabs/AdvancedTab.swift` — pass / gpg / pinentry overrides + Re-detect button.
+- NEW (or inline in `SettingsView.swift`) `SettingsFooter` view with Save button, Reset button, save status text, app version.
 
 **Tests:**
-- `KizbaTests/Sidebar/RecentsModelTests.swift`:
-  - `testCappedListReflectsSetMaxCount` — drive the model via a fake `RecentEntriesStoring`, call `setMaxCount(4)`, expect 4 items.
-- If a sidebar-presentation helper exists, add `testRecentsSectionHiddenWhenShowRecentsFalse`. Otherwise mark as visual-smoke and rely on Phase F sequoia-smoke entry.
+- If ViewInspector vendored: NEW smoke test in `KizbaTests/Presentation/Features/Settings/SettingsViewTests.swift` asserting four tab labels + footer renders Save + Reset once.
+- If not: skip UI structure tests; rely on B.2 model tests + manual smoke.
 
 **Verification:**
 ```sh
-xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
-  -only-testing:KizbaTests/Sidebar
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
 xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
 ```
+Manual smoke: four tabs visible with SF Symbols; switching tabs preserves state; footer Save/Reset/version visible across tabs; Recents lives under General.
 
-**Branch:** `mvp6/a3-sidebar-recents-disclosure`
-**Commit:** `feat(sidebar): collapsible Recents section + showRecents gate (MVP6.A.3)`
-**Difficulty:** low
-**Risks:** `DisclosureGroup` chevron uses system colours by default — confirm DS grep tests still pass; if the chevron tinting needs override, do it via a DS modifier rather than inline `Color`.
+**Branch:** `mvp6/b3-settings-tabs`
+**Commit:** `refactor(settings): split SettingsView into TabView with shared footer (MVP6.B.3)`
+**Difficulty:** M
+**Risks:**
+- Window-sizing jitter when switching tabs of differing content height — set `minWidth: 520`, let SwiftUI manage height.
+- Hidden coupling on `.safeAreaInset` removal — verify no other view depends on it.
 
 ---
 
-### A.4 — SettingsView wiring (pre-tabs)
+### B.4 — `InfoTooltip` rollout in Settings
 
-**Description:** Surface `showRecents` Toggle and `recentsLimit` Stepper in `SettingsView`; on Save, propagate the new limit to the actor store. This lands inside the current pre-tabs Settings layout; Phase B.3 will move it into `GeneralTab`.
+**Description:** Replace inline `helpText` with `InfoTooltip` on key controls across tabs. Texts short, single-sentence, English literals.
 
 **Agent:** smart-worker
 
-**Files to modify:**
-- `Kizba/Presentation/Features/Settings/SettingsModel.swift`:
-  - Add `var showRecents: Bool`, `var recentsLimit: Int`.
-  - Load both in `load()` via the injected `SettingsStoring`.
-  - In `save()`: persist both, then `Task { await environment.recentStore.setMaxCount(self.recentsLimit) }`.
-- `Kizba/Presentation/Features/Settings/SettingsView.swift`:
-  - New `FormSection("Recents")` containing:
-    - `Toggle("Show Recents in Sidebar", isOn: $model.showRecents)`
-    - `Stepper("Recents limit: \(model.recentsLimit)", value: $model.recentsLimit, in: 3...7)`
-  - Wire both via DS components (`FormFieldRow` where appropriate).
+**Files:**
+- MOD `Kizba/Presentation/Features/Settings/Tabs/GeneralTab.swift`:
+  - Clipboard auto-clear delay → `infoText: "Secrets copied to the clipboard are cleared automatically after this delay."`
+  - Show in menu bar → `infoText: "Show the Kizba icon in the macOS menu bar for quick access."`
+  - Show Recents in Sidebar → `infoText: "Display recently used password entries at the top of the sidebar."`
+  - Recents limit → `infoText: "How many recent entries to show in the sidebar (3–7)."`
+- MOD `Kizba/Presentation/Features/Settings/Tabs/SecurityTab.swift`:
+  - Touch ID → `infoText: "Require Touch ID authentication for every secret reveal."`
+- MOD `Kizba/Presentation/Features/Settings/Tabs/GitTab.swift`:
+  - Git timeout → `infoText: "Maximum seconds to wait for any git operation before aborting."`
+  - Store path → `infoText: "Override the default password-store location (~/.password-store)."`
+- MOD `Kizba/Presentation/Features/Settings/Tabs/AdvancedTab.swift`:
+  - pass override → `infoText: "Absolute path to the pass binary. Leave empty for auto-detection."`
+  - gpg override → `infoText: "Absolute path to the gpg binary. Leave empty for auto-detection."`
+  - pinentry override → `infoText: "Absolute path to the pinentry binary. Leave empty for auto-detection."`
+- For each affected row: pass `helpText: nil` (or remove the parameter) + `infoText:` + descriptive `infoAccessibilityLabel:`.
 
-**Tests:**
-- `KizbaTests/Settings/SettingsModelTests.swift`:
-  - `testShowRecents_persists`
-  - `testRecentsLimit_persistsAndClamps`
-  - `testSave_callsSetMaxCountOnStore` — fake `RecentEntriesStoring` records calls.
+**Tests:** none (UI strings only).
 
 **Verification:**
 ```sh
-xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
-  -only-testing:KizbaTests/Settings/SettingsModelTests
-xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+rg -n 'infoText:' Kizba/Presentation/Features/Settings/Tabs   # expect ≥10
 ```
 
-**Branch:** `mvp6/a4-settings-recents-wiring`
-**Commit:** `feat(settings): recents toggle + limit stepper wired to store (MVP6.A.4)`
-**Difficulty:** low
-**Risks:** Double-write — confirm `setMaxCount` does not also write to `SettingsKeys.recentsLimit`; that key is owned by the settings store alone.
+**Branch:** `mvp6/b4-info-tooltip-rollout`
+**Commit:** `feat(settings): adopt InfoTooltip across Settings tabs (MVP6.B.4)`
+**Difficulty:** S
+**Risks:** tooltip text drift vs. behaviour — keep wording neutral and behavioural.
 
 ---
 
-## Acceptance criteria (Phase A)
+## Acceptance criteria — Phase B
 
-1. `SettingsKeys` exposes `showRecents`, `recentsLimit`, `defaultRecentsLimit`.
-2. `rg -n '\bmaxCount\s*=\s*20\b' Kizba/Infrastructure/Recents/` → 0 matches.
-3. `RecentEntriesStoring` exposes `setMaxCount(_:) async`; production + DEBUG implementations conform; truncation emits exactly one `changes` event after persistence.
-4. `SidebarView` renders Recents inside a `DisclosureGroup` whose state persists via `@AppStorage("kizba.sidebar.recentsExpanded")`; the entire section is elided when `showRecents == false`.
-5. Settings UI exposes the new Toggle + Stepper; Save persists both keys and propagates the limit to the store.
-6. New tests pass; existing suite remains green (≥1000 tests).
-7. Release build clean; grep bans clean; design-system grep rules green.
+- [ ] `InfoTooltip` exists as a DS component, uses theme tokens only, has tests covering default-closed, accessibility label, toggle behaviour.
+- [ ] `FormFieldRow` accepts `infoText:` additively; existing call sites unchanged.
+- [ ] `SettingsModel.hasChanges` is `false` immediately after `load()` and after `save()` / `reset()`; becomes `true` on any editable mutation.
+- [ ] `SettingsModel.saveState` transitions `idle → saving → saved → idle` on a successful save, with the `.saved` flash duration injectable for tests.
+- [ ] Save button is disabled when `!hasChanges || saveState == .saving`.
+- [ ] `SettingsView` is a `TabView` with exactly four tabs (General / Security / Git / Advanced) and a single shared footer rendered once below the tabs.
+- [ ] Recents controls live under General tab.
+- [ ] At least the ten enumerated controls in B.4 use `InfoTooltip` instead of inline `helpText`.
+- [ ] Test suite remains green; no regressions from the 1019-test Phase A baseline.
+- [ ] DS grep guards remain green.
+- [ ] Touch ID behaviour unchanged (verbatim move into `SecurityTab`).
 
-## Verification commands (Phase A final)
+## Verification commands (Phase B final)
 
 ```sh
-xcodebuild test  -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
 xcodebuild build -scheme Kizba -project Kizba.xcodeproj -configuration Release -destination 'platform=macOS'
 rg -n '\bas!\b' Kizba/
 rg -n 'Logger.*stdin|print\(.*stdin' Kizba/ KizbaTests/
-rg -n '\bmaxCount\s*=\s*20\b' Kizba/Infrastructure/Recents/
+rg -n 'safeAreaInset' Kizba/Presentation/Features/Settings
+rg -n 'infoText:' Kizba/Presentation/Features/Settings/Tabs
 ```
-
----
 
 ## Suggested current step
 
-Run **smart-worker** on **Task A.1** (SettingsKeys + default migration).
+Run **smart-worker** on **Task B.1** — Implement `InfoTooltip` DS component and extend `FormFieldRow` with `infoText:`. Smallest isolated change; unblocks B.4 entirely; independent of B.2 model refactor and B.3 view split.
