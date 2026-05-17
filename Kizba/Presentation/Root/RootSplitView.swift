@@ -36,6 +36,15 @@ struct RootSplitView: View {
                     get: { state.router.selectedFolder },
                     set: { state.router.selectedFolder = $0 }
                 ),
+                // MVP6 Phase G.2: a second binding so Recents and
+                // Favorites taps in the sidebar land in
+                // `router.selectedEntryID` (consumed by the detail
+                // column) instead of `router.selectedFolder`
+                // (consumed by the middle column as a folder name).
+                entrySelection: Binding(
+                    get: { state.router.selectedEntryID },
+                    set: { state.router.selectedEntryID = $0 }
+                ),
                 gitStatusModel: state.gitStatusModel
             )
         } content: {

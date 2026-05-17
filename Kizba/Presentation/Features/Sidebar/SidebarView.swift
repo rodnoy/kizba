@@ -20,6 +20,17 @@ struct SidebarView: View {
     /// middle column can react to it.
     @Binding var selection: String?
 
+    /// Entry selection bound to `AppState.router.selectedEntryID` so
+    /// the detail column can react to it. Used by Recents and
+    /// Favorites rows; folder rows continue to write into `selection`.
+    ///
+    /// MVP6 Phase G.2: prior to this binding, Recents/Favorites taps
+    /// wrote entry paths into `selection` (i.e. `selectedFolder`),
+    /// which the middle column consumes as a folder name — so the
+    /// detail column never opened. The two slots are now routed
+    /// independently.
+    @Binding var entrySelection: String?
+
     @State private var model: SidebarModel
     @State private var favoritesModel: FavoritesModel
     @State private var recentsModel: RecentsModel
@@ -48,9 +59,11 @@ struct SidebarView: View {
     init(
         environment: AppEnvironment,
         selection: Binding<String?>,
+        entrySelection: Binding<String?>,
         gitStatusModel: GitStatusModel? = nil
     ) {
         self._selection = selection
+        self._entrySelection = entrySelection
         self._model = State(initialValue: SidebarModel(passManager: environment.passManager))
         self._favoritesModel = State(initialValue: FavoritesModel(store: environment.favoritesStore))
         self._recentsModel = State(initialValue: RecentsModel(store: environment.recentStore))
@@ -72,11 +85,13 @@ struct SidebarView: View {
                                 EntryRowView(
                                     leadingIconName: "star.fill",
                                     title: entryPath.components(separatedBy: "/").last ?? entryPath,
-                                    isSelected: selection == entryPath
+                                    isSelected: entrySelection == entryPath
                                 )
                                 .contentShape(Rectangle())
                                 .onTapGesture {
-                                    selection = entryPath
+                                    // MVP6 Phase G.2: route into the
+                                    // entry slot, not the folder slot.
+                                    entrySelection = entryPath
                                 }
                                 .listRowBackground(Color.clear)
                                 .accessibilityLabel("\(entryPath), favorite")
@@ -98,11 +113,13 @@ struct SidebarView: View {
                             ForEach(recentsModel.recents, id: \.self) { entryPath in
                                 EntryRowView(
                                     title: entryPath.components(separatedBy: "/").last ?? entryPath,
-                                    isSelected: selection == entryPath
+                                    isSelected: entrySelection == entryPath
                                 )
                                 .contentShape(Rectangle())
                                 .onTapGesture {
-                                    selection = entryPath
+                                    // MVP6 Phase G.2: route into the
+                                    // entry slot, not the folder slot.
+                                    entrySelection = entryPath
                                 }
                                 .listRowBackground(Color.clear)
                                 .accessibilityLabel("\(entryPath), recent")
