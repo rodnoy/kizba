@@ -1,20 +1,23 @@
-Phase: MVP6.B.2
+Phase: MVP6.B.3
 Status: COMPLETED
 
-Next action: Run smart-worker on Task B.3 (TabView split: General / Security / Git / Advanced + shared SettingsFooter)
+Next action: Run smart-worker on Task B.4 (InfoTooltip rollout — apply to ≥10 controls across Settings tabs)
 
 Notes:
-- SettingsModel: added private SettingsSnapshot (10 editable fields — clipboardClearDelaySeconds, touchIDPerRevealEnabled, gitOperationTimeoutSeconds, showInMenuBar, showRecents, recentsLimit, storePathOverride, passBinaryOverride, gpgBinaryOverride, pinentryBinaryOverride). Excludes transient state (isDetectingBinaries, saveState). initialSnapshot captured at end of init() and refreshed after save() / resetToDefaults().
-- New computed: hasChanges (currentSnapshot != initialSnapshot). New state: SaveState enum (idle/saving/saved) + public var saveState. String? overrides keep `nil` vs `""` distinct on purpose (matches the user-visible distinction surfaced by bindingForOptional in SettingsView).
-- save() converted to async; flow: guard hasChanges -> .saving -> sync settings.set(...) round-trip -> await recentStore.setMaxCount(persistedLimit) inline (we are async on MainActor, actor hop is one-shot, no deadlock) -> rebuild initialSnapshot -> .saved -> try? await Task.sleep(for: savedFlashDuration) -> race-safe `if saveState == .saved { saveState = .idle }`.
-- init parameter savedFlashDuration: Duration = .milliseconds(1500); tests inject .milliseconds(10) via makeModel helper default.
-- resetToDefaults() rebuilds initialSnapshot at the end so hasChanges == false immediately post-reset (drives Save button disabled binding).
-- SettingsView: Save Button now `Button("Save") { Task { await model.save() } }`, disabled(!hasChanges || saveState == .saving), .help("Save settings"). Inline saveStatusLabel (@ViewBuilder) renders `EmptyView()` / "Saving…" (caption, onSurfaceMuted) / "Saved" (caption, success) adjacent to the action pair; collapses cleanly at rest. DS tokens only — no raw Color, no numeric corner radius, no numeric opacity.
-- Call-sites of save(): only SettingsView.swift (production) and SettingsModelTests.swift (tests). Updated both. No legacy sync wrapper needed.
-- Existing SettingsModelTests adapted to await model.save() (9 tests converted to async). Removed the now-unused waitForRecordedSetMaxCount() helper since await on save() lets the actor hop complete synchronously from the test's POV.
-- Tests added in SettingsModelTests: 7 new — testHasChanges_isFalseAfterLoad, testHasChanges_becomesTrueAfterMutation, testHasChanges_falseAfterSave, testSaveState_transitions_idle_saving_saved_idle (uses .milliseconds(10) flash; asserts post-await state is .idle), testSave_isNoopWhenNoChanges (asserts saveState stays .idle AND recentStore receives zero setMaxCount calls), testReset_clearsHasChanges, testSnapshot_treatsNilAndEmptyOverrideAsDifferent. SettingsModelTests: 26/26 PASS in 0.56 s.
-- Full suite: 1038 tests, 17 skipped, 0 failures (1031 prior + 7 new). Release build: SUCCEEDED.
-- Grep bans clean: `as!` 0 hits in Kizba/; `Logger.*stdin|print(.*stdin` only self-refs in SourceGrepTests.swift (regex literals defining the ban); DS literals in Kizba/Presentation/Features/Settings/ → 0 hits.
+- SettingsView restructured into a thin VStack host: `TabView` with four tabs (General / Security / Git / Advanced, SF Symbols `gear` / `lock` / `arrow.triangle.branch` / `slider.horizontal.3`) + shared `SettingsFooter` rendered once below the tabs. Host applies `.frame(minWidth: 520, minHeight: 420)`; previous `.safeAreaInset(.bottom)` is gone. `SettingsView.swift` collapsed from 358 → 86 LOC.
+- Tabs extracted to `Kizba/Presentation/Features/Settings/Tabs/`:
+  - `GeneralTab.swift` — Clipboard auto-clear delay (Stepper), Menu Bar visibility toggle, Recents visibility toggle + recents limit Stepper.
+  - `SecurityTab.swift` — Touch ID per-reveal toggle, verbatim move (Phase D will rework).
+  - `GitTab.swift` — Git operation timeout Stepper + Store path override TextField with NSOpenPanel picker.
+  - `AdvancedTab.swift` — pass / gpg / pinentry binary overrides + Re-detect button (binds `model.isDetectingBinaries` + `ProgressView`).
+- `SettingsFooter.swift` (separate file in `Tabs/`) hosts: app version (`AppInfo.version` + build, leading) → Spacer → inline `saveStatusLabel` (Saving… / Saved — same DS tokens as before) → Reset button (`.kizba(.destructive)` + `.destructiveConfirmation`) → Save button (`.kizba(.primary)`, `disabled(!hasChanges || saveState == .saving)`, `.keyboardShortcut(.defaultAction)`, `Task { await model.save() }`). Reset confirmation alert state is owned by the footer.
+- Each tab wraps content in `ScrollView { VStack { FormSection... } }` (per fallback in the task) so variable-height content is safe inside `TabView`.
+- `bindingForOptional` helper in `GitTab` / `AdvancedTab` switched from `WritableKeyPath` to `ReferenceWritableKeyPath<SettingsModel, String?>` because `@Bindable var model` is a computed accessor inside the View struct — `WritableKeyPath` requires a mutable subscript on `self`, which `View` does not have. `SettingsModel` is `final class`, so a reference key path is the natural fit.
+- Preview block kept and updated for the new structure (same `AppEnvironment.preview()` + `PreviewDiscovery` plumbing).
+- ViewInspector NOT vendored in the project (no `import ViewInspector` anywhere, not in Package.swift, not in xcodeproj). Per plan, UI-structure smoke tests were SKIPPED; reliance on B.2 model tests + manual smoke. No new test files added.
+- Full suite: 1038 tests, 17 skipped, 0 failures (same baseline as B.2 — UI-only refactor adds no tests). Release build (`-configuration Release`): SUCCEEDED.
+- Grep bans clean: `as!` 0 hits in Kizba/; `Logger.*stdin|print(.*stdin` only self-refs in SourceGrepTests.swift; DS literals in `Kizba/Presentation/Features/Settings/` (including new Tabs/) → 0 hits; `safeAreaInset` in Settings/ → 0 code hits (only doc-comment mentions in SettingsView.swift + SettingsFooter.swift describing the change).
+- Xcodeproj uses `PBXFileSystemSynchronizedRootGroup` for `Kizba/`; new files under `Tabs/` are picked up automatically, no pbxproj edit required.
 - Commit: <hash> on main.
 
-Timestamp: 2026-05-17T16:43:00+02:00
+Timestamp: 2026-05-17T16:50:00+02:00

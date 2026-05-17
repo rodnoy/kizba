@@ -2,32 +2,25 @@
 //  SettingsView.swift
 //  Kizba
 //
-//  SwiftUI view for the Settings page. Binds to a
-//  `SettingsModel` instance and exposes controls for path/binary
-//  overrides, clipboard delay, and binary re-detection.
+//  Thin host for the Settings screen. MVP6 Phase B.3 split the
+//  former monolithic scroll into a `TabView` (General / Security /
+//  Git / Advanced) with a single shared `SettingsFooter` rendered
+//  below the tabs. Tab content lives in `Tabs/*Tab.swift`; the
+//  footer hosts the Save / Reset actions, the inline save-state
+//  label, and the app version (the latter previously lived in a
+//  `.safeAreaInset(.bottom)`).
 //
-//  Phase C.4 migrated this view to the design system: each `Section`
-//  becomes a `FormSection`, each labeled control row a `FormFieldRow`,
-//  text fields adopt `.kizba`, and primary/destructive actions use
-//  `KizbaButtonStyle`. The vanilla `.alert` reset confirmation is
-//  replaced by the shared `.destructiveConfirmation(...)` modifier.
-//
-//  Native SwiftUI controls without a theme hook (`Stepper`,
-//  `ProgressView`, the Settings scene container itself) are left
-//  system-rendered intentionally; they pick up the parent theme through
-//  standard appearance proxies.
+//  The view keeps `model` ownership via `@State` (the model is a
+//  `@MainActor @Observable` reference type) and forwards the same
+//  instance to each tab and to the footer.
 //
 
 import SwiftUI
-#if canImport(AppKit)
-import AppKit
-#endif
 
 /// Settings screen bound to a `SettingsModel`.
 public struct SettingsView: View {
 
     @State private var model: SettingsModel
-    @State private var showingResetConfirmation = false
 
     @Environment(\.theme) private var theme
 
@@ -36,301 +29,36 @@ public struct SettingsView: View {
     }
 
     public var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: theme.spacing.lg) {
-                generalSection
-                recentsSection
-                binariesSection
-                clipboardSection
-                securitySection
-                gitSection
-                actionsSection
-            }
-            .padding(theme.spacing.lg)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .frame(minWidth: 520)
-        .destructiveConfirmation(
-            isPresented: $showingResetConfirmation,
-            title: "Reset to Defaults?",
-            message: "This will clear all overrides and restore the clipboard delay to the default value.",
-            confirmLabel: "Reset"
-        ) {
-            model.resetToDefaults()
-        }
-        .safeAreaInset(edge: .bottom) {
-            HStack {
-                Spacer()
-                Text("Version \(AppInfo.version) (\(AppInfo.build))")
-                    .font(theme.typography.caption)
-                    .foregroundStyle(theme.colors.onSurfaceMuted)
-                Spacer()
-            }
-            .padding(.vertical, theme.spacing.sm)
-        }
-    }
-
-    // MARK: - Sections
-
-    private var generalSection: some View {
-        FormSection("General") {
-            FormFieldRow(label: "Menu bar") {
-                Toggle(isOn: $model.showInMenuBar) {
-                    Text("Show Kizba in menu bar")
-                }
-            }
-
-            FormFieldRow(
-                label: "Store path override",
-                helpText: "Absolute path to your password store. Leave empty for the default."
-            ) {
-                HStack(spacing: theme.spacing.sm) {
-                    TextField(
-                        "Password store path override",
-                        text: bindingForOptional(\.storePathOverride)
-                    )
-                    .textFieldStyle(.kizba)
-                    pickerButton(allowsDirectories: true) { url in
-                        model.storePathOverride = url.path
+        VStack(spacing: 0) {
+            TabView {
+                GeneralTab(model: model)
+                    .tabItem {
+                        Label("General", systemImage: "gear")
                     }
-                }
-            }
-        }
-    }
 
-    private var recentsSection: some View {
-        FormSection("Recents") {
-            FormFieldRow(
-                label: "Visibility",
-                helpText: "When disabled, the Recents section is hidden from the sidebar entirely."
-            ) {
-                Toggle(isOn: $model.showRecents) {
-                    Text("Show Recents in Sidebar")
-                }
-            }
-
-            FormFieldRow(
-                label: "Recents limit",
-                helpText: "Maximum number of recently-viewed entries shown in the sidebar."
-            ) {
-                HStack(spacing: theme.spacing.sm) {
-                    // Native `Stepper` has no theme hook — left system-rendered
-                    // intentionally; its label adopts the surrounding font.
-                    Stepper(
-                        value: $model.recentsLimit,
-                        in: SettingsKeys.recentsLimitBounds,
-                        step: 1
-                    ) {
-                        Text("\(model.recentsLimit) entries")
-                            .font(theme.typography.body)
-                            .foregroundStyle(theme.colors.onSurface)
+                SecurityTab(model: model)
+                    .tabItem {
+                        Label("Security", systemImage: "lock")
                     }
-                    .accessibilityLabel("Recents limit")
-                    .accessibilityValue("\(model.recentsLimit) entries")
-                    .accessibilityHint("Maximum number of entries kept in the sidebar Recents section")
-                    Spacer()
-                }
-            }
-        }
-    }
 
-    private var binariesSection: some View {
-        FormSection("Binaries") {
-            FormFieldRow(label: "pass") {
-                HStack(spacing: theme.spacing.sm) {
-                    TextField(
-                        "pass binary override",
-                        text: bindingForOptional(\.passBinaryOverride)
-                    )
-                    .textFieldStyle(.kizba)
-                    pickerButton(allowsDirectories: false) { url in
-                        model.passBinaryOverride = url.path
+                GitTab(model: model)
+                    .tabItem {
+                        Label("Git", systemImage: "arrow.triangle.branch")
                     }
-                }
-            }
 
-            FormFieldRow(label: "gpg") {
-                HStack(spacing: theme.spacing.sm) {
-                    TextField(
-                        "gpg binary override",
-                        text: bindingForOptional(\.gpgBinaryOverride)
-                    )
-                    .textFieldStyle(.kizba)
-                    pickerButton(allowsDirectories: false) { url in
-                        model.gpgBinaryOverride = url.path
+                AdvancedTab(model: model)
+                    .tabItem {
+                        Label("Advanced", systemImage: "slider.horizontal.3")
                     }
-                }
             }
 
-            FormFieldRow(label: "pinentry") {
-                HStack(spacing: theme.spacing.sm) {
-                    TextField(
-                        "pinentry binary override",
-                        text: bindingForOptional(\.pinentryBinaryOverride)
-                    )
-                    .textFieldStyle(.kizba)
-                    pickerButton(allowsDirectories: false) { url in
-                        model.pinentryBinaryOverride = url.path
-                    }
-                }
-            }
-
-            FormFieldRow(label: "Detection") {
-                HStack(spacing: theme.spacing.sm) {
-                    Button("Re-detect binaries") {
-                        Task { await model.reDetectBinaries() }
-                    }
-                    .buttonStyle(.kizba(.secondary))
-                    .disabled(model.isDetectingBinaries)
-
-                    if model.isDetectingBinaries {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
-                    Spacer()
-                }
-            }
+            SettingsFooter(
+                model: model,
+                version: AppInfo.version,
+                build: AppInfo.build
+            )
         }
-    }
-
-    private var clipboardSection: some View {
-        FormSection("Clipboard") {
-            FormFieldRow(
-                label: "Auto-clear delay",
-                helpText: "Seconds before a copied secret is cleared from the pasteboard."
-            ) {
-                HStack(spacing: theme.spacing.sm) {
-                    // Native `Stepper` has no theme hook — left system-rendered
-                    // intentionally; its label adopts the surrounding font.
-                    Stepper(
-                        value: $model.clipboardClearDelaySeconds,
-                        in: SettingsKeys.clipboardClearDelayBounds,
-                        step: 5
-                    ) {
-                        Text("\(model.clipboardClearDelaySeconds) s")
-                            .font(theme.typography.body)
-                            .foregroundStyle(theme.colors.onSurface)
-                    }
-                    Spacer()
-                }
-            }
-        }
-    }
-
-    private var securitySection: some View {
-        FormSection("Security") {
-            FormFieldRow(label: "Require Touch ID for reveal", helpText: "When enabled, revealing a password prompts for Touch ID / Face ID.") {
-                Toggle(isOn: $model.touchIDPerRevealEnabled) {
-                    Text("Require Touch ID for password reveal")
-                }
-            }
-        }
-    }
-
-    private var gitSection: some View {
-        FormSection("Git") {
-            FormFieldRow(
-                label: "Operation timeout",
-                helpText: "Seconds before a git pull or push operation times out."
-            ) {
-                HStack(spacing: theme.spacing.sm) {
-                    Stepper(
-                        value: $model.gitOperationTimeoutSeconds,
-                        in: SettingsKeys.gitOperationTimeoutBounds,
-                        step: 5
-                    ) {
-                        Text("\(model.gitOperationTimeoutSeconds) s")
-                            .font(theme.typography.body)
-                            .foregroundStyle(theme.colors.onSurface)
-                    }
-                    .accessibilityLabel("Git operation timeout")
-                    .accessibilityValue("\(model.gitOperationTimeoutSeconds) seconds")
-                    .accessibilityHint("Seconds before git operations time out")
-                    Spacer()
-                }
-            }
-        }
-    }
-
-    private var actionsSection: some View {
-        HStack(spacing: theme.spacing.md) {
-            Spacer()
-            saveStatusLabel
-            Button("Reset to Defaults") {
-                showingResetConfirmation = true
-            }
-            .buttonStyle(.kizba(.destructive))
-            .keyboardShortcut(.cancelAction)
-
-            Button("Save") {
-                Task { await model.save() }
-            }
-            .buttonStyle(.kizba(.primary))
-            .keyboardShortcut(.defaultAction)
-            .disabled(!model.hasChanges || model.saveState == .saving)
-            .help("Save settings")
-        }
-    }
-
-    /// Inline footer status mirroring `SettingsModel.saveState`. Hidden
-    /// while `.idle` so the row collapses to a clean Reset / Save pair
-    /// at rest. Tokens follow the DS convention used by `BannerView`:
-    /// `caption` typography, `onSurfaceMuted` for the transient
-    /// "Saving…" state, `success` for the post-write confirmation.
-    @ViewBuilder
-    private var saveStatusLabel: some View {
-        switch model.saveState {
-        case .idle:
-            EmptyView()
-        case .saving:
-            Text("Saving…")
-                .font(theme.typography.caption)
-                .foregroundStyle(theme.colors.onSurfaceMuted)
-                .accessibilityLabel("Saving settings")
-        case .saved:
-            Text("Saved")
-                .font(theme.typography.caption)
-                .foregroundStyle(theme.colors.success)
-                .accessibilityLabel("Settings saved")
-        }
-    }
-
-    // MARK: - Helpers
-
-    /// Create a binding for an Optional<String> stored on the model. When
-    /// the field is empty it will map to nil in the model.
-    private func bindingForOptional(_ keyPath: WritableKeyPath<SettingsModel, String?>) -> Binding<String> {
-        Binding<String>(
-            get: { model[keyPath: keyPath] ?? "" },
-            set: { newValue in
-                model[keyPath: keyPath] = newValue.isEmpty ? nil : newValue
-            }
-        )
-    }
-
-    /// Platform-aware picker button. On macOS shows an `NSOpenPanel` and
-    /// passes the selected URL to the handler. On other platforms the
-    /// button is hidden (fallback to manual entry via TextField).
-    @ViewBuilder
-    private func pickerButton(allowsDirectories: Bool, completion: @escaping (URL) -> Void) -> some View {
-#if canImport(AppKit)
-        Button {
-            let panel = NSOpenPanel()
-            panel.canChooseFiles = true
-            panel.canChooseDirectories = allowsDirectories
-            panel.allowsMultipleSelection = false
-            panel.begin { response in
-                guard response == .OK, let url = panel.url else { return }
-                Task { @MainActor in completion(url) }
-            }
-        } label: {
-            Image(systemName: "ellipsis.circle")
-        }
-        .buttonStyle(.kizba(.ghost, size: .compact))
-        .accessibilityLabel("Browse")
-#else
-        EmptyView()
-#endif
+        .frame(minWidth: 520, minHeight: 420)
     }
 }
 
