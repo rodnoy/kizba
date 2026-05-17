@@ -125,7 +125,8 @@ struct KizbaApp: App {
                 SettingsView(
                     model: SettingsModel(
                         settings: environment.settings,
-                        discovery: environment.discovery!
+                        discovery: environment.discovery!,
+                        recentStore: environment.recentStore
                     )
                 )
             }

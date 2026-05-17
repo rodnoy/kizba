@@ -7,7 +7,11 @@ final class SettingsViewTouchIDTests: XCTestCase {
     func testToggleDisabledWhenBiometricUnavailable() {
         let fake = FakeBiometricAuthenticator(availability: .unavailable(.hardwareUnavailable), nextResult: .success)
         let settings = AppEnvironment.InMemorySettingsStore()
-        let model = SettingsModel(settings: settings, discovery: PreviewDiscovery())
+        let model = SettingsModel(
+            settings: settings,
+            discovery: PreviewDiscovery(),
+            recentStore: FakeRecentEntriesStore()
+        )
 
         // When no biometric is injected into the environment, the view
         // computes disabled state from an injected authenticator. We
@@ -26,7 +30,11 @@ final class SettingsViewTouchIDTests: XCTestCase {
     func testToggleEnabledWhenBiometricAvailable() {
         let fake = FakeBiometricAuthenticator(availability: .available, nextResult: .success)
         let settings = AppEnvironment.InMemorySettingsStore()
-        let model = SettingsModel(settings: settings, discovery: PreviewDiscovery())
+        let model = SettingsModel(
+            settings: settings,
+            discovery: PreviewDiscovery(),
+            recentStore: FakeRecentEntriesStore()
+        )
 
         // Model exposes the persisted property; availability is
         // orthogonal — when available the UI would enable the Toggle.

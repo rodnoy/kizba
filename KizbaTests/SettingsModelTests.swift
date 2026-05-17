@@ -16,6 +16,19 @@ final class SettingsModelTests: XCTestCase {
         return AppEnvironment.InMemorySettingsStore()
     }
 
+    /// Helper that builds a `SettingsModel` with the new MVP6 Phase A.4
+    /// `recentStore` parameter defaulted to a fresh `FakeRecentEntriesStore`.
+    /// Existing tests do not care which actor store is plugged in — only
+    /// tests that assert `setMaxCount` propagation construct the model
+    /// manually so they retain a reference to the fake.
+    private func makeModel(
+        settings: any SettingsStoring,
+        discovery: any BinaryLocating,
+        recentStore: any RecentEntriesStoring = FakeRecentEntriesStore()
+    ) -> SettingsModel {
+        SettingsModel(settings: settings, discovery: discovery, recentStore: recentStore)
+    }
+
     // Fake discovery that records reDetect calls.
     private actor FakeDiscovery: BinaryLocating {
         var reDetectCalled = false
@@ -32,7 +45,7 @@ final class SettingsModelTests: XCTestCase {
         store.removeValue(forKey: "clipboardClearDelaySeconds")
 
         let discovery = TestBinaryLocator(paths: [:])
-        let model = SettingsModel(settings: store, discovery: discovery)
+        let model = makeModel(settings: store, discovery: discovery)
 
         XCTAssertEqual(model.clipboardClearDelaySeconds, 30)
     }
@@ -40,7 +53,7 @@ final class SettingsModelTests: XCTestCase {
     func testDefaultsGitOperationTimeout() {
         let store = makeInMemoryStore()
         let discovery = TestBinaryLocator(paths: [:])
-        let model = SettingsModel(settings: store, discovery: discovery)
+        let model = makeModel(settings: store, discovery: discovery)
 
         XCTAssertEqual(model.gitOperationTimeoutSeconds, 60)
     }
@@ -49,7 +62,7 @@ final class SettingsModelTests: XCTestCase {
         let store = makeInMemoryStore()
         let discovery = TestBinaryLocator(paths: [:])
 
-        var model = SettingsModel(settings: store, discovery: discovery)
+        var model = makeModel(settings: store, discovery: discovery)
         model.storePathOverride = "/tmp/store"
         model.passBinaryOverride = "/usr/bin/pass"
         model.gpgBinaryOverride = "/usr/bin/gpg"
@@ -59,7 +72,7 @@ final class SettingsModelTests: XCTestCase {
         model.save()
 
         // Create fresh model backed by same store
-        let fresh = SettingsModel(settings: store, discovery: discovery)
+        let fresh = makeModel(settings: store, discovery: discovery)
         XCTAssertEqual(fresh.storePathOverride, "/tmp/store")
         XCTAssertEqual(fresh.passBinaryOverride, "/usr/bin/pass")
         XCTAssertEqual(fresh.gpgBinaryOverride, "/usr/bin/gpg")
@@ -71,7 +84,7 @@ final class SettingsModelTests: XCTestCase {
         let store = makeInMemoryStore()
         let discovery = TestBinaryLocator(paths: [:])
 
-        var model = SettingsModel(settings: store, discovery: discovery)
+        var model = makeModel(settings: store, discovery: discovery)
         model.storePathOverride = "x"
         model.passBinaryOverride = "y"
         model.clipboardClearDelaySeconds = 99
@@ -80,7 +93,7 @@ final class SettingsModelTests: XCTestCase {
         model.resetToDefaults()
 
         // New model sees cleared values
-        let fresh = SettingsModel(settings: store, discovery: discovery)
+        let fresh = makeModel(settings: store, discovery: discovery)
         XCTAssertNil(fresh.storePathOverride)
         XCTAssertNil(fresh.passBinaryOverride)
         XCTAssertEqual(fresh.clipboardClearDelaySeconds, 30)
@@ -90,11 +103,11 @@ final class SettingsModelTests: XCTestCase {
         let store = makeInMemoryStore()
         let discovery = TestBinaryLocator(paths: [:])
 
-        var model = SettingsModel(settings: store, discovery: discovery)
+        var model = makeModel(settings: store, discovery: discovery)
         model.gitOperationTimeoutSeconds = 120
         model.save()
 
-        let fresh = SettingsModel(settings: store, discovery: discovery)
+        let fresh = makeModel(settings: store, discovery: discovery)
         XCTAssertEqual(fresh.gitOperationTimeoutSeconds, 120)
     }
 
@@ -102,13 +115,13 @@ final class SettingsModelTests: XCTestCase {
         let store = makeInMemoryStore()
         let discovery = TestBinaryLocator(paths: [:])
 
-        var model = SettingsModel(settings: store, discovery: discovery)
+        var model = makeModel(settings: store, discovery: discovery)
         model.gitOperationTimeoutSeconds = 200
         model.save()
 
         model.resetToDefaults()
 
-        let fresh = SettingsModel(settings: store, discovery: discovery)
+        let fresh = makeModel(settings: store, discovery: discovery)
         XCTAssertEqual(fresh.gitOperationTimeoutSeconds, 60)
     }
 
@@ -121,7 +134,7 @@ final class SettingsModelTests: XCTestCase {
     func testGitTimeout_accessibilityValue_likeString() {
         let store = makeInMemoryStore()
         let discovery = TestBinaryLocator(paths: [:])
-        let model = SettingsModel(settings: store, discovery: discovery)
+        let model = makeModel(settings: store, discovery: discovery)
 
         let accessibilityValue = "\(model.gitOperationTimeoutSeconds) seconds"
         XCTAssertEqual(accessibilityValue, "60 seconds")
@@ -131,7 +144,7 @@ final class SettingsModelTests: XCTestCase {
     func testReDetectTriggersDiscovery() async {
         let store = makeInMemoryStore()
         let fake = FakeDiscovery()
-        let model = SettingsModel(settings: store, discovery: fake)
+        let model = makeModel(settings: store, discovery: fake)
 
         XCTAssertFalse(model.isDetectingBinaries)
 
@@ -149,7 +162,7 @@ final class SettingsModelTests: XCTestCase {
         store.removeValue(forKey: SettingsKeys.showInMenuBar)
 
         let discovery = TestBinaryLocator(paths: [:])
-        let model = SettingsModel(settings: store, discovery: discovery)
+        let model = makeModel(settings: store, discovery: discovery)
 
         XCTAssertTrue(model.showInMenuBar)
     }
@@ -158,11 +171,11 @@ final class SettingsModelTests: XCTestCase {
         let store = makeInMemoryStore()
         let discovery = TestBinaryLocator(paths: [:])
 
-        let model = SettingsModel(settings: store, discovery: discovery)
+        let model = makeModel(settings: store, discovery: discovery)
         model.showInMenuBar = false
         model.save()
 
-        let fresh = SettingsModel(settings: store, discovery: discovery)
+        let fresh = makeModel(settings: store, discovery: discovery)
         XCTAssertFalse(fresh.showInMenuBar)
     }
 
@@ -170,13 +183,131 @@ final class SettingsModelTests: XCTestCase {
         let store = makeInMemoryStore()
         let discovery = TestBinaryLocator(paths: [:])
 
-        let model = SettingsModel(settings: store, discovery: discovery)
+        let model = makeModel(settings: store, discovery: discovery)
         model.showInMenuBar = false
         model.save()
 
         model.resetToDefaults()
 
-        let fresh = SettingsModel(settings: store, discovery: discovery)
+        let fresh = makeModel(settings: store, discovery: discovery)
         XCTAssertEqual(fresh.showInMenuBar, SettingsKeys.defaultShowInMenuBar)
+    }
+
+    // MARK: - MVP6 Phase A.4 — Recents controls
+
+    func testShowRecents_defaultIsTrue() {
+        let store = makeInMemoryStore()
+        store.removeValue(forKey: SettingsKeys.showRecents)
+        let discovery = TestBinaryLocator(paths: [:])
+
+        let model = makeModel(settings: store, discovery: discovery)
+
+        XCTAssertTrue(model.showRecents)
+        XCTAssertEqual(model.showRecents, SettingsKeys.defaultShowRecents)
+    }
+
+    func testShowRecents_persists() {
+        let store = makeInMemoryStore()
+        let discovery = TestBinaryLocator(paths: [:])
+
+        let model = makeModel(settings: store, discovery: discovery)
+        model.showRecents = false
+        model.save()
+
+        let fresh = makeModel(settings: store, discovery: discovery)
+        XCTAssertFalse(fresh.showRecents)
+    }
+
+    func testRecentsLimit_defaultIsSeven() {
+        let store = makeInMemoryStore()
+        store.removeValue(forKey: SettingsKeys.recentsLimit)
+        let discovery = TestBinaryLocator(paths: [:])
+
+        let model = makeModel(settings: store, discovery: discovery)
+
+        XCTAssertEqual(model.recentsLimit, SettingsKeys.defaultRecentsLimit)
+        XCTAssertEqual(model.recentsLimit, 7)
+    }
+
+    func testRecentsLimit_persistsAndClampsHigh() {
+        let store = makeInMemoryStore()
+        let discovery = TestBinaryLocator(paths: [:])
+
+        let model = makeModel(settings: store, discovery: discovery)
+        model.recentsLimit = 99
+        model.save()
+
+        // `UserDefaultsSettingsStore` clamps on write to recentsLimitBounds (3...7).
+        let fresh = makeModel(settings: store, discovery: discovery)
+        XCTAssertEqual(fresh.recentsLimit, SettingsKeys.maxRecentsLimit)
+        XCTAssertEqual(fresh.recentsLimit, 7)
+    }
+
+    func testRecentsLimit_persistsAndClampsLow() {
+        let store = makeInMemoryStore()
+        let discovery = TestBinaryLocator(paths: [:])
+
+        let model = makeModel(settings: store, discovery: discovery)
+        model.recentsLimit = 1
+        model.save()
+
+        let fresh = makeModel(settings: store, discovery: discovery)
+        XCTAssertEqual(fresh.recentsLimit, SettingsKeys.minRecentsLimit)
+        XCTAssertEqual(fresh.recentsLimit, 3)
+    }
+
+    func testSave_callsSetMaxCountOnRecentStore() async {
+        let store = makeInMemoryStore()
+        let discovery = TestBinaryLocator(paths: [:])
+        let fake = FakeRecentEntriesStore()
+
+        let model = makeModel(settings: store, discovery: discovery, recentStore: fake)
+        model.recentsLimit = 5
+        model.save()
+
+        // `save()` dispatches the actor hop via `Task { ... }`; drain it
+        // before asserting. Polling keeps the test resilient to scheduler
+        // jitter without sleeping unconditionally.
+        try? await waitForRecordedSetMaxCount(on: fake, count: 1, timeout: 1.0)
+
+        let calls = await fake.setMaxCountCalls
+        XCTAssertEqual(calls.last, 5)
+        XCTAssertEqual(calls.count, 1)
+    }
+
+    func testSave_propagatesClampedValueToRecentStore() async {
+        let store = makeInMemoryStore()
+        let discovery = TestBinaryLocator(paths: [:])
+        let fake = FakeRecentEntriesStore()
+
+        let model = makeModel(settings: store, discovery: discovery, recentStore: fake)
+        model.recentsLimit = 99 // Clamped to 7 by the settings store.
+        model.save()
+
+        try? await waitForRecordedSetMaxCount(on: fake, count: 1, timeout: 1.0)
+
+        let calls = await fake.setMaxCountCalls
+        // The model re-reads the persisted (clamped) value before
+        // propagating, so the actor store sees the clamp too.
+        XCTAssertEqual(calls.last, SettingsKeys.maxRecentsLimit)
+    }
+
+    // MARK: - Helpers
+
+    /// Polls the fake until `setMaxCountCalls.count >= count` or `timeout`
+    /// expires. Throws on timeout so the test fails fast rather than
+    /// hanging the suite.
+    private func waitForRecordedSetMaxCount(
+        on fake: FakeRecentEntriesStore,
+        count: Int,
+        timeout: TimeInterval
+    ) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            let current = await fake.setMaxCountCalls.count
+            if current >= count { return }
+            try await Task.sleep(nanoseconds: 10_000_000) // 10ms
+        }
+        XCTFail("Timed out waiting for setMaxCount call (expected \(count))")
     }
 }

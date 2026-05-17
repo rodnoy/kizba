@@ -499,7 +499,15 @@ extension AppEnvironment {
         nonisolated func set<Value: SettingsValue>(_ value: Value?, for key: SettingsKey<Value>) {
             lock.lock(); defer { lock.unlock() }
             if let value {
-                storage[key.name] = value
+                // Mirror the production `UserDefaultsSettingsStore` clamp for
+                // `recentsLimit` so DEBUG-only callers (tests, previews) see
+                // the same contract as live wiring (MVP6 Phase A.1/A.4).
+                if key.name == SettingsKeys.recentsLimit, let typed = value as? Int {
+                    let clamped = max(SettingsKeys.minRecentsLimit, min(SettingsKeys.maxRecentsLimit, typed))
+                    storage[key.name] = clamped
+                } else {
+                    storage[key.name] = value
+                }
             } else {
                 storage.removeValue(forKey: key.name)
             }

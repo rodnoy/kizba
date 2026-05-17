@@ -39,6 +39,7 @@ public struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: theme.spacing.lg) {
                 generalSection
+                recentsSection
                 binariesSection
                 clipboardSection
                 securitySection
@@ -92,6 +93,42 @@ public struct SettingsView: View {
                     pickerButton(allowsDirectories: true) { url in
                         model.storePathOverride = url.path
                     }
+                }
+            }
+        }
+    }
+
+    private var recentsSection: some View {
+        FormSection("Recents") {
+            FormFieldRow(
+                label: "Visibility",
+                helpText: "When disabled, the Recents section is hidden from the sidebar entirely."
+            ) {
+                Toggle(isOn: $model.showRecents) {
+                    Text("Show Recents in Sidebar")
+                }
+            }
+
+            FormFieldRow(
+                label: "Recents limit",
+                helpText: "Maximum number of recently-viewed entries shown in the sidebar."
+            ) {
+                HStack(spacing: theme.spacing.sm) {
+                    // Native `Stepper` has no theme hook — left system-rendered
+                    // intentionally; its label adopts the surrounding font.
+                    Stepper(
+                        value: $model.recentsLimit,
+                        in: SettingsKeys.recentsLimitBounds,
+                        step: 1
+                    ) {
+                        Text("\(model.recentsLimit) entries")
+                            .font(theme.typography.body)
+                            .foregroundStyle(theme.colors.onSurface)
+                    }
+                    .accessibilityLabel("Recents limit")
+                    .accessibilityValue("\(model.recentsLimit) entries")
+                    .accessibilityHint("Maximum number of entries kept in the sidebar Recents section")
+                    Spacer()
                 }
             }
         }
@@ -284,7 +321,11 @@ struct SettingsView_Previews: PreviewProvider {
 
     static var previews: some View {
         let env = AppEnvironment.preview()
-        let model = SettingsModel(settings: env.settings, discovery: PreviewDiscovery())
+        let model = SettingsModel(
+            settings: env.settings,
+            discovery: PreviewDiscovery(),
+            recentStore: env.recentStore
+        )
         SettingsView(model: model)
     }
 }

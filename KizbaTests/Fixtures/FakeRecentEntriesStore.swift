@@ -6,6 +6,10 @@ actor FakeRecentEntriesStore: RecentEntriesStoring {
     private var maxCount: Int
     private var paths: [String]
     private var continuations: [UUID: AsyncStream<Void>.Continuation] = [:]
+    /// Records every `setMaxCount(_:)` invocation, in order, so tests can
+    /// assert propagation from a presentation-layer model into the actor
+    /// store (MVP6 Phase A.4 — `SettingsModel.save()` forwards the limit).
+    private(set) var setMaxCountCalls: [Int] = []
 
     init(
         initialPaths: [String] = [],
@@ -39,6 +43,7 @@ actor FakeRecentEntriesStore: RecentEntriesStoring {
     }
 
     func setMaxCount(_ newValue: Int) async {
+        setMaxCountCalls.append(newValue)
         let clamped = max(1, newValue)
         guard clamped != maxCount else { return }
         maxCount = clamped
