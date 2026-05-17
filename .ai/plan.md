@@ -1,322 +1,559 @@
-# MVP 5 — Search, Favorites & Quick Access
+# MVP5 Phase C — Recents
 
 ## Goal
 
-Ship global quick-search (⌘F / ⌘K), favorites (⭐), recently-used entries, and a menu-bar status-item mode for fast password access without switching to the main window.
+Add a "Recent Entries" feature: persist recently-viewed entry paths, display them in the sidebar (between Favorites and Folders), and boost recents/favorites in search ranking.
 
-## Total effort estimate
+## Constraints
 
-~5–7 working days (40–56 hours).
-
-## Durable constraints (from decisions.md)
-
-- No third-party packages. Foundation / SwiftUI / AppKit / os only.
-- SWIFT_STRICT_CONCURRENCY = complete. Warnings as errors.
-- No `as!` in Sources/ (SourceGrepTests enforced).
-- No stdout/stdin logging (`Logger.*stdin|print\(.*stdin` ban).
-- `PassSecret` / `SecretDraft` / `MetadataPair` NOT Codable / NOT CustomStringConvertible.
-- Manual DI via initializers. `@Observable` for models.
-- All code/comments/commits in English.
-- macOS 14.0 deployment target. Swift 5.10.
-
-## DoD checklist (every phase)
-
-- [ ] `xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'`
-- [ ] `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'`
-- [ ] `xcodebuild build -scheme Kizba -project Kizba.xcodeproj -configuration Release -destination 'platform=macOS'`
-- [ ] `rg -n '\bas!\b' Kizba` → 0 matches
-- [ ] `rg -n 'Logger.*stdin|print\(.*stdin' Kizba KizbaTests` → 0 matches
-- [ ] No raw `print()` / `stdout` leaks in new code
+- No `as!` anywhere in Sources/.
+- No `Logger.*stdin|print\(.*stdin` patterns.
+- SWIFT_STRICT_CONCURRENCY = complete.
+- `@Observable` + manual DI via initializers.
+- macOS 14.0 deployment target, Swift 5.10.
+- No third-party dependencies.
+- `RecentEntriesStoring` follows the same actor-based protocol pattern as `FavoritesStoring`.
+- Max 20 recent entries (FIFO eviction).
 
 ---
 
-## Phase A — Search infrastructure + UI (est. 1.5 days)
+## Tasks
 
-**Purpose:** Add in-memory fuzzy search over entry paths with a command-palette-style overlay (⌘K).
+### C.1 — RecentEntriesStore protocol + UserDefaults implementation + fake
 
-**Dependencies:** None (first phase).
+**Description:** Define the `RecentEntriesStoring` protocol, implement `UserDefaultsRecentEntriesStore` (production, UserDefaults-backed), and create `FakeRecentEntriesStore` test fixture.
 
-### A.1 — SearchEngine domain service
-
-- **Objective:** Pure, testable search over `[PassEntry]` by path substring (case-insensitive). Returns ranked results.
-- **Files to create:**
-  - `Kizba/Domain/Protocols/EntrySearching.swift` — protocol `EntrySearching` with `func search(query: String, in entries: [PassEntry]) -> [SearchResult]`
-  - `Kizba/Domain/Models/SearchResult.swift` — `struct SearchResult: Sendable, Equatable, Identifiable` with `entry: PassEntry`, `score: Double`, `matchRanges: [Range<String.Index>]`
-  - `Kizba/Infrastructure/Search/LiveSearchEngine.swift` — impl using `String.localizedStandardContains` + scoring by match position/length
-- **Files to modify:**
-  - `Kizba.xcodeproj/project.pbxproj` — add 3 new files
-- **Tests to add:**
-  - `KizbaTests/Infrastructure/Search/LiveSearchEngineTests.swift` (~12 tests): empty query returns all, exact match scores highest, substring match, case insensitivity, no results for gibberish, special characters, path component matching, ranking order
-- **Verification:** build + tests green
-
-### A.2 — SearchModel (presentation model)
-
-- **Objective:** `@Observable @MainActor` model driving the search overlay. Debounced query (150ms), calls `EntrySearching`, exposes `results: [SearchResult]` and `selectedResultIndex: Int?`.
-- **Files to create:**
-  - `Kizba/Presentation/Features/Search/SearchModel.swift`
-- **Files to modify:**
-  - `Kizba.xcodeproj/project.pbxproj`
-- **Tests to add:**
-  - `KizbaTests/Presentation/Features/Search/SearchModelTests.swift` (~8 tests): initial state empty, query updates results, debounce behavior, clear resets, selection navigation (up/down/enter), empty query clears results
-- **Verification:** build + tests green
-
-### A.3 — SearchOverlayView (⌘K command palette)
-
-- **Objective:** Floating overlay with text field + results list. ⌘K toggles. Enter selects entry (sets `appState.router.selectedEntryID`). Escape dismisses.
-- **Files to create:**
-  - `Kizba/Presentation/Features/Search/SearchOverlayView.swift`
-- **Files to modify:**
-  - `Kizba/App/AppRouter.swift` — add `isSearchOverlayPresented: Bool`, `presentSearch()`, `dismissSearch()`
-  - `Kizba/Presentation/Root/RootSplitView.swift` — mount overlay
-  - `Kizba/App/KizbaApp.swift` — add ⌘K keyboard shortcut in Commands
-  - `Kizba.xcodeproj/project.pbxproj`
-- **Tests:** Manual smoke (view layer). SearchModel tests cover logic.
-- **Verification:** build green; ⌘K opens overlay in running app
-
-### A.4 — Wire search into existing ⌘F sidebar filter
-
-- **Objective:** Replace or augment the existing `searchQuery` on `AppState` to use `LiveSearchEngine` for the sidebar/entry-list filter too.
-- **Files to modify:**
-  - `Kizba/Presentation/Features/EntryList/EntryListModel.swift` — use `EntrySearching` for filtering when query non-empty
-  - `Kizba/App/AppEnvironment.swift` — add `searchEngine: any EntrySearching`
-- **Verification:** build + tests green; existing entry-list filter tests still pass
-
----
-
-## Phase B — Favorites (est. 1.5 days)
-
-**Purpose:** Let users star entries; persist favorites in UserDefaults; show a "Favorites" section at the top of the sidebar.
-
-**Dependencies:** Phase A (search results can include favorite status).
-
-### B.1 — FavoritesStore domain + persistence
-
-- **Objective:** Protocol + UserDefaults-backed store for a `Set<String>` of favorited entry paths.
-- **Files to create:**
-  - `Kizba/Domain/Protocols/FavoritesStoring.swift` — `protocol FavoritesStoring: Sendable` with `func isFavorite(_: String) -> Bool`, `func toggleFavorite(_: String)`, `func allFavorites() -> Set<String>`, `var favoritesChanged: AsyncStream<Void>`
-  - `Kizba/Infrastructure/Favorites/UserDefaultsFavoritesStore.swift` — impl using `UserDefaults.standard`, key `"kizba.favorites"`
-- **Files to modify:**
-  - `Kizba.xcodeproj/project.pbxproj`
-- **Tests to add:**
-  - `KizbaTests/Infrastructure/Favorites/UserDefaultsFavoritesStoreTests.swift` (~8 tests): add/remove/toggle, persistence across instances, empty initial state, duplicate add idempotent
-  - `KizbaTests/Fixtures/FakeFavoritesStore.swift`
-- **Verification:** build + tests green
-
-### B.2 — FavoritesModel + sidebar section
-
-- **Objective:** `@Observable @MainActor` model. Sidebar shows "★ Favorites" section above folders when non-empty.
-- **Files to create:**
-  - `Kizba/Presentation/Features/Sidebar/FavoritesModel.swift`
-- **Files to modify:**
-  - `Kizba/Presentation/Features/Sidebar/SidebarView.swift` — add favorites section
-  - `Kizba/App/AppState.swift` — own `FavoritesModel`
-  - `Kizba/App/AppEnvironment.swift` — add `favoritesStore: any FavoritesStoring`
-  - `Kizba.xcodeproj/project.pbxproj`
-- **Tests to add:**
-  - `KizbaTests/Presentation/Features/Sidebar/FavoritesModelTests.swift` (~6 tests)
-- **Verification:** build + tests green
-
-### B.3 — Toggle favorite action in entry detail + context menu
-
-- **Objective:** Star button in entry detail toolbar + right-click context menu on entry rows.
-- **Files to modify:**
-  - `Kizba/Presentation/Features/EntryDetail/EntryDetailView.swift` — add ⭐ toolbar button
-  - `Kizba/Presentation/Features/EntryList/EntryRowView.swift` — context menu "Add to Favorites" / "Remove from Favorites"
-  - `Kizba/App/KizbaApp.swift` — Entry menu: "Toggle Favorite" (⌘D)
-- **Verification:** build green; manual smoke
-
-### B.4 — Favorites cleanup on entry delete/move
-
-- **Objective:** When an entry is deleted or moved, update favorites set accordingly.
-- **Files to modify:**
-  - `Kizba/Presentation/Features/EntryList/EntryListModel.swift` — on `.removed` event, remove from favorites; on `.moved`, update path
-- **Tests to add:**
-  - Add 2 tests to `EntryListReconciliationTests` — favorite cleaned on delete, favorite path updated on move
-- **Verification:** build + tests green
-
----
-
-## Phase C — Recently Used (est. 1 day)
-
-**Purpose:** Track last-accessed entries; show "Recent" section in sidebar and in search results ranking.
-
-**Dependencies:** Phase B (sidebar section pattern established).
-
-### C.1 — RecentEntriesStore
-
-- **Objective:** Protocol + UserDefaults impl. Stores last N (default 10) entry paths with timestamps. FIFO eviction.
-- **Files to create:**
-  - `Kizba/Domain/Protocols/RecentEntriesStoring.swift`
-  - `Kizba/Infrastructure/Recents/UserDefaultsRecentEntriesStore.swift`
-- **Files to modify:**
-  - `Kizba.xcodeproj/project.pbxproj`
-- **Tests to add:**
-  - `KizbaTests/Infrastructure/Recents/UserDefaultsRecentEntriesStoreTests.swift` (~8 tests): record, eviction at capacity, duplicate bumps to front, clear, persistence
-  - `KizbaTests/Fixtures/FakeRecentEntriesStore.swift`
-- **Verification:** build + tests green
-
-### C.2 — Wire recents into EntryDetailModel + sidebar
-
-- **Objective:** Record access on successful `show()`. Show "Recent" section in sidebar below favorites.
-- **Files to modify:**
-  - `Kizba/Presentation/Features/EntryDetail/EntryDetailModel.swift` — call `recentStore.record(path)` on successful show
-  - `Kizba/Presentation/Features/Sidebar/SidebarView.swift` — add "Recent" section
-  - `Kizba/App/AppEnvironment.swift` — add `recentEntriesStore`
-  - `Kizba/App/AppState.swift` — expose recents
-- **Tests to add:**
-  - 2 tests in `EntryDetailModelTests` — show records recent, failed show does not record
-- **Verification:** build + tests green
-
-### C.3 — Boost recents + favorites in search ranking
-
-- **Objective:** `LiveSearchEngine` accepts optional favorites set + recents list; boosts score for matches.
-- **Files to modify:**
-  - `Kizba/Domain/Protocols/EntrySearching.swift` — add optional context param
-  - `Kizba/Infrastructure/Search/LiveSearchEngine.swift` — boost logic
-- **Tests to add:**
-  - 3 tests in `LiveSearchEngineTests` — favorite boosted, recent boosted, both boosted
-- **Verification:** build + tests green
-
----
-
-## Phase D — Menu-bar status item (est. 1.5 days)
-
-**Purpose:** Add an optional menu-bar icon that shows a popover with search + recent entries for quick copy-password without opening the main window.
-
-**Dependencies:** Phases A, B, C (search + favorites + recents).
-
-**Risks:** `NSStatusItem` + SwiftUI popover is tricky on macOS 14. Mitigation: use `NSHostingView` in `NSPopover` attached to status item; keep the popover simple (search field + list).
-
-### D.1 — StatusItemController (AppKit bridge)
-
-- **Objective:** `@MainActor final class` managing `NSStatusItem` lifecycle. Creates/removes status item based on Settings toggle.
-- **Files to create:**
-  - `Kizba/Infrastructure/StatusItem/StatusItemController.swift` — owns `NSStatusItem`, `NSPopover`, hosts SwiftUI view
-- **Files to modify:**
-  - `Kizba/App/AppEnvironment.swift` — add `statusItemController`
-  - `Kizba/App/KizbaApp.swift` — wire lifecycle
-  - `Kizba.xcodeproj/project.pbxproj`
-- **Tests:** Limited (AppKit integration). Manual smoke.
-- **Verification:** build green
-
-### D.2 — MenuBarPopoverView
-
-- **Objective:** Compact SwiftUI view: search field + recent entries list + favorites. Tap entry → copy password to clipboard (via existing `ClipboardServicing`) + auto-clear.
-- **Files to create:**
-  - `Kizba/Presentation/Features/MenuBar/MenuBarPopoverView.swift`
-  - `Kizba/Presentation/Features/MenuBar/MenuBarModel.swift` — `@Observable @MainActor`, owns search + copy logic
-- **Files to modify:**
-  - `Kizba.xcodeproj/project.pbxproj`
-- **Tests to add:**
-  - `KizbaTests/Presentation/Features/MenuBar/MenuBarModelTests.swift` (~6 tests): search, select+copy, empty state
-- **Verification:** build + tests green
-
-### D.3 — Settings toggle for menu-bar mode
-
-- **Objective:** "Show in menu bar" toggle in Settings. Persisted via `SettingsStoring`. Controls `StatusItemController` visibility.
-- **Files to modify:**
-  - `Kizba/Infrastructure/Settings/UserDefaultsSettingsStore.swift` — add `showInMenuBar: Bool` key
-  - `Kizba/Presentation/Features/Settings/SettingsView.swift` — add toggle
-  - `Kizba/Domain/Protocols/SettingsStoring.swift` — add property
-- **Tests to add:**
-  - 2 tests in settings store tests — default false, toggle persists
-- **Verification:** build + tests green
-
-### D.4 — Global hotkey (optional, lower priority)
-
-- **Objective:** Optional global keyboard shortcut (e.g., ⌃⌥P) to show/hide the menu-bar popover. Uses `NSEvent.addGlobalMonitorForEvents`.
-- **Files to modify:**
-  - `Kizba/Infrastructure/StatusItem/StatusItemController.swift` — add global monitor
-  - Settings UI — hotkey picker (stretch goal; can be hardcoded for MVP 5)
-- **Risks:** Global hotkey conflicts. Mitigation: make it configurable or off by default.
-- **Verification:** build green; manual test
-
----
-
-## Phase E — Polish, docs & regression (est. 0.5 days)
-
-**Purpose:** Final sweep, README update, decisions log, grep bans, full test suite.
-
-**Dependencies:** All prior phases.
-
-### E.1 — SourceGrepTests extensions
-
-- **Objective:** Add grep rules for new domain types (`SearchResult` not Codable if it carries entry data).
-- **Files to modify:**
-  - `KizbaTests/SourceGrepTests.swift`
-- **Verification:** `rg -n '\bas!\b' Kizba` → 0; all SourceGrepTests green
-
-### E.2 — README + decisions.md + handoff.md update
-
-- **Objective:** Document MVP 5 features, update project structure, append decisions entry.
-- **Files to modify:**
-  - `README.md`
-  - `.ai/decisions.md`
-  - `.ai/handoff.md`
-  - `.ai/sequoia-smoke.md` — add menu-bar rows
-  - `.ai/a11y-audit.md` — add search overlay + menu-bar a11y checklist
-- **Verification:** docs updated; grep for new feature names
-
-### E.3 — Final regression sweep
-
-- **Commands:**
-  ```sh
-  xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-  xcodebuild build -scheme Kizba -project Kizba.xcodeproj -configuration Release -destination 'platform=macOS'
-  rg -n '\bas!\b' Kizba
-  rg -n 'Logger.*stdin|print\(.*stdin' Kizba KizbaTests
-  ```
-- **Verification:** 0 failures, 0 grep ban violations
-
----
-
-## Risk mitigation & sequencing
-
-1. **Land Phase A first.** Search is self-contained and unblocks B, C, D.
-2. **Phase B before C.** Favorites pattern establishes the sidebar-section template that recents reuses.
-3. **Phase D is highest risk** (AppKit bridge). If it slips, Phases A–C are independently shippable as MVP 5a.
-4. **D.4 (global hotkey) is optional.** Mark as stretch goal; can ship without it.
-5. **No new `PassManaging` methods needed.** All features compose over existing `show()` + `listEntries()`.
-
----
-
-## First actionable work item (delegate now)
-
-**Task:** Implement Phase A.1 — SearchEngine domain service.
+**Agent:** smart-worker
 
 **Files to create:**
-- `Kizba/Domain/Protocols/EntrySearching.swift`
-- `Kizba/Domain/Models/SearchResult.swift`
-- `Kizba/Infrastructure/Search/LiveSearchEngine.swift`
-- `KizbaTests/Infrastructure/Search/LiveSearchEngineTests.swift`
+- `Kizba/Domain/Protocols/RecentEntriesStoring.swift`
+- `Kizba/Infrastructure/Recents/UserDefaultsRecentEntriesStore.swift`
+- `KizbaTests/Fixtures/FakeRecentEntriesStore.swift`
 
-**Files to modify:**
-- `Kizba.xcodeproj/project.pbxproj` (add 4 files)
+**Signatures:**
 
-**Description:**
-1. Define `EntrySearching` protocol with `func search(query: String, in entries: [PassEntry]) -> [SearchResult]`.
-2. Define `SearchResult` as `struct SearchResult: Sendable, Equatable, Identifiable` with `let id = UUID()`, `let entry: PassEntry`, `let score: Double`, `let matchRanges: [Range<String.Index>]`.
-3. Implement `LiveSearchEngine: EntrySearching` using `String.localizedStandardContains` for matching. Score: exact match = 1.0, prefix match = 0.8, contains = 0.5. Sort descending by score, then alphabetically.
-4. Write ~12 tests covering: empty query → returns all entries (score 1.0), exact path match, prefix match, substring match, case insensitivity, no results, special characters in query, path component matching, result ordering by score, empty entries array.
-5. Add all 4 files to `project.pbxproj`.
+```swift
+// RecentEntriesStoring.swift
+public protocol RecentEntriesStoring: Sendable {
+    func record(_ path: String) async
+    func recentPaths() async -> [String]
+    func clear() async
+    var recentsChanged: AsyncStream<Void> { get }
+}
 
-**Acceptance criteria:**
-- Build succeeds
-- All new tests pass
-- No `as!` in new code
-- `SearchResult` is NOT Codable, NOT CustomStringConvertible
-- Protocol is `Sendable`-safe
+// UserDefaultsRecentEntriesStore.swift
+public actor UserDefaultsRecentEntriesStore: RecentEntriesStoring {
+    // Max 20 entries. FIFO: newest at index 0.
+    // If path already exists, move to front (dedup).
+    // UserDefaults key: "kizba.recentEntries"
+    public init(defaults: UserDefaults = .standard, maxCount: Int = 20)
+    public func record(_ path: String) async
+    public func recentPaths() async -> [String]
+    public func clear() async
+    public nonisolated var recentsChanged: AsyncStream<Void> { get }
+}
 
-**Verification commands:**
-```sh
-xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-xcodebuild build -scheme Kizba -project Kizba.xcodeproj -configuration Release -destination 'platform=macOS'
-rg -n '\bas!\b' Kizba
-rg -n 'Logger.*stdin|print\(.*stdin' Kizba KizbaTests
+// FakeRecentEntriesStore.swift (in KizbaTests/Fixtures/)
+actor FakeRecentEntriesStore: RecentEntriesStoring {
+    // In-memory array, same contract. For tests.
+    init()
+    func record(_ path: String) async
+    func recentPaths() async -> [String]
+    func clear() async
+    nonisolated var recentsChanged: AsyncStream<Void> { get }
+}
 ```
+
+**Tests to add:**
+- `KizbaTests/Infrastructure/Recents/UserDefaultsRecentEntriesStoreTests.swift`
+  - `testRecord_addsPath`
+  - `testRecord_movesExistingToFront`
+  - `testRecord_evictsOldestBeyondMax`
+  - `testRecentPaths_returnsOrderedList`
+  - `testClear_emptiesList`
+  - `testRecentsChanged_emitsOnRecord`
+  - `testRecentsChanged_emitsOnClear`
+
+**Verification:**
+```sh
+xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
+  -only-testing:KizbaTests/Infrastructure/Recents/UserDefaultsRecentEntriesStoreTests
+rg -n '\bas!\b' Kizba/
+rg -n 'Logger.*stdin|print\(.*stdin' Kizba/ KizbaTests/
+```
+
+**Branch:** `mvp5/c1-recent-entries-store`
+**Commit:** `feat(recents): add RecentEntriesStoring protocol + UserDefaults impl (MVP5.C.1)`
+
+**Difficulty:** low
+**Risks:** UserDefaults suite isolation in tests — use a custom suite name to avoid cross-test pollution.
 
 ---
 
-## Handoff next-action
+### C.2 — Wire recents into AppEnvironment, record on show, display in SidebarView
 
-Delegate to smart-worker: implement MVP5 Phase A.1 — SearchEngine domain service (EntrySearching protocol + LiveSearchEngine + SearchResult + tests)
+**Description:** Add `recentStore` to `AppEnvironment`, record entry path on successful `pass show` in `EntryDetailModel`, create `RecentsModel` for sidebar, and add Recents section to `SidebarView` between Favorites and Folders.
+
+**Agent:** smart-worker
+
+**Files to modify:**
+- `Kizba/App/AppEnvironment.swift` — add `let recentStore: any RecentEntriesStoring` property; wire `UserDefaultsRecentEntriesStore()` in `live()`, `FakeRecentEntriesStore()` in `preview()` (guarded `#if DEBUG`); add `UnavailableRecentEntriesStore` private struct.
+- `Kizba/App/AppState.swift` — no changes expected (recents are not app-state; they're sidebar-model concern).
+- `Kizba/Presentation/Features/EntryDetail/EntryDetailModel.swift` — in `apply(_:generation:onlyIfCurrent:)` (line ~396), when `newState` is `.loaded`, call `Task { await environment.recentStore.record(entryPath) }` where `entryPath` is derived from the current selection. Alternative: record in `handleSelectionChange` after successful load completes (line 143, inside the `loadTask` closure, after `self?.apply(.loaded(secret), ...)`).
+- `Kizba/Presentation/Features/Sidebar/SidebarView.swift` — add `@State private var recentsModel: RecentsModel`, init from `environment.recentStore`. Add "Recents" `Section` between Favorites and Folders (same row pattern as Favorites).
+
+**Files to create:**
+- `Kizba/Presentation/Features/Sidebar/RecentsModel.swift`
+
+**Signatures:**
+
+```swift
+// RecentsModel.swift
+@Observable
+@MainActor
+final class RecentsModel {
+    private(set) var recents: [String] = []
+    private let store: any RecentEntriesStoring
+
+    init(store: any RecentEntriesStoring)
+    func load() async
+    func stop()
+    // Internally: observeChanges task that listens to store.recentsChanged
+}
+```
+
+**Wiring locations (exact):**
+1. `EntryDetailModel.swift` line ~143: after `self?.apply(.loaded(secret), generation: myGeneration)`, add recording call. The entry path is available as `entry.path` (captured in the closure scope at line 134).
+2. `SidebarView.swift` line ~58 (after Favorites section closing brace, before `Section("Folders")`): insert Recents section.
+3. `AppEnvironment.swift` init parameters: add `recentStore: any RecentEntriesStoring = UserDefaultsRecentEntriesStore()` after `favoritesStore`.
+
+**Tests to add:**
+- `KizbaTests/Presentation/Features/Sidebar/RecentsModelTests.swift`
+  - `testLoad_populatesRecents`
+  - `testLoad_observesChanges`
+  - `testStop_cancelsObservation`
+
+**Verification:**
+```sh
+xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
+  -only-testing:KizbaTests/Presentation/Features/Sidebar/RecentsModelTests
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
+  -only-testing:KizbaTests/SourceGrepTests
+rg -n '\bas!\b' Kizba/
+rg -n 'Logger.*stdin|print\(.*stdin' Kizba/ KizbaTests/
+```
+
+**Branch:** `mvp5/c2-recents-wiring-sidebar`
+**Commit:** `feat(recents): wire RecentEntriesStore + RecentsModel + SidebarView section (MVP5.C.2)`
+
+**Difficulty:** medium
+**Risks:**
+- Existing tests that construct `AppEnvironment` may need the new `recentStore` param — use a default value to avoid churn.
+- `EntryDetailModel` tests may need `FakeRecentEntriesStore` in the environment — verify existing tests still pass.
+
+---
+
+### C.3 — Boost favorites and recents in search ranking
+
+**Description:** Extend `EntrySearching` protocol with an optional `SearchContext` parameter carrying favorites and recents sets. Update `LiveSearchEngine` to apply a score boost (+0.05) for favorites and (+0.03) for recents. Add tests.
+
+**Agent:** smart-worker
+
+**Files to modify:**
+- `Kizba/Domain/Protocols/EntrySearching.swift` — add `SearchContext` struct and extend `search` signature with default `nil` context.
+- `Kizba/Infrastructure/Search/LiveSearchEngine.swift` — accept `SearchContext?`, apply boost in scoring.
+- `Kizba/App/AppEnvironment.swift` — update `LiveSearchEngine` init in `live()` and `preview()` if needed (likely no change if context is per-call).
+- `Kizba/Presentation/Features/Search/SearchModel.swift` or `Kizba/Presentation/Features/EntryList/EntryListModel.swift` — pass context when calling `search()`.
+
+**Signatures:**
+
+```swift
+// EntrySearching.swift
+public struct SearchContext: Sendable {
+    public let favoritePaths: Set<String>
+    public let recentPaths: Set<String>
+    public init(favoritePaths: Set<String> = [], recentPaths: Set<String> = [])
+}
+
+public protocol EntrySearching: Sendable {
+    func search(_ query: String) async throws -> [SearchResult]
+    func search(_ query: String, context: SearchContext?) async throws -> [SearchResult]
+}
+
+// Default extension: search(_:) delegates to search(_:context: nil)
+
+// LiveSearchEngine — in score(), after base score, add:
+//   +0.05 if path in context.favoritePaths
+//   +0.03 if path in context.recentPaths
+//   (capped at 1.0)
+```
+
+**Tests to add:**
+- `KizbaTests/Infrastructure/Search/LiveSearchEngineTests.swift`
+  - `testSearch_returnsResultsForMatchingQuery`
+  - `testSearch_emptyQueryReturnsEmpty`
+  - `testSearch_exactMatchScoresHighest`
+  - `testSearch_favoriteGetsBoost`
+  - `testSearch_recentGetsBoost`
+  - `testSearch_favoriteAndRecentBoostStack`
+  - `testSearch_boostDoesNotExceedOne`
+  - `testSearch_noContextSameAsBefore`
+
+**Verification:**
+```sh
+xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
+  -only-testing:KizbaTests/Infrastructure/Search/LiveSearchEngineTests
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+rg -n '\bas!\b' Kizba/
+rg -n 'Logger.*stdin|print\(.*stdin' Kizba/ KizbaTests/
+```
+
+**Branch:** `mvp5/c3-search-boost-recents-favorites`
+**Commit:** `feat(search): boost favorites/recents in search ranking (MVP5.C.3)`
+
+**Difficulty:** medium
+**Risks:**
+- Changing `EntrySearching` protocol signature affects all conformers (LiveSearchEngine, UnavailableSearchEngine, test fakes in SearchModelSelectionTests, SearchModelUITests). Use default extension to minimize churn.
+- Existing search tests must remain green — the default `nil` context preserves old behavior.
+
+---
+
+## Acceptance criteria
+
+1. Build succeeds with no warnings in strict concurrency mode.
+2. `UserDefaultsRecentEntriesStoreTests` (7 tests) pass.
+3. `RecentsModelTests` (3 tests) pass.
+4. `LiveSearchEngineTests` (8 tests) pass.
+5. All `SourceGrepTests` pass.
+6. Full test suite green, 0 failures.
+7. Grep bans clean (no `as!`, no stdin logging).
+8. SidebarView shows "Recents" section between Favorites and Folders when recents exist; hidden when empty.
+9. Viewing an entry records it in recents.
+10. Search results boost favorites and recents.
+
+## Verification commands (final)
+
+```sh
+# Build
+xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+
+# Phase C tests
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
+  -only-testing:KizbaTests/Infrastructure/Recents/UserDefaultsRecentEntriesStoreTests
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
+  -only-testing:KizbaTests/Presentation/Features/Sidebar/RecentsModelTests
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
+  -only-testing:KizbaTests/Infrastructure/Search/LiveSearchEngineTests
+
+# SourceGrep
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
+  -only-testing:KizbaTests/SourceGrepTests
+
+# Full suite
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+
+# Grep bans
+rg -n '\bas!\b' Kizba/
+rg -n 'Logger.*stdin|print\(.*stdin' Kizba/ KizbaTests/
+```
+
+## Suggested current step
+
+Run **smart-worker** to implement **Task C.1** (RecentEntriesStoring protocol + UserDefaultsRecentEntriesStore + FakeRecentEntriesStore + tests).
+
+---
+---
+
+# MVP5 Phase D — Menu-bar Status Item
+
+## Goal
+
+Add a persistent macOS menu-bar status item (NSStatusItem) hosting a SwiftUI popover for quick search, copy, and recent/favorites access — without opening the main window.
+
+## Constraints
+
+- All constraints from Phase C apply (strict concurrency, no `as!`, no third-party deps, `@Observable` + manual DI, macOS 14+, design-system token policy).
+- `NSStatusItem` + `NSPopover` pattern (AppKit host); SwiftUI content via `NSHostingView`.
+- Status item visibility controlled by a user setting (`SettingsKeys.showInMenuBar`).
+- Menu-bar popover is independent of the main window lifecycle.
+
+---
+
+## Tasks
+
+### D.1 — StatusItemController
+
+**Description:** Create `StatusItemController` that owns the `NSStatusItem` and `NSPopover`, hosts SwiftUI content, and exposes show/hide/toggle API.
+
+**Agent:** smart-worker
+
+**Files to create:**
+- `Kizba/Infrastructure/MenuBar/StatusItemController.swift`
+
+**Files to modify:**
+- `Kizba/App/KizbaApp.swift` — instantiate `StatusItemController` in app init, call `show()`/`hide()` based on settings.
+
+**Signatures:**
+
+```swift
+// StatusItemController.swift
+import AppKit
+import SwiftUI
+
+@MainActor
+final class StatusItemController {
+    private var statusItem: NSStatusItem?
+    private let popover: NSPopover
+    private let environment: AppEnvironment
+    private let model: MenuBarModel
+
+    init(environment: AppEnvironment, model: MenuBarModel)
+
+    func show()   // Creates NSStatusItem, configures button, wires popover
+    func hide()   // Removes status item from system bar
+    func toggle() // Toggles popover visibility
+}
+```
+
+**Implementation notes:**
+- `NSStatusItem` created via `NSStatusBar.system.statusItem(withLength: .squareLength)`.
+- Button image: SF Symbol `key.fill` (or custom asset).
+- Button action calls `toggle()`.
+- `NSPopover` content: `NSHostingView(rootView: MenuBarPopoverView(model: model))`.
+- Popover `behavior = .transient` (auto-dismiss on focus loss).
+- `show()` is idempotent (no-op if already visible); `hide()` removes item from bar.
+
+**Tests to add:**
+- `KizbaTests/Infrastructure/MenuBar/StatusItemControllerTests.swift`
+  - `testShow_createsStatusItem`
+  - `testHide_removesStatusItem`
+  - `testToggle_showsPopoverWhenHidden`
+  - `testToggle_hidesPopoverWhenVisible`
+  - `testShow_idempotent`
+
+**Verification:**
+```sh
+xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
+  -only-testing:KizbaTests/Infrastructure/MenuBar/StatusItemControllerTests
+rg -n '\bas!\b' Kizba/
+```
+
+**Branch:** `mvp5/d1-status-item-controller`
+**Commit:** `feat(menubar): add StatusItemController with NSStatusItem + NSPopover (MVP5.D.1)`
+
+**Difficulty:** medium
+**Risks:**
+- `NSStatusItem` tests require the app to have a status bar context; tests may need to verify state rather than visual presence. Use property checks (`statusItem != nil`, `popover.isShown`).
+- Thread safety: all access is `@MainActor`-isolated — safe.
+
+---
+
+### D.2 — MenuBarPopoverView + MenuBarModel
+
+**Description:** Create the SwiftUI popover view and its backing observable model. The popover shows a search field, results list, and recent/favorites quick-access. Copy action copies password to clipboard.
+
+**Agent:** smart-worker
+
+**Files to create:**
+- `Kizba/Presentation/Features/MenuBar/MenuBarPopoverView.swift`
+- `Kizba/Presentation/Features/MenuBar/MenuBarModel.swift`
+
+**Files to modify:**
+- `Kizba/Infrastructure/MenuBar/StatusItemController.swift` — wire `MenuBarPopoverView` as popover content (if not done in D.1).
+
+**Signatures:**
+
+```swift
+// MenuBarModel.swift
+import Foundation
+
+@Observable
+@MainActor
+final class MenuBarModel {
+    private let searchEngine: any EntrySearching
+    private let recentStore: any RecentEntriesStoring
+    private let favoritesStore: any FavoritesStoring
+    private let clipboard: any ClipboardServicing
+    private let settings: any SettingsStoring
+
+    var query: String = ""
+    private(set) var results: [SearchResult] = []
+    private(set) var recents: [String] = []
+    private(set) var favorites: [String] = []
+    private(set) var isCopying: Bool = false
+
+    init(
+        searchEngine: any EntrySearching,
+        recentStore: any RecentEntriesStoring,
+        favoritesStore: any FavoritesStoring,
+        clipboard: any ClipboardServicing,
+        settings: any SettingsStoring
+    )
+
+    func search() async
+    func copy(index: Int) async   // Copy password at result index to clipboard
+    func copyEntry(path: String) async  // Copy password for a given path
+    func loadRecentsAndFavorites() async
+}
+```
+
+```swift
+// MenuBarPopoverView.swift
+import SwiftUI
+
+struct MenuBarPopoverView: View {
+    @Bindable var model: MenuBarModel
+    var body: some View { ... }
+    // Layout: TextField for query, List of results with copy button,
+    // Sections for Recents and Favorites when query is empty.
+    // Frame: width ~320, height ~400.
+}
+```
+
+**Tests to add:**
+- `KizbaTests/Presentation/Features/MenuBar/MenuBarModelTests.swift`
+  - `testSearch_populatesResults`
+  - `testSearch_emptyQueryClearsResults`
+  - `testCopyIndex_copiesToClipboard`
+  - `testCopyEntry_copiesToClipboard`
+  - `testLoadRecentsAndFavorites_populatesBoth`
+
+**Verification:**
+```sh
+xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
+  -only-testing:KizbaTests/Presentation/Features/MenuBar/MenuBarModelTests
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
+  -only-testing:KizbaTests/SourceGrepTests
+rg -n '\bas!\b' Kizba/
+```
+
+**Branch:** `mvp5/d2-menubar-popover-model`
+**Commit:** `feat(menubar): add MenuBarPopoverView + MenuBarModel (MVP5.D.2)`
+
+**Difficulty:** medium
+**Risks:**
+- `passManager.show(entry)` triggers pinentry — the popover must not block. Use existing timeout + cancel pattern from `EntryDetailModel`.
+- SourceGrep bans: use design-system tokens in the view (no inline colors/radii/opacity).
+
+---
+
+### D.3 — Settings toggle for menu-bar visibility
+
+**Description:** Add a `showInMenuBar` setting key, persist via `SettingsStoring`, add a toggle in `SettingsView`, and wire it to `StatusItemController.show()/hide()`.
+
+**Agent:** smart-worker
+
+**Files to modify:**
+- `Kizba/Domain/Protocols/SettingsStoring.swift` — add `SettingsKeys.showInMenuBar = "showInMenuBar"`.
+- `Kizba/Presentation/Features/Settings/SettingsModel.swift` — add `var showInMenuBar: Bool` property, read/write via settings store.
+- `Kizba/Presentation/Features/Settings/SettingsView.swift` — add Toggle in General section.
+- `Kizba/App/KizbaApp.swift` — observe setting changes, call `statusItemController.show()/hide()` reactively.
+
+**Signatures:**
+
+```swift
+// In SettingsKeys:
+public nonisolated static let showInMenuBar = "showInMenuBar"
+public nonisolated static let defaultShowInMenuBar: Bool = true
+```
+
+**Tests to add:**
+- `KizbaTests/Presentation/Features/Settings/SettingsModelTests.swift` (extend existing)
+  - `testShowInMenuBar_defaultsToTrue`
+  - `testShowInMenuBar_persistsChange`
+  - `testReset_restoresShowInMenuBarDefault`
+
+**Verification:**
+```sh
+xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
+  -only-testing:KizbaTests/Presentation/Features/Settings/SettingsModelTests
+rg -n '\bas!\b' Kizba/
+rg -n 'showInMenuBar' Kizba/
+```
+
+**Branch:** `mvp5/d3-settings-menubar-toggle`
+**Commit:** `feat(settings): add showInMenuBar toggle + wire to StatusItemController (MVP5.D.3)`
+
+**Difficulty:** low
+**Risks:**
+- Existing `SettingsModel` tests may need the new property in assertions — use default value to minimize churn.
+
+---
+
+### D.4 — Global hotkey (OPTIONAL)
+
+**Description:** Register a global keyboard shortcut (e.g. ⌥⌘P) to toggle the menu-bar popover from anywhere. This is optional and may be deferred.
+
+**Agent:** smart-worker
+
+**Files to create (if implemented):**
+- `Kizba/Infrastructure/MenuBar/GlobalHotkeyManager.swift`
+
+**Files to modify:**
+- `Kizba/Infrastructure/MenuBar/StatusItemController.swift` — integrate hotkey trigger.
+- `Kizba/Domain/Protocols/SettingsStoring.swift` — add `SettingsKeys.globalHotkey` if configurable.
+
+**Implementation notes:**
+- Use `NSEvent.addGlobalMonitorForEvents(matching: .keyDown)` or `CGEvent` tap.
+- `addGlobalMonitorForEvents` requires Accessibility permission (System Preferences > Privacy > Accessibility). App must handle the case where permission is not granted (fail silently, show guidance in Settings).
+- Alternative: `MASShortcut`-style Carbon `RegisterEventHotKey` — but that's a third-party pattern. Stick with `NSEvent` monitor.
+- Hardened Runtime: no additional entitlements needed for `addGlobalMonitorForEvents`, but Accessibility permission is runtime-granted.
+
+**Tests:** Unit-testable only via mocking `NSEvent` monitor registration (limited value). Prefer manual QA.
+
+**Verification:**
+```sh
+xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+```
+
+**Branch:** `mvp5/d4-global-hotkey`
+**Commit:** `feat(menubar): add global hotkey to toggle popover (MVP5.D.4)`
+
+**Difficulty:** high
+**Risks:**
+- Accessibility permission UX is poor (system dialog, requires restart sometimes).
+- `addGlobalMonitorForEvents` does NOT receive events when the app itself is focused — need `addLocalMonitorForEvents` as well.
+- Carbon `RegisterEventHotKey` is deprecated but more reliable; conflicts with system shortcuts possible.
+- **Recommendation:** defer to a later MVP unless user demand is clear.
+
+---
+
+## Acceptance criteria
+
+1. Build succeeds with strict concurrency, no warnings.
+2. `StatusItemControllerTests` (5 tests) pass.
+3. `MenuBarModelTests` (5 tests) pass.
+4. `SettingsModelTests` new tests (3 tests) pass.
+5. All `SourceGrepTests` pass.
+6. Full test suite green.
+7. Grep bans clean.
+8. Menu-bar icon appears when `showInMenuBar` is true; disappears when false.
+9. Clicking icon opens popover with search + recents/favorites.
+10. Typing a query shows results; clicking copy copies password.
+
+## Verification commands (final)
+
+```sh
+xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
+  -only-testing:KizbaTests/Infrastructure/MenuBar/StatusItemControllerTests
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
+  -only-testing:KizbaTests/Presentation/Features/MenuBar/MenuBarModelTests
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
+  -only-testing:KizbaTests/Presentation/Features/Settings/SettingsModelTests
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
+  -only-testing:KizbaTests/SourceGrepTests
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+rg -n '\bas!\b' Kizba/
+rg -n 'Logger.*stdin|print\(.*stdin' Kizba/ KizbaTests/
+```
+
+## Suggested current step (Phase D)
+
+Run **smart-worker** to implement **Task D.1** (StatusItemController).

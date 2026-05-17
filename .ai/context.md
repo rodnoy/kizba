@@ -1,36 +1,80 @@
-# Kizba — Reconnaissance Context
+# Kizba — Reconnaissance Context (MVP5 Phase A.5)
 
 ## Summary
 
-Read `.ai/handoff.md`, `.ai/plan.md`, `.ai/decisions.md`, `.ai/context.md` (prior version).
-
-## C.7 Sidebar Mount — Status
-
-**Implemented: YES.**
-
-- `SidebarView` accepts `gitStatusModel: GitStatusModel?` parameter (line 30, default nil)
-- Renders `GitStatusBadge(model:)` at bottom of folder list, guarded by `if let gitStatusModel` (line 70–74)
-- `RootSplitView` passes `state.gitStatusModel` to `SidebarView` (line 37)
-- Only one call site of `SidebarView` exists (`RootSplitView.swift:31`)
-- No `project.pbxproj` changes needed for C.7 (no new files created — only edits to existing `SidebarView.swift` and `RootSplitView.swift`)
-
-## Tests
-
-No dedicated C.7 tests exist. Per plan, C.7 DoD is "manual smoke (git store) shows badge; (non-git store) hides badge." This is by design — the plan does not require automated tests for the mount step.
+MVP5 Phase A.5 ("filesystem-backed listing + lazy `pass show` composed into `PassManaging`") is **ALREADY FULLY IMPLEMENTED** in production code. The wiring has been in place since MVP 2 Phase E.5/E.6. Tests exist for all core paths. No new files or pbxproj edits are required.
 
 ## Files Retrieved
 
-1. `Kizba/Presentation/Features/Sidebar/SidebarView.swift` — mount point, 81 lines, has GitStatusBadge conditional render
-2. `Kizba/Presentation/Root/RootSplitView.swift` — sole caller of SidebarView, passes gitStatusModel
+1. `Kizba/Domain/Protocols/PassManaging.swift` — protocol with `listEntries()`, `show(_:)`, `storeLocation()`, plus MVP2 write methods and `changes` stream. 181 lines.
+2. `Kizba/Domain/Protocols/PasswordStoreScanning.swift` — protocol with `listEntries(in:)`, `validateStoreRoot(_:)`, `invalidate(storeRoot:)`, `contains(path:in:)`. 75 lines.
+3. `Kizba/Infrastructure/Pass/LivePassManager.swift` — `actor LivePassManager: PassManaging`. Composes `PasswordStoreScanning` (listing) + `LivePassCLI` (show/writes). 401 lines.
+4. `Kizba/Infrastructure/Store/PasswordStoreScanner.swift` — `actor PasswordStoreScanner: PasswordStoreScanning`. FileManager-based `.gpg` file walker with cache. 182 lines.
+5. `Kizba/Infrastructure/Pass/LivePassCLI.swift` — wraps `pass show` via `ShellCommandRunning`.
+6. `Kizba/Infrastructure/Pass/MockPassManager.swift` — `#if DEBUG` in-memory `PassManaging` actor with fixture corpus. 436 lines.
+7. `Kizba/App/AppEnvironment.swift` — `live()` wires `PasswordStoreScanner` + `LivePassCLI` → `LivePassManager` (lines 217–227); `preview()` wires `MockPassManager.preview()` (line 314).
 
-## Next Action
+## Key Structures
 
-C.7 is done. Handoff should be updated to mark C.7 COMPLETED and delegate C.8 (Git menu commands) to smart-worker.
+- **`PassManaging`** (protocol): `listEntries() -> [PassEntry]`, `show(_:) -> PassSecret`, `storeLocation() -> URL`, plus write methods + `changes: AsyncStream<StoreChange>`.
+- **`PasswordStoreScanning`** (protocol): `listEntries(in:)`, `validateStoreRoot(_:)`, `invalidate(storeRoot:)`, `contains(path:in:)`.
+- **`LivePassManager`** (actor): production `PassManaging`. Injects `scanner: any PasswordStoreScanning`, `passCLI: LivePassCLI`, `storeRootProvider: @Sendable () -> URL`.
+- **`PasswordStoreScanner`** (actor): production `PasswordStoreScanning`. Caches results keyed by standardized path.
+- **`MockPassManager`** (actor, `#if DEBUG`): in-memory double with 20 fixture entries. `preview()` factory method.
 
-## Verification Commands (post-C.7)
+## Architecture
 
-```sh
-xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-rg -n '\bas!\b' Kizba
-rg -n 'Logger.*stdin|print\(.*stdin' Kizba
 ```
+AppEnvironment.live()
+  └─ LivePassManager(scanner: PasswordStoreScanner(), passCLI: LivePassCLI(...), storeRootProvider: ...)
+       ├─ listEntries() → scanner.listEntries(in: storeRoot) → maps [String] to [PassEntry]
+       └─ show(_:) → passCLI.show(entry, storeRoot) → PassShowParser → PassSecret
+
+AppEnvironment.preview()
+  └─ MockPassManager.preview()  (in-memory fixtures, no real pass/gpg)
+```
+
+## Risks / Unknowns
+
+1. **No direct test for `PasswordStoreScanner.contains(path:in:)`** — low risk (indirectly covered), but a gap if the plan mandates explicit coverage.
+
+---
+
+## scout: failing-tests-triage (2026-05-13)
+
+### Failing tests from `.ai/build-errors.md`
+
+| # | Test target | Test class | Test name | Error message | Offending file:line |
+|---|---|---|---|---|---|
+| 1 | KizbaTests | SourceGrepTests | `testNoLiteralSwiftUIColor_inPresentationOutsideDS` | Found forbidden literal SwiftUI color (use theme.colors.*) | `SearchOverlayView.swift:14` — `Color.black` |
+| 2 | KizbaTests | SourceGrepTests | `testNoNumericCornerRadius_inPresentationOutsideDS` | Found forbidden numeric corner radius (use theme.radius.*) | `SearchOverlayView.swift:60` — `RoundedRectangle(cornerRadius: 8)`, `:84` — `cornerRadius: 12` |
+| 3 | KizbaTests | SourceGrepTests | `testNoNumericOpacity_inPresentationOutsideDS` | Found forbidden inline numeric opacity | `SearchOverlayView.swift:15` — `.opacity(0.35)`, `:61` — `.opacity(0.16)` |
+
+### Grouping by root cause
+
+**Group A: SourceGrep style violations in `SearchOverlayView.swift`** (all 3 failures)
+- **Hypothesis:** `SearchOverlayView.swift` was added in MVP5.A.3 with inline style literals (`Color.black`, numeric `cornerRadius`, numeric `.opacity()`) that violate the design-system token policy enforced by `SourceGrepTests`.
+- **Status: ALREADY FIXED.** Commit `12cd348` ("fix(style): replace literal Color/cornerRadius/opacity in SearchOverlayView") landed the corrections. The `.ai/build-errors.md` is stale — it was captured before that fix commit.
+
+### Current repo grep scan (post-fix)
+
+- **`Color.<name>` (excluding `Color.clear`):** None found in `Kizba/Presentation/Features/`.
+- **`.opacity(<numeric literal>)`:** Only `.opacity(0)` on a hidden dismiss button (pattern `\.opacity\(\s*0\.\d` does NOT match integer `0`). Clean.
+- **`RoundedRectangle(cornerRadius: <number>)`:** None found in `Kizba/Presentation/Features/`. Clean.
+
+### Conclusion
+
+All 3 failures are resolved in the committed codebase. `.ai/build-errors.md` is stale and should be cleared or re-generated by running the test suite.
+
+### Prioritized next steps
+
+| # | Description | Difficulty | Next agent |
+|---|---|---|---|
+| 1 | Re-run full test suite to confirm 0 failures and update `.ai/build-errors.md` | tiny | smart-builder |
+| 2 | Clear stale `.ai/build-errors.md` after green run | tiny | smart-builder |
+| 3 | Proceed with MVP5 B.2 Task 1 — wire `favoritesStore` into `AppEnvironment` | medium | smart-planner |
+| 4 | Create `InMemoryFavoritesStore` (`#if DEBUG`) | low | smart-worker |
+| 5 | Create `FavoritesModel` (`@Observable @MainActor`) | medium | smart-worker |
+| 6 | Add Favorites section to `SidebarView` | medium | smart-worker |
+| 7 | Add `FavoritesModelTests` | low | smart-worker |
+| 8 | Final verification run for B.2 | tiny | smart-builder |

@@ -517,3 +517,19 @@ The 27 architectural + UX decisions for MVP 4 (planning phase, before any code).
 - Pull/Push lockout integrated into AppState.activeWriteOps; new cases .gitPull/.gitPush.
 - E2E opt-in gated by env vars KIZBA_E2E and KIZBA_GIT_E2E.
 - No third-party packages; SWIFT_STRICT_CONCURRENCY enforced.
+
+## 2026-05-13 — Post-MVP 4: GnuPG 2.5.x AEAD remediation + In-app Help
+
+### Decision A — GnuPG 2.5.x AEAD remediation strategy
+
+- **Context**: GnuPG 2.5.19 (beta) writes AEAD (`tag=20`) by default on cv25519 recipients whose self-sig declares AEAD support. Mobile OpenPGP clients (Pass for iOS, Android Password Store) cannot decode AEAD — they only understand MDC (`tag=18`, RFC 4880). Files written by Kizba on macOS are unreadable on phones.
+- **Investigation**: Confirmed empirically across 5 test cases that NONE of the following CLI/config overrides disable AEAD on GnuPG 2.5.x: `--rfc4880`, `--compliance=rfc4880`, `--disable-cipher-algo OCB EAX`, `disable-cipher-algo` lines in `~/.gnupg/gpg.conf`. The `PASSWORD_STORE_GPG_OPTS=--rfc4880` env var IS correctly forwarded by `pass` to `gpg --encrypt` invocations, but `gpg` 2.5.x silently ignores it. Root cause: `gpg` 2.5.x picks the cipher mode based on the recipient key's `Features` block in its self-signature; CLI flags can no longer override this in the beta branch.
+- **Decision**: Treat AEAD/MDC compatibility as a **user-side configuration** problem, not an in-app fix. The user must run `gpg --edit-key … setpref S9 S8 S7 S2 H10 H9 H8 H11 H2 Z2 Z3 Z1 … save` once to remove AEAD from their key's preferences. Document this in-app via the Help window (see Decision B). Keep the `PASSWORD_STORE_GPG_OPTS=--rfc4880` injection in `PassCLI.composedEnvironment()` (commit `85f2605`) as **defence-in-depth** — no-op on GnuPG 2.5.x, harmless, may help on future GnuPG versions that re-honour CLI overrides.
+- **Trade-off accepted**: Kizba cannot guarantee cross-client compatibility on its own — it depends on the user's gpg key configuration. This is acceptable because (a) the fix is one command, (b) it's documented inside the app, (c) the alternative (modifying the user's key automatically) would be invasive and unsafe.
+
+### Decision B — In-app Help: copy-only UX, structured catalog model
+
+- **Context**: Need a discoverable place to document the AEAD remediation steps and similar future technical issues, with low friction for the user to apply the fix.
+- **Decision**: Ship a dedicated `Window("Help", id: "help")` scene reachable via the standard macOS `Help > Kizba Help…` menu (⌘⇧?, `CommandGroup(replacing: .help)`). UX is **copy-only**: each shell command rendered in a `HelpCommandCard` with a single "Copy" / "Copy all" button using the existing `ClipboardServicing`. **No AppleScript / Terminal injection.** Help-clipboard retention is `Duration.seconds(600)` (10 min) — non-secret commands, secret-copy token gate still preempts immediately. Topic content is structured (`HelpTopic` → `HelpSection` → `HelpBlock` enum: `paragraph` / `warning` / `command` / `commandSequence` / `bulletList`) — adding a future topic is one file edit (`HelpCatalog.swift`), zero view code changes.
+- **Trade-off accepted**: No one-click "fix" — user must paste each command into their own terminal. Justified by safety (interactive `gpg --edit-key` cannot be safely scripted) and respect for user shell choice (Terminal / iTerm / Warp / Alacritty).
+- **Anchors**: `Kizba/Presentation/Features/Help/`, `KizbaApp.swift` `HelpCommands` struct, `HelpModel.helpClipboardRetention = .seconds(600)`, slug `aead-mdc-compatibility`. 32 new tests across `HelpCatalogTests`, `HelpModelTests`, `HelpCommandCardTests`. Suite total 949 tests, 17 skipped (pre-existing), 0 failures.
