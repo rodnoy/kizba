@@ -26,6 +26,16 @@ struct SidebarView: View {
     private let gitStatusModel: GitStatusModel?
     @Environment(\.theme) private var theme
 
+    // MVP6 Phase A.3: Recents section is user-controllable.
+    // `showRecents` is owned by Settings and lives under the
+    // `app.kizba.settings.` namespace; the key string MUST match
+    // `SettingsKeys.showRecents` exactly so the Settings toggle and
+    // this `@AppStorage` reference the same UserDefaults slot.
+    // `recentsExpanded` is purely a sidebar UI state (collapse
+    // chevron) and is kept under a separate `kizba.sidebar.` prefix.
+    @AppStorage("app.kizba.settings.showRecents") private var showRecents: Bool = true
+    @AppStorage("kizba.sidebar.recentsExpanded") private var recentsExpanded: Bool = true
+
     init(
         environment: AppEnvironment,
         selection: Binding<String?>,
@@ -59,19 +69,28 @@ struct SidebarView: View {
                     }
                 }
 
-                if !recentsModel.recents.isEmpty {
-                    Section("Recents") {
-                        ForEach(recentsModel.recents, id: \.self) { entryPath in
-                            EntryRowView(
-                                title: entryPath.components(separatedBy: "/").last ?? entryPath,
-                                isSelected: selection == entryPath
-                            )
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                selection = entryPath
+                // MVP6 Phase A.3: Recents is gated by Settings.showRecents
+                // and collapsible via a DisclosureGroup whose expansion
+                // state persists across launches. When `showRecents == false`
+                // the section is elided entirely (not just hidden), so the
+                // List does not reserve any layout for it.
+                if showRecents && !recentsModel.recents.isEmpty {
+                    Section {
+                        DisclosureGroup(isExpanded: $recentsExpanded) {
+                            ForEach(recentsModel.recents, id: \.self) { entryPath in
+                                EntryRowView(
+                                    title: entryPath.components(separatedBy: "/").last ?? entryPath,
+                                    isSelected: selection == entryPath
+                                )
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    selection = entryPath
+                                }
+                                .listRowBackground(Color.clear)
+                                .accessibilityLabel("\(entryPath), recent")
                             }
-                            .listRowBackground(Color.clear)
-                            .accessibilityLabel("\(entryPath), recent")
+                        } label: {
+                            Text("Recents")
                         }
                     }
                 }
