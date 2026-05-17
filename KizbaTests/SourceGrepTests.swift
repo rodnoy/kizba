@@ -656,6 +656,82 @@ final class SourceGrepTests: XCTestCase {
         XCTAssertFalse(violations.contains { $0.contains(safePath) }, "Safe fixture should not produce a violation")
     }
 
+    // MARK: - MVP6.C.2 advisory tooltip rule
+
+    /// (19) Advisory rule: audited Feature surfaces that render
+    /// icon-only `Button`s SHOULD also expose a `.help(...)` hover
+    /// tooltip so pointer users get the same affordance as VoiceOver
+    /// (`.accessibilityLabel`).
+    ///
+    /// Heuristic (intentionally coarse, file-level, not per-Button):
+    ///
+    /// 1. Walk `*.swift` files under
+    ///    `Kizba/Presentation/Features/{Settings, Sidebar, MenuBar, Git}/`.
+    /// 2. Treat a file as carrying icon-only buttons iff it contains
+    ///    BOTH the substring `Button` AND `Image(systemName:`.
+    /// 3. Such a file must also contain at least one `.help(`
+    ///    invocation anywhere in the file. Per-button granularity is
+    ///    intentionally avoided — Swift view-builder syntax makes a
+    ///    reliable structural match overly fragile, and per-file
+    ///    coverage already prevents the most common regression
+    ///    (forgetting tooltips when adding a new icon button).
+    /// 4. Opt-out: set the environment variable
+    ///    `KIZBA_GREP_TOOLTIPS=0` to skip the test entirely. Useful
+    ///    when refactoring a target surface in isolation.
+    ///
+    /// Violations name the file (not the line); the fix is either to
+    /// add `.help(...)` to the new icon button, or to document why
+    /// the surface legitimately renders an icon button without a
+    /// tooltip (in which case the rule should be tightened, not the
+    /// file allow-listed).
+    func testIconOnlyButtonsHaveHelp_inAuditedFeatures() throws {
+        if ProcessInfo.processInfo.environment["KIZBA_GREP_TOOLTIPS"] == "0" {
+            throw XCTSkip("Tooltip grep rule disabled via KIZBA_GREP_TOOLTIPS=0")
+        }
+
+        let auditedRelativeDirs: [String] = [
+            "Kizba/Presentation/Features/Settings",
+            "Kizba/Presentation/Features/Sidebar",
+            "Kizba/Presentation/Features/MenuBar",
+            "Kizba/Presentation/Features/Git",
+        ]
+
+        var violations: [String] = []
+
+        for relative in auditedRelativeDirs {
+            let dir = Self.repoRoot.appendingPathComponent(relative, isDirectory: true)
+            var isDir: ObjCBool = false
+            guard
+                FileManager.default.fileExists(atPath: dir.path, isDirectory: &isDir),
+                isDir.boolValue
+            else {
+                // Missing audited directory is itself worth surfacing.
+                XCTFail("Audited Features directory missing: \(relative)")
+                continue
+            }
+
+            for url in try Self.swiftFiles(under: dir) {
+                let contents = try String(contentsOf: url, encoding: .utf8)
+                let hasButton = contents.contains("Button")
+                let hasSystemImage = contents.contains("Image(systemName:")
+                let hasHelp = contents.contains(".help(")
+
+                if hasButton && hasSystemImage && !hasHelp {
+                    violations.append(url.path)
+                }
+            }
+        }
+
+        if !violations.isEmpty {
+            XCTFail(
+                "Audited Feature files render icon-only Buttons but have no `.help(...)` "
+                + "tooltip anywhere in the file. Add `.help(...)` to the icon button(s), "
+                + "or set KIZBA_GREP_TOOLTIPS=0 to skip during local refactors.\n"
+                + violations.joined(separator: "\n")
+            )
+        }
+    }
+
     // MARK: - Engine
 
     /// Enumerate `.swift` files under `Kizba/Presentation/` excluding
