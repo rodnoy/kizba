@@ -55,6 +55,71 @@ final class UserDefaultsFavoritesStoreTests: XCTestCase {
         XCTAssertEqual(allFavorites, ["entry/a"])
     }
 
+    // MARK: - MVP6.G.3 — namespaced storage key + one-shot legacy migration
+
+    func testInit_migratesLegacyFavorites_onceWhenNewKeyAbsent() async {
+        let (suiteName, defaults) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(["a", "b"], forKey: StorageKeys.legacyFavoritesEntries)
+
+        let store = UserDefaultsFavoritesStore(userDefaults: defaults)
+        let all = await store.allFavorites()
+
+        XCTAssertEqual(all, Set(["a", "b"]))
+        XCTAssertEqual(
+            (defaults.array(forKey: StorageKeys.favoritesEntriesV1) as? [String]).map { Set($0) },
+            Set(["a", "b"])
+        )
+        XCTAssertNil(
+            defaults.object(forKey: StorageKeys.legacyFavoritesEntries),
+            "Legacy key must be removed after successful migration"
+        )
+    }
+
+    func testInit_doesNotOverwriteNewKey_whenBothPresent() async {
+        let (suiteName, defaults) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        // Both legacy and new are populated — new key must win.
+        defaults.set(["x"], forKey: StorageKeys.legacyFavoritesEntries)
+        defaults.set(["y", "z"], forKey: StorageKeys.favoritesEntriesV1)
+
+        let store = UserDefaultsFavoritesStore(userDefaults: defaults)
+        let all = await store.allFavorites()
+
+        XCTAssertEqual(all, Set(["y", "z"]), "New-key data must take precedence over legacy")
+        // Forensic: legacy is intentionally NOT cleaned up when no migration occurred,
+        // so any out-of-band investigation still has the original payload to inspect.
+        XCTAssertEqual(
+            defaults.array(forKey: StorageKeys.legacyFavoritesEntries) as? [String],
+            ["x"],
+            "Legacy key must be left untouched when the new key already has data (forensic preservation)"
+        )
+    }
+
+    func testInit_idempotent_secondConstructionIsNoOp() async {
+        let (suiteName, defaults) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(["a", "b"], forKey: StorageKeys.legacyFavoritesEntries)
+
+        // First construction performs the migration.
+        let firstStore = UserDefaultsFavoritesStore(userDefaults: defaults)
+        let firstAll = await firstStore.allFavorites()
+        XCTAssertEqual(firstAll, Set(["a", "b"]))
+
+        // Second construction with the same defaults must be a pure read,
+        // returning the migrated set with no duplicates or regressions.
+        let secondStore = UserDefaultsFavoritesStore(userDefaults: defaults)
+        let secondAll = await secondStore.allFavorites()
+        XCTAssertEqual(secondAll, Set(["a", "b"]))
+        XCTAssertNil(
+            defaults.object(forKey: StorageKeys.legacyFavoritesEntries),
+            "Legacy key must remain absent after the second construction"
+        )
+    }
+
     private func makeIsolatedDefaults() -> (String, UserDefaults) {
         let suiteName = "kizba.favorites.tests.\(UUID().uuidString)"
         guard let userDefaults = UserDefaults(suiteName: suiteName) else {

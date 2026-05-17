@@ -3,10 +3,6 @@ import Foundation
 /// UserDefaults-backed favorites store for entry ids.
 public actor UserDefaultsFavoritesStore: FavoritesStoring {
 
-    private enum Keys {
-        static let favorites = "kizba.favorites"
-    }
-
     nonisolated(unsafe) private let userDefaults: UserDefaults
     private var favorites: Set<String>
     private var continuations: [UUID: AsyncStream<Void>.Continuation] = [:]
@@ -14,7 +10,18 @@ public actor UserDefaultsFavoritesStore: FavoritesStoring {
     public init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
 
-        if let stored = userDefaults.array(forKey: Keys.favorites) as? [String] {
+        // G.3: one-shot migration from legacy un-namespaced key.
+        // Favorites are user-curated — data loss is unacceptable. Idempotent:
+        // only runs when the new key has no value yet. Legacy key is removed on success.
+        let newKey = StorageKeys.favoritesEntriesV1
+        let legacyKey = StorageKeys.legacyFavoritesEntries
+        if userDefaults.object(forKey: newKey) == nil,
+           let legacy = userDefaults.array(forKey: legacyKey) as? [String] {
+            userDefaults.set(legacy, forKey: newKey)
+            userDefaults.removeObject(forKey: legacyKey)
+        }
+
+        if let stored = userDefaults.array(forKey: newKey) as? [String] {
             self.favorites = Set(stored)
         } else {
             self.favorites = []
@@ -68,7 +75,7 @@ public actor UserDefaultsFavoritesStore: FavoritesStoring {
     }
 
     private func persistFavorites() {
-        userDefaults.set(Array(favorites), forKey: Keys.favorites)
+        userDefaults.set(Array(favorites), forKey: StorageKeys.favoritesEntriesV1)
     }
 
     private func emitChange() {

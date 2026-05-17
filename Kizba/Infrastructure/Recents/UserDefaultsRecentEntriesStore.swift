@@ -2,10 +2,6 @@ import Foundation
 
 public actor UserDefaultsRecentEntriesStore: RecentEntriesStoring {
 
-    private enum Keys {
-        static let recentEntries = "kizba.recentEntries"
-    }
-
     nonisolated(unsafe) private let defaults: UserDefaults
     private var maxCount: Int
     private var paths: [String]
@@ -19,11 +15,16 @@ public actor UserDefaultsRecentEntriesStore: RecentEntriesStoring {
         let clamped = Self.clamp(maxCount)
         self.maxCount = clamped
 
-        if let stored = defaults.array(forKey: Keys.recentEntries) as? [String] {
+        if let stored = defaults.array(forKey: StorageKeys.recentsEntriesV1) as? [String] {
             self.paths = Self.normalized(stored, maxCount: clamped)
         } else {
             self.paths = []
         }
+
+        // G.3: best-effort cleanup of legacy un-namespaced key.
+        // No value migration — Recents is auto-collected; safer to drop polluted DEBUG fixture data
+        // than to risk promoting it to production.
+        defaults.removeObject(forKey: StorageKeys.legacyRecentsEntries)
     }
 
     public func record(_ path: String) async {
@@ -78,7 +79,7 @@ public actor UserDefaultsRecentEntriesStore: RecentEntriesStoring {
     }
 
     private func persistPaths() {
-        defaults.set(paths, forKey: Keys.recentEntries)
+        defaults.set(paths, forKey: StorageKeys.recentsEntriesV1)
     }
 
     private func emitChange() {

@@ -229,6 +229,53 @@ final class UserDefaultsRecentEntriesStoreTests: XCTestCase {
         XCTAssertEqual(emitted, 0, "setMaxCount must be a no-op when the clamped value is unchanged")
     }
 
+    // MARK: - MVP6.G.3 — namespaced storage key + legacy cleanup
+
+    func testInit_readsFromNewNamespacedKey() async {
+        let (suiteName, defaults) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        defaults.set(["a", "b"], forKey: StorageKeys.recentsEntriesV1)
+
+        let store = UserDefaultsRecentEntriesStore(defaults: defaults)
+        let paths = await store.recentPaths()
+        XCTAssertEqual(paths, ["a", "b"])
+    }
+
+    func testInit_ignoresLegacyKey_andRemovesIt() async {
+        let (suiteName, defaults) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        // Seed legacy slot (the DEBUG fixture-leak vector).
+        defaults.set(["leaked/fixture"], forKey: StorageKeys.legacyRecentsEntries)
+
+        let store = UserDefaultsRecentEntriesStore(defaults: defaults)
+        let paths = await store.recentPaths()
+
+        XCTAssertTrue(paths.isEmpty, "Legacy Recents values must NOT migrate — fresh start by design")
+        XCTAssertNil(
+            defaults.object(forKey: StorageKeys.legacyRecentsEntries),
+            "Legacy key must be removed during init"
+        )
+    }
+
+    func testRecord_persistsToNewKey_only() async {
+        let (suiteName, defaults) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = UserDefaultsRecentEntriesStore(defaults: defaults)
+        await store.record("x")
+
+        XCTAssertEqual(
+            defaults.array(forKey: StorageKeys.recentsEntriesV1) as? [String],
+            ["x"]
+        )
+        XCTAssertNil(
+            defaults.object(forKey: StorageKeys.legacyRecentsEntries),
+            "record() must never write to the legacy key"
+        )
+    }
+
     private actor EventCounter {
         private(set) var value: Int = 0
         func increment() { value += 1 }
