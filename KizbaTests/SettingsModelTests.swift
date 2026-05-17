@@ -143,4 +143,40 @@ final class SettingsModelTests: XCTestCase {
         let called = await fake.reDetectCalled
         XCTAssertTrue(called)
     }
+
+    func testShowInMenuBar_defaultsToTrue() {
+        let store = makeInMemoryStore()
+        store.removeValue(forKey: SettingsKeys.showInMenuBar)
+
+        let discovery = TestBinaryLocator(paths: [:])
+        let model = SettingsModel(settings: store, discovery: discovery)
+
+        XCTAssertTrue(model.showInMenuBar)
+    }
+
+    func testShowInMenuBar_persistsChange() {
+        let store = makeInMemoryStore()
+        let discovery = TestBinaryLocator(paths: [:])
+
+        let model = SettingsModel(settings: store, discovery: discovery)
+        model.showInMenuBar = false
+        model.save()
+
+        let fresh = SettingsModel(settings: store, discovery: discovery)
+        XCTAssertFalse(fresh.showInMenuBar)
+    }
+
+    func testReset_restoresShowInMenuBarDefault() {
+        let store = makeInMemoryStore()
+        let discovery = TestBinaryLocator(paths: [:])
+
+        let model = SettingsModel(settings: store, discovery: discovery)
+        model.showInMenuBar = false
+        model.save()
+
+        model.resetToDefaults()
+
+        let fresh = SettingsModel(settings: store, discovery: discovery)
+        XCTAssertEqual(fresh.showInMenuBar, SettingsKeys.defaultShowInMenuBar)
+    }
 }

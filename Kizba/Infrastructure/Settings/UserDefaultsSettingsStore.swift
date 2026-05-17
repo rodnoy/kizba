@@ -50,6 +50,11 @@ public final class UserDefaultsSettingsStore: SettingsStoring, @unchecked Sendab
         if userDefaults.object(forKey: gitTimeoutKey) == nil {
             userDefaults.register(defaults: [gitTimeoutKey: SettingsKeys.defaultGitOperationTimeoutSeconds])
         }
+        // Ensure default for menu-bar visibility toggle.
+        let showInMenuBarKey = namespaced(SettingsKeys.showInMenuBar)
+        if userDefaults.object(forKey: showInMenuBarKey) == nil {
+            userDefaults.register(defaults: [showInMenuBarKey: SettingsKeys.defaultShowInMenuBar])
+        }
     }
 
     // MARK: - Namespacing helper

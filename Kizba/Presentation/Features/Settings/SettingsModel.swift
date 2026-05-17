@@ -27,6 +27,7 @@ public final class SettingsModel {
     public var touchIDPerRevealEnabled: Bool
     /// Git operation timeout in seconds (pull, push).
     public var gitOperationTimeoutSeconds: Int
+    public var showInMenuBar: Bool
 
     /// Toggles while a discovery operation is in-flight.
     public private(set) var isDetectingBinaries: Bool = false
@@ -54,6 +55,8 @@ public final class SettingsModel {
         self.touchIDPerRevealEnabled = settings.value(for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled)) ?? false
         self.gitOperationTimeoutSeconds = settings.value(for: SettingsKey<Int>(SettingsKeys.gitOperationTimeoutSeconds))
             ?? SettingsKeys.defaultGitOperationTimeoutSeconds
+        self.showInMenuBar = settings.value(for: SettingsKey<Bool>(SettingsKeys.showInMenuBar))
+            ?? SettingsKeys.defaultShowInMenuBar
     }
 
     // MARK: - Actions
@@ -67,6 +70,7 @@ public final class SettingsModel {
         settings.set(clipboardClearDelaySeconds, for: SettingsKey<Int>(SettingsKeys.clipboardClearDelaySeconds))
         settings.set(touchIDPerRevealEnabled, for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled))
         settings.set(gitOperationTimeoutSeconds, for: SettingsKey<Int>(SettingsKeys.gitOperationTimeoutSeconds))
+        settings.set(showInMenuBar, for: SettingsKey<Bool>(SettingsKeys.showInMenuBar))
     }
 
     /// Remove override entries and restore the clipboard delay to the
@@ -86,6 +90,8 @@ public final class SettingsModel {
         settings.removeValue(forKey: SettingsKeys.touchIDPerRevealEnabled)
         gitOperationTimeoutSeconds = SettingsKeys.defaultGitOperationTimeoutSeconds
         settings.set(gitOperationTimeoutSeconds, for: SettingsKey<Int>(SettingsKeys.gitOperationTimeoutSeconds))
+        showInMenuBar = SettingsKeys.defaultShowInMenuBar
+        settings.set(showInMenuBar, for: SettingsKey<Bool>(SettingsKeys.showInMenuBar))
 
         // Reflect cleared overrides in-memory as well.
         storePathOverride = nil

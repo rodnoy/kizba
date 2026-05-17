@@ -73,6 +73,12 @@ public struct SettingsView: View {
 
     private var generalSection: some View {
         FormSection("General") {
+            FormFieldRow(label: "Menu bar") {
+                Toggle(isOn: $model.showInMenuBar) {
+                    Text("Show Kizba in menu bar")
+                }
+            }
+
             FormFieldRow(
                 label: "Store path override",
                 helpText: "Absolute path to your password store. Leave empty for the default."

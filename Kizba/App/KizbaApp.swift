@@ -1,5 +1,7 @@
 import SwiftUI
+#if canImport(AppKit)
 import AppKit
+#endif
 
 @main
 struct KizbaApp: App {
@@ -7,6 +9,13 @@ struct KizbaApp: App {
     private let environment: AppEnvironment
     private let searchModel: SearchModel
     @State private var state: AppState
+    #if canImport(AppKit)
+    private let statusItemController: StatusItemController?
+    private let userDefaultsObserver: NSObjectProtocol?
+    #else
+    private let statusItemController: StatusItemController? = nil
+    private let userDefaultsObserver: NSObjectProtocol? = nil
+    #endif
 
     init() {
         let env = AppEnvironment.live()
@@ -16,6 +25,47 @@ struct KizbaApp: App {
         // therefore needs the real `PassManaging` so undo invokes the
         // production CLI rather than a debug double.
         self._state = State(initialValue: AppState(passManager: env.passManager))
+
+        #if canImport(AppKit)
+        let menuBarModel = MenuBarModel(
+            searchEngine: env.searchEngine,
+            recentStore: env.recentStore,
+            favoritesStore: env.favoritesStore,
+            clipboard: env.clipboard,
+            passManager: env.passManager
+        )
+        let statusItemController = StatusItemController(
+            environment: env,
+            content: { AnyView(MenuBarPopoverView(model: menuBarModel)) }
+        )
+
+        let show = env.settings.value(for: SettingsKey<Bool>(SettingsKeys.showInMenuBar))
+            ?? SettingsKeys.defaultShowInMenuBar
+        if show {
+            Task { @MainActor in
+                statusItemController.show()
+            }
+        }
+
+        let observer = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            let shouldShow = env.settings.value(for: SettingsKey<Bool>(SettingsKeys.showInMenuBar))
+                ?? SettingsKeys.defaultShowInMenuBar
+            Task { @MainActor in
+                if shouldShow {
+                    statusItemController.show()
+                } else {
+                    statusItemController.hide()
+                }
+            }
+        }
+
+        self.statusItemController = statusItemController
+        self.userDefaultsObserver = observer
+        #endif
     }
 
     var body: some Scene {

@@ -103,6 +103,7 @@ public enum SettingsKeys {
     public nonisolated static let touchIDPerRevealEnabled = "touchIDPerRevealEnabled"
     /// Timeout in seconds for git operations (pull, push).
     public nonisolated static let gitOperationTimeoutSeconds = "gitOperationTimeoutSeconds"
+    public nonisolated static let showInMenuBar = "showInMenuBar"
 
     // MARK: - Defaults & sane bounds
     //
@@ -124,6 +125,7 @@ public enum SettingsKeys {
 
     /// Default git operation timeout applied when no explicit value is persisted.
     public nonisolated static let defaultGitOperationTimeoutSeconds: Int = 60
+    public nonisolated static let defaultShowInMenuBar: Bool = true
 
     /// Inclusive bounds enforced by the Settings UI stepper and at
     /// read time inside ``GitStatusModel``.
