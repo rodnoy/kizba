@@ -31,6 +31,10 @@ public final class SettingsModel {
     /// When true, the sidebar renders the Recents section. Persisted under
     /// ``SettingsKeys/showRecents``.
     public var showRecents: Bool
+    /// When true, the sidebar renders the Favorites section. Persisted
+    /// under ``SettingsKeys/showFavorites`` (MVP6 G.1). Symmetric with
+    /// ``showRecents``.
+    public var showFavorites: Bool
     /// Soft cap on the number of recently-viewed entries surfaced in the
     /// sidebar Recents section. Clamped to ``SettingsKeys/recentsLimitBounds``
     /// on persist by the settings store, and propagated to the actor store via
@@ -63,6 +67,7 @@ public final class SettingsModel {
         let gitOperationTimeoutSeconds: Int
         let showInMenuBar: Bool
         let showRecents: Bool
+        let showFavorites: Bool
         let recentsLimit: Int
         // String? overrides: `nil` (no override) and `""` (explicit empty
         // override) are kept distinct on purpose so the dirty check matches
@@ -80,6 +85,7 @@ public final class SettingsModel {
             gitOperationTimeoutSeconds: gitOperationTimeoutSeconds,
             showInMenuBar: showInMenuBar,
             showRecents: showRecents,
+            showFavorites: showFavorites,
             recentsLimit: recentsLimit,
             storePathOverride: storePathOverride,
             passBinaryOverride: passBinaryOverride,
@@ -149,6 +155,8 @@ public final class SettingsModel {
             ?? SettingsKeys.defaultShowInMenuBar
         let showRecents = settings.value(for: SettingsKey<Bool>(SettingsKeys.showRecents))
             ?? SettingsKeys.defaultShowRecents
+        let showFavorites = settings.value(for: SettingsKey<Bool>(SettingsKeys.showFavorites))
+            ?? SettingsKeys.defaultShowFavorites
         let recentsLimit = settings.value(for: SettingsKey<Int>(SettingsKeys.recentsLimit))
             ?? SettingsKeys.defaultRecentsLimit
 
@@ -161,6 +169,7 @@ public final class SettingsModel {
         self.gitOperationTimeoutSeconds = gitOperationTimeoutSeconds
         self.showInMenuBar = showInMenuBar
         self.showRecents = showRecents
+        self.showFavorites = showFavorites
         self.recentsLimit = recentsLimit
 
         // Seed the dirty-tracking baseline so a freshly-loaded model
@@ -171,6 +180,7 @@ public final class SettingsModel {
             gitOperationTimeoutSeconds: gitOperationTimeoutSeconds,
             showInMenuBar: showInMenuBar,
             showRecents: showRecents,
+            showFavorites: showFavorites,
             recentsLimit: recentsLimit,
             storePathOverride: storePathOverride,
             passBinaryOverride: passBinaryOverride,
@@ -211,6 +221,7 @@ public final class SettingsModel {
         settings.set(gitOperationTimeoutSeconds, for: SettingsKey<Int>(SettingsKeys.gitOperationTimeoutSeconds))
         settings.set(showInMenuBar, for: SettingsKey<Bool>(SettingsKeys.showInMenuBar))
         settings.set(showRecents, for: SettingsKey<Bool>(SettingsKeys.showRecents))
+        settings.set(showFavorites, for: SettingsKey<Bool>(SettingsKeys.showFavorites))
         // `UserDefaultsSettingsStore` clamps `recentsLimit` writes to
         // ``SettingsKeys/recentsLimitBounds``, so the store is the single
         // source of truth for the clamp; this avoids double-clamping here.

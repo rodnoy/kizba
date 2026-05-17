@@ -118,4 +118,21 @@ final class UserDefaultsSettingsStoreTests: XCTestCase {
         store.set(4, for: key)
         XCTAssertEqual(store.value(for: key), 4)
     }
+
+    // MARK: - MVP6 Phase G.1: Favorites visibility toggle
+
+    func testShowFavorites_defaultsTrue() {
+        // No write has happened — registered default should surface.
+        let key = SettingsKey<Bool>(SettingsKeys.showFavorites)
+        XCTAssertEqual(store.value(for: key), SettingsKeys.defaultShowFavorites)
+        XCTAssertEqual(store.value(for: key), true)
+    }
+
+    func testShowFavorites_roundTrip() {
+        let key = SettingsKey<Bool>(SettingsKeys.showFavorites)
+        store.set(false, for: key)
+        XCTAssertEqual(store.value(for: key), false)
+        store.set(true, for: key)
+        XCTAssertEqual(store.value(for: key), true)
+    }
 }

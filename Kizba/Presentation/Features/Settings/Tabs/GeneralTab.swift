@@ -21,6 +21,7 @@ struct GeneralTab: View {
             VStack(alignment: .leading, spacing: theme.spacing.lg) {
                 clipboardSection
                 menuBarSection
+                favoritesSection
                 recentsSection
             }
             .padding(theme.spacing.lg)
@@ -60,6 +61,22 @@ struct GeneralTab: View {
             ) {
                 Toggle(isOn: $model.showInMenuBar) {
                     Text("Show Kizba in menu bar")
+                }
+            }
+        }
+    }
+
+    // MVP6 Phase G.1: Favorites visibility toggle. Placed above the
+    // Recents section to mirror the sidebar order (Favorites render
+    // above Recents in `SidebarView`).
+    private var favoritesSection: some View {
+        FormSection("Favorites") {
+            FormFieldRow(
+                label: "Visibility",
+                infoText: "Display starred entries at the top of the sidebar."
+            ) {
+                Toggle(isOn: $model.showFavorites) {
+                    Text("Show Favorites in Sidebar")
                 }
             }
         }

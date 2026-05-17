@@ -61,6 +61,13 @@ public final class UserDefaultsSettingsStore: SettingsStoring, @unchecked Sendab
         if userDefaults.object(forKey: showRecentsKey) == nil {
             userDefaults.register(defaults: [showRecentsKey: SettingsKeys.defaultShowRecents])
         }
+        // MVP6 Phase G.1: Favorites visibility toggle.
+        // Symmetric with `showRecents`; default the sidebar Favorites
+        // section to visible.
+        let showFavoritesKey = namespaced(SettingsKeys.showFavorites)
+        if userDefaults.object(forKey: showFavoritesKey) == nil {
+            userDefaults.register(defaults: [showFavoritesKey: SettingsKeys.defaultShowFavorites])
+        }
         // Default Recents cap — single source of truth for the value
         // that used to be hardcoded as `20` inside the Recents stores.
         let recentsLimitKey = namespaced(SettingsKeys.recentsLimit)

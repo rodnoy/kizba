@@ -36,6 +36,15 @@ struct SidebarView: View {
     @AppStorage("app.kizba.settings.showRecents") private var showRecents: Bool = true
     @AppStorage("kizba.sidebar.recentsExpanded") private var recentsExpanded: Bool = true
 
+    // MVP6 Phase G.1: Favorites controls mirror Recents.
+    // `showFavorites` shares the Settings namespace — the key MUST
+    // match `SettingsKeys.showFavorites` exactly (`namespaced(...)` in
+    // `UserDefaultsSettingsStore` produces this string) so the Settings
+    // toggle and the sidebar read the same UserDefaults slot.
+    // `favoritesExpanded` is sidebar-local UI state.
+    @AppStorage("app.kizba.settings.showFavorites") private var showFavorites: Bool = true
+    @AppStorage("kizba.sidebar.favoritesExpanded") private var favoritesExpanded: Bool = true
+
     init(
         environment: AppEnvironment,
         selection: Binding<String?>,
@@ -51,20 +60,29 @@ struct SidebarView: View {
     var body: some View {
         VStack(spacing: 0) {
             List {
-                if !favoritesModel.favorites.isEmpty {
-                    Section("Favorites") {
-                        ForEach(favoritesModel.favorites, id: \.self) { entryPath in
-                            EntryRowView(
-                                leadingIconName: "star.fill",
-                                title: entryPath.components(separatedBy: "/").last ?? entryPath,
-                                isSelected: selection == entryPath
-                            )
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                selection = entryPath
+                // MVP6 Phase G.1: Favorites is gated by Settings.showFavorites
+                // and collapsible via a DisclosureGroup whose expansion state
+                // persists across launches. When `showFavorites == false` or
+                // the favorites set is empty the section is elided entirely,
+                // matching the Recents semantics (Phase A.3).
+                if showFavorites && !favoritesModel.favorites.isEmpty {
+                    Section {
+                        DisclosureGroup(isExpanded: $favoritesExpanded) {
+                            ForEach(favoritesModel.favorites, id: \.self) { entryPath in
+                                EntryRowView(
+                                    leadingIconName: "star.fill",
+                                    title: entryPath.components(separatedBy: "/").last ?? entryPath,
+                                    isSelected: selection == entryPath
+                                )
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    selection = entryPath
+                                }
+                                .listRowBackground(Color.clear)
+                                .accessibilityLabel("\(entryPath), favorite")
                             }
-                            .listRowBackground(Color.clear)
-                            .accessibilityLabel("\(entryPath), favorite")
+                        } label: {
+                            Text("Favorites")
                         }
                     }
                 }

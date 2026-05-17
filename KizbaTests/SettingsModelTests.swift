@@ -227,6 +227,52 @@ final class SettingsModelTests: XCTestCase {
         XCTAssertFalse(fresh.showRecents)
     }
 
+    // MARK: - MVP6 Phase G.1 — Favorites visibility toggle
+
+    func testShowFavorites_defaultIsTrue() {
+        let store = makeInMemoryStore()
+        store.removeValue(forKey: SettingsKeys.showFavorites)
+        let discovery = TestBinaryLocator(paths: [:])
+
+        let model = makeModel(settings: store, discovery: discovery)
+
+        XCTAssertTrue(model.showFavorites)
+        XCTAssertEqual(model.showFavorites, SettingsKeys.defaultShowFavorites)
+    }
+
+    func testShowFavorites_persists() async {
+        let store = makeInMemoryStore()
+        let discovery = TestBinaryLocator(paths: [:])
+
+        let model = makeModel(settings: store, discovery: discovery)
+        model.showFavorites = false
+        await model.save()
+
+        let fresh = makeModel(settings: store, discovery: discovery)
+        XCTAssertFalse(fresh.showFavorites)
+    }
+
+    func testHasChanges_flipsWhenShowFavoritesMutated() {
+        let store = makeInMemoryStore()
+        let discovery = TestBinaryLocator(paths: [:])
+
+        let model = makeModel(settings: store, discovery: discovery)
+        XCTAssertFalse(model.hasChanges,
+                       "Freshly-loaded model should have a clean baseline")
+
+        // Toggle the field — `hasChanges` should pick it up via the
+        // private `SettingsSnapshot` diff (regression test for forgetting
+        // to extend `currentSnapshot` / `initialSnapshot`).
+        model.showFavorites.toggle()
+        XCTAssertTrue(model.hasChanges,
+                      "Mutating showFavorites must flip hasChanges to true")
+
+        // Flip back — baseline restored.
+        model.showFavorites.toggle()
+        XCTAssertFalse(model.hasChanges,
+                       "Restoring showFavorites should clear hasChanges")
+    }
+
     func testRecentsLimit_defaultIsSeven() {
         let store = makeInMemoryStore()
         store.removeValue(forKey: SettingsKeys.recentsLimit)

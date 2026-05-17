@@ -107,6 +107,10 @@ public enum SettingsKeys {
     /// When true, the sidebar renders the Recents section. When false,
     /// the entire section is elided (MVP6 Phase A).
     public nonisolated static let showRecents = "showRecents"
+    /// When true, the sidebar renders the Favorites section. When
+    /// false, the entire section is elided (MVP6 Phase G.1). Symmetric
+    /// with ``showRecents``.
+    public nonisolated static let showFavorites = "showFavorites"
     /// Soft cap on the number of recently-viewed entries surfaced in
     /// the sidebar Recents section. Persisted user preference; clamped
     /// to ``recentsLimitBounds`` on write.
@@ -141,6 +145,10 @@ public enum SettingsKeys {
     /// Default for ``showRecents``: section is visible until the user
     /// explicitly hides it.
     public nonisolated static let defaultShowRecents: Bool = true
+
+    /// Default for ``showFavorites``: section is visible until the user
+    /// explicitly hides it. Mirrors ``defaultShowRecents`` (MVP6 G.1).
+    public nonisolated static let defaultShowFavorites: Bool = true
 
     /// Default Recents cap. Replaces the previously-hardcoded `20`
     /// literal in the production and DEBUG stores (MVP6 Phase A).
