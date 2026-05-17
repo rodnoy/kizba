@@ -16,6 +16,7 @@ struct MenuBarPopoverView: View {
                 .onChange(of: model.query) { _, newValue in
                     model.updateQuery(newValue)
                 }
+                .help("Search entries")
 
             if model.isLoading {
                 ProgressView()
@@ -38,6 +39,7 @@ struct MenuBarPopoverView: View {
                                 }
                                 .buttonStyle(.plain)
                                 .accessibilityLabel("Copy password for \(path)")
+                                .help(path)
                             }
                         }
                     }
@@ -56,6 +58,7 @@ struct MenuBarPopoverView: View {
                                 }
                                 .buttonStyle(.plain)
                                 .accessibilityLabel("Copy password for \(path)")
+                                .help(path)
                             }
                         }
                     }
@@ -83,6 +86,7 @@ struct MenuBarPopoverView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Copy password for \(result.title)")
+                    .help(result.subtitle ?? result.title)
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)

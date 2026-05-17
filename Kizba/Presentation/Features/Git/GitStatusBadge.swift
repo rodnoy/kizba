@@ -39,6 +39,7 @@ struct GitStatusBadge: View {
         .accessibilityValue(model.badgeText)
         .accessibilityAddTraits(.isButton)
         .accessibilityHint("Opens git actions")
+        .help("Git status: \(model.badgeText) — open git actions")
     }
 
     private var sfSymbolName: String {

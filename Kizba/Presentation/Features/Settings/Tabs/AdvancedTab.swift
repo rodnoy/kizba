@@ -40,7 +40,7 @@ struct AdvancedTab: View {
                         text: bindingForOptional(\.passBinaryOverride)
                     )
                     .textFieldStyle(.kizba)
-                    pickerButton(allowsDirectories: false) { url in
+                    pickerButton(allowsDirectories: false, helpText: "Browse for pass binary") { url in
                         model.passBinaryOverride = url.path
                     }
                 }
@@ -56,7 +56,7 @@ struct AdvancedTab: View {
                         text: bindingForOptional(\.gpgBinaryOverride)
                     )
                     .textFieldStyle(.kizba)
-                    pickerButton(allowsDirectories: false) { url in
+                    pickerButton(allowsDirectories: false, helpText: "Browse for gpg binary") { url in
                         model.gpgBinaryOverride = url.path
                     }
                 }
@@ -72,7 +72,7 @@ struct AdvancedTab: View {
                         text: bindingForOptional(\.pinentryBinaryOverride)
                     )
                     .textFieldStyle(.kizba)
-                    pickerButton(allowsDirectories: false) { url in
+                    pickerButton(allowsDirectories: false, helpText: "Browse for pinentry binary") { url in
                         model.pinentryBinaryOverride = url.path
                     }
                 }
@@ -85,6 +85,7 @@ struct AdvancedTab: View {
                     }
                     .buttonStyle(.kizba(.secondary))
                     .disabled(model.isDetectingBinaries)
+                    .help("Re-detect installed binaries (pass, gpg, pinentry)")
 
                     if model.isDetectingBinaries {
                         ProgressView()
@@ -108,7 +109,11 @@ struct AdvancedTab: View {
     }
 
     @ViewBuilder
-    private func pickerButton(allowsDirectories: Bool, completion: @escaping (URL) -> Void) -> some View {
+    private func pickerButton(
+        allowsDirectories: Bool,
+        helpText: String,
+        completion: @escaping (URL) -> Void
+    ) -> some View {
 #if canImport(AppKit)
         Button {
             let panel = NSOpenPanel()
@@ -124,6 +129,7 @@ struct AdvancedTab: View {
         }
         .buttonStyle(.kizba(.ghost, size: .compact))
         .accessibilityLabel("Browse")
+        .help(helpText)
 #else
         EmptyView()
 #endif

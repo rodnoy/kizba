@@ -36,6 +36,7 @@ struct SettingsFooter: View {
             }
             .buttonStyle(.kizba(.destructive))
             .keyboardShortcut(.cancelAction)
+            .help("Reset all settings to defaults (⎋)")
 
             Button("Save") {
                 Task { await model.save() }
@@ -43,7 +44,7 @@ struct SettingsFooter: View {
             .buttonStyle(.kizba(.primary))
             .keyboardShortcut(.defaultAction)
             .disabled(!model.hasChanges || model.saveState == .saving)
-            .help("Save settings")
+            .help("Save settings (⌘↩)")
         }
         .padding(.horizontal, theme.spacing.lg)
         .padding(.vertical, theme.spacing.md)

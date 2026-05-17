@@ -65,7 +65,7 @@ struct GitTab: View {
                         text: bindingForOptional(\.storePathOverride)
                     )
                     .textFieldStyle(.kizba)
-                    pickerButton(allowsDirectories: true) { url in
+                    pickerButton(allowsDirectories: true, helpText: "Browse for password store directory") { url in
                         model.storePathOverride = url.path
                     }
                 }
@@ -85,7 +85,11 @@ struct GitTab: View {
     }
 
     @ViewBuilder
-    private func pickerButton(allowsDirectories: Bool, completion: @escaping (URL) -> Void) -> some View {
+    private func pickerButton(
+        allowsDirectories: Bool,
+        helpText: String,
+        completion: @escaping (URL) -> Void
+    ) -> some View {
 #if canImport(AppKit)
         Button {
             let panel = NSOpenPanel()
@@ -101,6 +105,7 @@ struct GitTab: View {
         }
         .buttonStyle(.kizba(.ghost, size: .compact))
         .accessibilityLabel("Browse")
+        .help(helpText)
 #else
         EmptyView()
 #endif

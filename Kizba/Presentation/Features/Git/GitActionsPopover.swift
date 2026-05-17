@@ -52,6 +52,7 @@ struct GitActionsPopover: View {
             .disabled(!model.canRefresh)
             .accessibilityLabel("Refresh")
             .accessibilityHint("Refreshes the current git repository status")
+            .help("Refresh git status")
 
             Button("Pull") {
                 Task { await onPull() }
@@ -61,6 +62,7 @@ struct GitActionsPopover: View {
             .disabled(!model.canPull)
             .accessibilityLabel("Pull")
             .accessibilityHint("Pulls latest changes from the remote")
+            .help("Pull latest changes from remote")
 
             Button("Push") {
                 Task { await onPush() }
@@ -70,6 +72,7 @@ struct GitActionsPopover: View {
             .disabled(!model.canPush)
             .accessibilityLabel("Push")
             .accessibilityHint("Pushes local commits to the remote")
+            .help("Push local commits to remote")
 
             Divider()
 
@@ -80,6 +83,7 @@ struct GitActionsPopover: View {
             .frame(maxWidth: .infinity)
             .accessibilityLabel("Open Terminal")
             .accessibilityHint("Opens Terminal at the password store location")
+            .help("Open Terminal at password store")
 
             if GitActionsPopover.showsInFlightUI(for: model.operationState) {
                 HStack(spacing: theme.spacing.sm) {
@@ -94,6 +98,7 @@ struct GitActionsPopover: View {
                     .accessibilityLabel("Cancel git operation")
                     .accessibilityHint("Cancels the current git operation")
                     .accessibilityAddTraits(.isButton)
+                    .help("Cancel current git operation")
                 }
             }
         }
