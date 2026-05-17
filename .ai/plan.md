@@ -1,19 +1,13 @@
-# MVP5 Phase E — Polish / Docs / Regression
+# MVP6 Phase A — Recents settings + fold/unfold
 
-## Status of prior phases
+## Status of prior milestone
 
-- Phase A (search overlay + LiveSearchEngine) — DONE, green.
-- Phase B (favorites store + sidebar + EntryDetail star) — DONE, green.
-- Phase C (recents store + sidebar section + search boost) — DONE, green.
-- Phase D (menu-bar status item + popover + settings toggle) — DONE, green. D.4 (global hotkey) intentionally deferred (Accessibility permission UX).
-- Current suite: 999 tests, 0 failures.
+- MVP5 shipped: Search ⌘K + Favorites + Recents + Menu-bar + Polish.
+- Suite: 1000 tests, 0 failures. Release build clean. Grep bans clean.
 
-## Goal
+## Goal Phase A
 
-Lock in MVP5 with three small, low-risk closing tasks:
-1. Tighten source-grep policy for the new `SearchResult` type.
-2. Bring user-facing and internal docs in sync with shipped features.
-3. Run the final regression matrix (build + tests + grep bans, Debug and Release).
+Give the user control over the Recents sidebar section: hide/show entirely, set the cap (range 3–7, default 7), collapse the section in place. Replace the hard-coded `maxCount = 20` default in stores with a settings-driven default.
 
 ## Constraints (durable)
 
@@ -21,135 +15,189 @@ Lock in MVP5 with three small, low-risk closing tasks:
 - No `as!`. No `Logger.*stdin|print\(.*stdin` patterns.
 - No third-party dependencies.
 - English in code, comments, commits, docs.
-- `@Observable` + manual DI via initializers; actor-based stores; design-system tokens (no inline `Color.<name>` / numeric `cornerRadius` / numeric `.opacity()` in `Kizba/Presentation/Features/` outside the design system).
+- `@Observable` + manual DI via initializers; actor-based stores.
+- Design-system tokens in `Kizba/Presentation/Features/**` (no inline `Color.<name>`, numeric `cornerRadius`, numeric `.opacity()`).
+- `SourceGrepTests` must remain green.
+
+## Open decision (locked in A.1)
+
+- `recentsLimit` range = `3...7`, default = `7`.
+- Previous hard-coded cap of 20 in stores is removed; default flows from `SettingsKeys.defaultRecentsLimit`.
 
 ---
 
 ## Tasks
 
-### E.1 — SourceGrepTests extension for SearchResult
+### A.1 — SettingsKeys + default migration
 
-**Description:** Extend `SourceGrepTests` to forbid `Codable` and `CustomStringConvertible` conformances on the `SearchResult` type. Mirror the existing bans for `PassSecret`, `SecretDraft`, and `MetadataPair`.
+**Description:** Add two new settings keys and a single source of truth for the recents default; remove `20` literals from store constructors.
 
 **Agent:** smart-worker
 
 **Files to modify:**
-- `KizbaTests/SourceGrepTests.swift` — add a new test that scans `Kizba/` sources and fails if `SearchResult` appears with `: Codable`, `: Decodable`, `: Encodable`, or `: CustomStringConvertible` (including `extension SearchResult: ...`).
+- `Kizba/Infrastructure/Settings/SettingsKeys.swift`:
+  - `static let showRecents = "kizba.settings.showRecents"`  (Bool, default `true`).
+  - `static let recentsLimit = "kizba.settings.recentsLimit"` (Int, default `7`, bounds `3...7`).
+  - `static let defaultRecentsLimit: Int = 7`.
+- `Kizba/Domain/Protocols/SettingsStoring.swift` — add typed accessors for both keys.
+- `Kizba/Infrastructure/Settings/UserDefaultsSettingsStore.swift`:
+  - Implement get/set with `max(3, min(7, value))` clamp on write for `recentsLimit`.
+  - Provide defaulted reads (`true` for `showRecents`, `defaultRecentsLimit` for `recentsLimit`).
 
-**Suggested test name:** `testNoCodableOrCustomStringConvertible_onSearchResult`
+**Tests:**
+- `KizbaTests/Settings/SettingsKeysTests.swift`:
+  - `testDefaults_present`
+  - `testRecentsLimit_clampLow` (2 → 3)
+  - `testRecentsLimit_clampHigh` (99 → 7)
+- `KizbaTests/Settings/UserDefaultsSettingsStoreTests.swift`:
+  - `testShowRecents_roundTrip`
+  - `testRecentsLimit_roundTrip`
 
 **Verification:**
 ```sh
 xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
-  -only-testing:KizbaTests/SourceGrepTests
+  -only-testing:KizbaTests/Settings/SettingsKeysTests \
+  -only-testing:KizbaTests/Settings/UserDefaultsSettingsStoreTests
+rg -n '\bmaxCount\s*=\s*20\b' Kizba/Infrastructure/Recents/
 rg -n '\bas!\b' Kizba/
 rg -n 'Logger.*stdin|print\(.*stdin' Kizba/ KizbaTests/
 ```
 
-**Branch:** `mvp5/e1-sourcegrep-search-result`
-**Commit:** `test(grep): forbid Codable/CustomStringConvertible on SearchResult (MVP5.E.1)`
-
+**Branch:** `mvp6/a1-settings-keys-recents`
+**Commit:** `feat(settings): add showRecents + recentsLimit keys with clamp (MVP6.A.1)`
 **Difficulty:** low
-**Risks:** If `SearchResult` already conforms to `Codable`, the test will fail and the conformance must be removed first. Inspect before writing.
+**Risks:** Hidden `20` literals elsewhere — grep before/after; if found, flag for A.2 instead of inline-fixing here.
 
 ---
 
-### E.2 — Documentation pass
+### A.2 — Recents store: actor mutator + default replacement
 
-**Description:** Bring `README.md`, `.ai/decisions.md`, `.ai/sequoia-smoke.md`, and `.ai/a11y-audit.md` up to date with MVP5-shipped behaviour.
+**Description:** Replace `let maxCount` with mutable actor state; add `setMaxCount(_:)`; apply to production and DEBUG stores; emit a single `changes` event after persistence.
 
 **Agent:** smart-worker
 
 **Files to modify:**
+- `Kizba/Domain/Protocols/RecentEntriesStoring.swift` — add `func setMaxCount(_ newValue: Int) async`.
+- `Kizba/Infrastructure/Recents/UserDefaultsRecentEntriesStore.swift`:
+  - `let maxCount` → `var maxCount`.
+  - Default-initialised constructor reads `SettingsKeys.defaultRecentsLimit`.
+  - `setMaxCount(_:)` clamps `3...7`, truncates `entries` to the new cap, persists, then yields exactly one `changes` event.
+- `Kizba/Infrastructure/Recents/InMemoryRecentEntriesStore.swift` (`#if DEBUG`) — mirror behaviour; same `setMaxCount` semantics.
 
-1. `README.md` — section "What it does":
-   - Global ⌘K search overlay (live-ranked, in-memory).
-   - Favorites (⭐ toggle in `EntryDetail` toolbar, ⌘D shortcut, sidebar section).
-   - Recent entries (auto-recorded on view, sidebar section, FIFO max 20).
-   - Menu-bar status item with SwiftUI popover for quick search + copy.
-   - "What's deferred": remove quick-search / menu-bar; keep D.4 global hotkey with rationale (Accessibility permission UX).
-
-2. `.ai/decisions.md` — append `## 2026-05-17 — MVP 5 (Search / Favorites / Recents / Menu-bar)`:
-   - `LiveSearchEngine` — pure in-memory ranker, score 0.0–1.0, boost +0.05 favorites / +0.03 recents, summed and capped at 1.0.
-   - `FavoritesStoring` — actor protocol, UserDefaults-backed (`kizba.favorites`), `AsyncStream<Void>` change notifications.
-   - `RecentEntriesStoring` — actor protocol, UserDefaults-backed (`kizba.recentEntries`), FIFO max 20, dedup-move-to-front.
-   - `StatusItemController` — `@MainActor`, owns `NSStatusItem` (.squareLength, SF Symbol `key.fill`) + `NSPopover` (.transient). SwiftUI via `NSHostingView`. Gated by `SettingsKeys.showInMenuBar` (default true), reactive to `UserDefaults.didChangeNotification`.
-   - D.4 global hotkey — deferred. `NSEvent.addGlobalMonitorForEvents` requires Accessibility permission with poor UX.
-
-3. `.ai/sequoia-smoke.md` — append rows:
-   - Menu-bar icon visibility toggles live with Settings → "Show in menu bar".
-   - Clicking the menu-bar icon opens the popover; outside-click dismisses (.transient).
-   - In popover: typing → results; clicking copy → clipboard with auto-clear.
-   - ⌘K opens SearchOverlay; Esc dismisses; Enter selects.
-   - ⭐ toggle (and ⌘D) flips favorite; sidebar Favorites section updates immediately.
-   - Viewing an entry adds it to the sidebar Recents section (newest first, capped 20).
-
-4. `.ai/a11y-audit.md` — append two sections:
-   - **SearchOverlay**: focus on appear; accessibilityLabel on TextField; Esc dismissal announced; results list keyboard-navigable (↑/↓) with per-row labels (entry path).
-   - **MenuBarPopover**: NSStatusItem button accessibilityLabel; popover takes focus on open (search field first responder); copy triggers announcement ("Password copied"); Recents/Favorites sections expose section headers.
+**Tests:**
+- `KizbaTests/Recents/RecentEntriesStoreTests.swift` (extend existing):
+  - `testSetMaxCount_truncatesAndEmitsOnce`
+  - `testSetMaxCount_clampsLow` and `_clampsHigh`
+  - `testInit_usesDefaultFromSettingsKey`
+- Optional: assertion in `KizbaTests/SourceGrepTests.swift` that `InMemoryRecentEntriesStore` is only referenced inside `#if DEBUG` blocks (Release build cannot accidentally bind it).
 
 **Verification:**
 ```sh
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
+  -only-testing:KizbaTests/Recents/RecentEntriesStoreTests
+xcodebuild build -scheme Kizba -project Kizba.xcodeproj -configuration Release -destination 'platform=macOS'
+```
+
+**Branch:** `mvp6/a2-recents-store-mutator`
+**Commit:** `refactor(recents): mutable maxCount + setMaxCount actor API (MVP6.A.2)`
+**Difficulty:** medium
+**Risks:**
+- Emit-before-persist would leak stale data to observers — persist first, then yield.
+- Strict-concurrency: ensure the protocol method is `async` (not `async throws` unless needed) and the actor isolation is preserved through generic constraints (`any RecentEntriesStoring`).
+
+---
+
+### A.3 — Sidebar: DisclosureGroup + showRecents gating
+
+**Description:** Wrap the Recents section in a `DisclosureGroup`, persist expansion via `@AppStorage`, and elide the section entirely when `showRecents == false`.
+
+**Agent:** smart-worker
+
+**Files to modify:**
+- `Kizba/Presentation/Features/Sidebar/SidebarView.swift`:
+  - `@AppStorage("kizba.settings.showRecents") private var showRecents: Bool = true`
+  - `@AppStorage("kizba.sidebar.recentsExpanded") private var recentsExpanded: Bool = true`
+  - Wrap Recents in `if showRecents { DisclosureGroup(isExpanded: $recentsExpanded) { ... } label: { ... } }`, styled with DS tokens.
+- If `SidebarView` becomes cluttered, extract `SidebarRecentsSection.swift` under the same folder.
+
+**Tests:**
+- `KizbaTests/Sidebar/RecentsModelTests.swift`:
+  - `testCappedListReflectsSetMaxCount` — drive the model via a fake `RecentEntriesStoring`, call `setMaxCount(4)`, expect 4 items.
+- If a sidebar-presentation helper exists, add `testRecentsSectionHiddenWhenShowRecentsFalse`. Otherwise mark as visual-smoke and rely on Phase F sequoia-smoke entry.
+
+**Verification:**
+```sh
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
+  -only-testing:KizbaTests/Sidebar
 xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-rg -n '\bas!\b' Kizba/
-rg -n 'Logger.*stdin|print\(.*stdin' Kizba/ KizbaTests/
 ```
 
-**Branch:** `mvp5/e2-docs-mvp5`
-**Commit:** `docs(mvp5): README + decisions + smoke + a11y for search/favorites/recents/menu-bar (MVP5.E.2)`
-
+**Branch:** `mvp6/a3-sidebar-recents-disclosure`
+**Commit:** `feat(sidebar): collapsible Recents section + showRecents gate (MVP6.A.3)`
 **Difficulty:** low
-**Risks:** docs drift — re-read feature files before writing each section.
+**Risks:** `DisclosureGroup` chevron uses system colours by default — confirm DS grep tests still pass; if the chevron tinting needs override, do it via a DS modifier rather than inline `Color`.
 
 ---
 
-### E.3 — Final regression
+### A.4 — SettingsView wiring (pre-tabs)
 
-**Description:** Run the full regression matrix.
+**Description:** Surface `showRecents` Toggle and `recentsLimit` Stepper in `SettingsView`; on Save, propagate the new limit to the actor store. This lands inside the current pre-tabs Settings layout; Phase B.3 will move it into `GeneralTab`.
 
-**Agent:** smart-builder
+**Agent:** smart-worker
 
-**Commands:**
+**Files to modify:**
+- `Kizba/Presentation/Features/Settings/SettingsModel.swift`:
+  - Add `var showRecents: Bool`, `var recentsLimit: Int`.
+  - Load both in `load()` via the injected `SettingsStoring`.
+  - In `save()`: persist both, then `Task { await environment.recentStore.setMaxCount(self.recentsLimit) }`.
+- `Kizba/Presentation/Features/Settings/SettingsView.swift`:
+  - New `FormSection("Recents")` containing:
+    - `Toggle("Show Recents in Sidebar", isOn: $model.showRecents)`
+    - `Stepper("Recents limit: \(model.recentsLimit)", value: $model.recentsLimit, in: 3...7)`
+  - Wire both via DS components (`FormFieldRow` where appropriate).
 
+**Tests:**
+- `KizbaTests/Settings/SettingsModelTests.swift`:
+  - `testShowRecents_persists`
+  - `testRecentsLimit_persistsAndClamps`
+  - `testSave_callsSetMaxCountOnStore` — fake `RecentEntriesStoring` records calls.
+
+**Verification:**
 ```sh
-xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-xcodebuild build -scheme Kizba -project Kizba.xcodeproj -configuration Release -destination 'platform=macOS'
-rg -n '\bas!\b' Kizba/
-rg -n 'Logger.*stdin|print\(.*stdin' Kizba/ KizbaTests/
+xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' \
+  -only-testing:KizbaTests/Settings/SettingsModelTests
+xcodebuild build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
 ```
 
-**Expected:** 0 test failures (≥999 tests, 1000 if E.1 added one); Release build clean, no warnings; both `rg` commands zero matches.
-
-**On failure:** do NOT patch inline. Capture in `.ai/build-errors.md` and hand back to planner.
-
-**Branch:** `mvp5/e3-final-regression` (only if a fix lands; otherwise verification-only).
-**Commit:** none (verification). If trivial fix: `chore(mvp5): final regression fix (MVP5.E.3)`.
-
+**Branch:** `mvp6/a4-settings-recents-wiring`
+**Commit:** `feat(settings): recents toggle + limit stepper wired to store (MVP6.A.4)`
 **Difficulty:** low
-**Risks:** Release configuration may surface warnings hidden in Debug under strict concurrency.
+**Risks:** Double-write — confirm `setMaxCount` does not also write to `SettingsKeys.recentsLimit`; that key is owned by the settings store alone.
 
 ---
 
-## Acceptance criteria
+## Acceptance criteria (Phase A)
 
-1. `testNoCodableOrCustomStringConvertible_onSearchResult` exists and passes.
-2. `README.md`, `.ai/decisions.md`, `.ai/sequoia-smoke.md`, `.ai/a11y-audit.md` updated as specified.
-3. Full Debug test suite green (≥999 tests, 0 failures).
-4. Release build green, no warnings.
-5. Grep bans clean.
-6. No new dependencies; no `as!`; strict concurrency unchanged.
+1. `SettingsKeys` exposes `showRecents`, `recentsLimit`, `defaultRecentsLimit`.
+2. `rg -n '\bmaxCount\s*=\s*20\b' Kizba/Infrastructure/Recents/` → 0 matches.
+3. `RecentEntriesStoring` exposes `setMaxCount(_:) async`; production + DEBUG implementations conform; truncation emits exactly one `changes` event after persistence.
+4. `SidebarView` renders Recents inside a `DisclosureGroup` whose state persists via `@AppStorage("kizba.sidebar.recentsExpanded")`; the entire section is elided when `showRecents == false`.
+5. Settings UI exposes the new Toggle + Stepper; Save persists both keys and propagates the limit to the store.
+6. New tests pass; existing suite remains green (≥1000 tests).
+7. Release build clean; grep bans clean; design-system grep rules green.
 
-## Verification commands (final)
+## Verification commands (Phase A final)
 
 ```sh
-xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
+xcodebuild test  -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
 xcodebuild build -scheme Kizba -project Kizba.xcodeproj -configuration Release -destination 'platform=macOS'
 rg -n '\bas!\b' Kizba/
 rg -n 'Logger.*stdin|print\(.*stdin' Kizba/ KizbaTests/
+rg -n '\bmaxCount\s*=\s*20\b' Kizba/Infrastructure/Recents/
 ```
 
 ---
 
 ## Suggested current step
 
-Run **smart-worker** to implement **Task E.1** (SourceGrepTests extension for `SearchResult`).
+Run **smart-worker** on **Task A.1** (SettingsKeys + default migration).

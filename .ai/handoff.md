@@ -1,14 +1,14 @@
-Phase: MVP5.E.2
-Status: COMPLETED
+Phase: MVP6.A (planning complete)
+Status: READY TO START
 
-Next action: Run smart-builder to run Task E.3 (final regression: full test suite + Release build + grep bans)
+Next action: Run smart-worker on Task A.1 (SettingsKeys + default migration) from .ai/plan.md
 
 Notes:
-- README updated with MVP5 features (⌘K search, favorites, recents, menu-bar); deferred section trimmed (D.4 hotkey retained as deferred).
-- .ai/decisions.md: appended 2026-05-17 MVP 5 section with durable decisions (boost values verified against LiveSearchEngine; FIFO cap and UserDefaults keys verified against stores).
-- .ai/sequoia-smoke.md: added 6 MVP5 smoke-check rows.
-- .ai/a11y-audit.md: added SearchOverlay + MenuBarPopover sections.
-- Build OK; grep bans clean (production code).
-- Reality check vs plan: StatusItemController uses `NSStatusItem.variableLength`, NOT `.squareLength` as the plan note suggested — decisions.md reflects the actual code.
+- MVP5 shipped (Search/Favorites/Recents/Menu-bar/Polish). 1000 tests, 0 fails.
+- MVP6 roadmap saved at .ai/mvp6-roadmap.md — 6 phases (A: recents controls, B: settings tabs + save feedback + InfoTooltip, C: app-wide tooltips, D: biometric gating, E: help setup topics, F: polish/docs/regression). Est. 7–10 days.
+- .ai/plan.md contains operational Phase A plan (4 tasks A.1–A.4).
+- Key decisions locked: recentsLimit range 3–7 default 7; previous hardcoded 20 retired.
+- D.4 global hotkey from MVP5 remains deferred (Accessibility permission UX).
+- User feedback context: Settings too long → tabs; Save button no feedback → dirty + saved flash; need tooltips everywhere; biometric should be hardware-gated and require auth to disable; help needs setup wizards for pass/gpg/git/pinentry.
 
-Timestamp: 2026-05-17T13:42:04+0200
+Timestamp: 2026-05-17T14:06:03+02:00
