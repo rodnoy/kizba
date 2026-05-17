@@ -66,7 +66,10 @@ struct SidebarView: View {
         self._entrySelection = entrySelection
         self._model = State(initialValue: SidebarModel(passManager: environment.passManager))
         self._favoritesModel = State(initialValue: FavoritesModel(store: environment.favoritesStore))
-        self._recentsModel = State(initialValue: RecentsModel(store: environment.recentStore))
+        self._recentsModel = State(initialValue: RecentsModel(
+            store: environment.recentStore,
+            validator: environment.recentsValidator
+        ))
         self.gitStatusModel = gitStatusModel
     }
 

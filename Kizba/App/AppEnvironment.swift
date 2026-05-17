@@ -44,6 +44,13 @@ struct AppEnvironment: Sendable {
     /// Recent entries storage used by the sidebar recents model.
     let recentStore: any RecentEntriesStoring
 
+    /// Validates recent paths against the live password store before
+    /// they reach the sidebar (MVP6.H.2). Wired to
+    /// ``PassManagerRecentEntriesValidator`` in `live()`. `nil` in
+    /// preview/test wirings that have no real store to consult — the
+    /// `RecentsModel` then trusts the persisted list unchanged.
+    let recentsValidator: (any RecentEntriesValidating)?
+
     /// Search engine used by entry-list filtering (`⌘F` sidebar search)
     /// and command-palette style queries.
     let searchEngine: any EntrySearching
@@ -78,6 +85,7 @@ struct AppEnvironment: Sendable {
         passwordGenerator: any PasswordGenerating,
         favoritesStore: any FavoritesStoring = UserDefaultsFavoritesStore(),
         recentStore: any RecentEntriesStoring = UserDefaultsRecentEntriesStore(),
+        recentsValidator: (any RecentEntriesValidating)? = nil,
         searchEngine: any EntrySearching,
         biometricAuth: (any BiometricAuthenticating)? = nil,
         passCLI: LivePassCLI? = nil,
@@ -90,6 +98,12 @@ struct AppEnvironment: Sendable {
         self.passwordGenerator = passwordGenerator
         self.favoritesStore = favoritesStore
         self.recentStore = recentStore
+        // MVP6.H.2: `live()` wires this to a real
+        // `PassManagerRecentEntriesValidator`; tests/preview default
+        // to `nil` which makes `RecentsModel` trust the persisted
+        // list (legacy behaviour). The single live wiring is enough
+        // to close the fixture leak in shipped builds.
+        self.recentsValidator = recentsValidator
         self.searchEngine = searchEngine
         self.biometricAuth = biometricAuth
         self.passCLI = passCLI
@@ -107,6 +121,7 @@ struct AppEnvironment: Sendable {
         passwordGenerator: any PasswordGenerating,
         favoritesStore: any FavoritesStoring = UserDefaultsFavoritesStore(),
         recentStore: any RecentEntriesStoring = UserDefaultsRecentEntriesStore(),
+        recentsValidator: (any RecentEntriesValidating)? = nil,
         biometricAuth: (any BiometricAuthenticating)? = nil,
         passCLI: LivePassCLI? = nil,
         discovery: (any BinaryLocating)? = nil,
@@ -119,6 +134,7 @@ struct AppEnvironment: Sendable {
             passwordGenerator: passwordGenerator,
             favoritesStore: favoritesStore,
             recentStore: recentStore,
+            recentsValidator: recentsValidator,
             searchEngine: LiveSearchEngine(passManager: passManager),
             biometricAuth: biometricAuth,
             passCLI: passCLI,
@@ -259,6 +275,10 @@ extension AppEnvironment {
             passwordGenerator: LivePasswordGenerator(),
             favoritesStore: UserDefaultsFavoritesStore(),
             recentStore: UserDefaultsRecentEntriesStore(),
+            // MVP6.H.2: validate persisted recent paths against the live
+            // store so legacy fixture / removed entries never reach the
+            // sidebar (defence-in-depth on top of H.1's schema bump).
+            recentsValidator: PassManagerRecentEntriesValidator(passManager: passManager),
             searchEngine: searchEngine,
             biometricAuth: LocalAuthBiometricAuthenticator(),
             passCLI: passCLI,
