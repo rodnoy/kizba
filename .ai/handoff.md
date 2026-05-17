@@ -1,23 +1,20 @@
-Phase: MVP6.A (COMPLETED)
-Status: Phase A SHIPPED — Recents controls (visibility + limit 3-7 + fold/unfold)
+Phase: MVP6.B.2
+Status: COMPLETED
 
-Next action: Run smart-planner to open Phase B (Settings tabs + Save feedback + InfoTooltip). Replace .ai/plan.md with operational Phase B plan.
+Next action: Run smart-worker on Task B.3 (TabView split: General / Security / Git / Advanced + shared SettingsFooter)
 
 Notes:
-- A.4: SettingsModel exposes showRecents (Bool) + recentsLimit (Int, 3-7). SettingsView renders a new "Recents" FormSection between General and Binaries with Toggle("Show Recents in Sidebar") + Stepper("N entries", in: SettingsKeys.recentsLimitBounds, step: 1). save() persists both keys, re-reads the persisted (possibly clamped) recentsLimit into the in-memory model, then dispatches Task { await recentStore.setMaxCount(persistedLimit) } so observers see the updated cap without an app restart.
-- SettingsModel.init extended to `(settings:, discovery:, recentStore:)` — recentStore is the new third parameter, matches the existing manual-DI pattern. Call-sites updated: KizbaApp.swift (passes environment.recentStore), SettingsView preview block (env.recentStore), SettingsViewTouchIDTests (FakeRecentEntriesStore()), SettingsModelTests (helper makeModel() defaults recentStore to a fresh FakeRecentEntriesStore so only the one propagation test holds a reference).
-- FakeRecentEntriesStore now records every setMaxCount(_:) invocation in `setMaxCountCalls: [Int]` for assertion.
-- AppEnvironment.InMemorySettingsStore (DEBUG-only): set<Value> now mirrors the production UserDefaultsSettingsStore clamp for SettingsKeys.recentsLimit (max(min..., min(max..., typed))). Tests and previews now see the same contract as live wiring; without this, a 99 written through the in-memory store round-tripped as 99 and the model contract would silently degrade in tests.
-- Tests added in SettingsModelTests: 7 new — testShowRecents_defaultIsTrue, testShowRecents_persists, testRecentsLimit_defaultIsSeven, testRecentsLimit_persistsAndClampsHigh (99→7), testRecentsLimit_persistsAndClampsLow (1→3), testSave_callsSetMaxCountOnRecentStore (last call == 5, count == 1), testSave_propagatesClampedValueToRecentStore (last call == maxRecentsLimit when set 99). Helper waitForRecordedSetMaxCount() polls the actor up to 1 s to drain the Task hop from save().
-- Phase A acceptance criteria — ALL MET:
-  * SettingsKeys exposes showRecents / recentsLimit / defaultRecentsLimit (+ min/max/bounds/defaultShowRecents). ✓
-  * `rg -n '\bmaxCount\s*=\s*20\b' Kizba/Infrastructure/Recents/` → 0 matches. ✓
-  * setMaxCount actor API on RecentEntriesStoring; production + DEBUG implementations conform; persist-then-emit-once. ✓
-  * SidebarView wraps Recents in DisclosureGroup, persists expansion via @AppStorage("kizba.sidebar.recentsExpanded"), elides the section when showRecents == false. ✓
-  * Settings UI wires Toggle + Stepper; save persists both and propagates the limit to the actor store. ✓
-  * Tests green; release clean; grep clean. ✓
-- Full suite: 1019 tests, 17 skipped, 0 failures (1012 prior + 7 new). Targeted SettingsModelTests: 19/19 PASS. Release build: SUCCEEDED.
-- Grep bans clean: `as!` 0 hits in Kizba/; `Logger.*stdin|print(.*stdin` only self-refs in SourceGrepTests (regex literals defining the ban); DS literal grep in Kizba/Presentation/Features/Settings/ → 0 matches.
-- Commits this phase: 394a9da (A.1), a945b95 (A.2), 16c71e4 (A.3), dc6166e (A.4).
+- SettingsModel: added private SettingsSnapshot (10 editable fields — clipboardClearDelaySeconds, touchIDPerRevealEnabled, gitOperationTimeoutSeconds, showInMenuBar, showRecents, recentsLimit, storePathOverride, passBinaryOverride, gpgBinaryOverride, pinentryBinaryOverride). Excludes transient state (isDetectingBinaries, saveState). initialSnapshot captured at end of init() and refreshed after save() / resetToDefaults().
+- New computed: hasChanges (currentSnapshot != initialSnapshot). New state: SaveState enum (idle/saving/saved) + public var saveState. String? overrides keep `nil` vs `""` distinct on purpose (matches the user-visible distinction surfaced by bindingForOptional in SettingsView).
+- save() converted to async; flow: guard hasChanges -> .saving -> sync settings.set(...) round-trip -> await recentStore.setMaxCount(persistedLimit) inline (we are async on MainActor, actor hop is one-shot, no deadlock) -> rebuild initialSnapshot -> .saved -> try? await Task.sleep(for: savedFlashDuration) -> race-safe `if saveState == .saved { saveState = .idle }`.
+- init parameter savedFlashDuration: Duration = .milliseconds(1500); tests inject .milliseconds(10) via makeModel helper default.
+- resetToDefaults() rebuilds initialSnapshot at the end so hasChanges == false immediately post-reset (drives Save button disabled binding).
+- SettingsView: Save Button now `Button("Save") { Task { await model.save() } }`, disabled(!hasChanges || saveState == .saving), .help("Save settings"). Inline saveStatusLabel (@ViewBuilder) renders `EmptyView()` / "Saving…" (caption, onSurfaceMuted) / "Saved" (caption, success) adjacent to the action pair; collapses cleanly at rest. DS tokens only — no raw Color, no numeric corner radius, no numeric opacity.
+- Call-sites of save(): only SettingsView.swift (production) and SettingsModelTests.swift (tests). Updated both. No legacy sync wrapper needed.
+- Existing SettingsModelTests adapted to await model.save() (9 tests converted to async). Removed the now-unused waitForRecordedSetMaxCount() helper since await on save() lets the actor hop complete synchronously from the test's POV.
+- Tests added in SettingsModelTests: 7 new — testHasChanges_isFalseAfterLoad, testHasChanges_becomesTrueAfterMutation, testHasChanges_falseAfterSave, testSaveState_transitions_idle_saving_saved_idle (uses .milliseconds(10) flash; asserts post-await state is .idle), testSave_isNoopWhenNoChanges (asserts saveState stays .idle AND recentStore receives zero setMaxCount calls), testReset_clearsHasChanges, testSnapshot_treatsNilAndEmptyOverrideAsDifferent. SettingsModelTests: 26/26 PASS in 0.56 s.
+- Full suite: 1038 tests, 17 skipped, 0 failures (1031 prior + 7 new). Release build: SUCCEEDED.
+- Grep bans clean: `as!` 0 hits in Kizba/; `Logger.*stdin|print(.*stdin` only self-refs in SourceGrepTests.swift (regex literals defining the ban); DS literals in Kizba/Presentation/Features/Settings/ → 0 hits.
+- Commit: <hash> on main.
 
-Timestamp: 2026-05-17T15:50:00+02:00
+Timestamp: 2026-05-17T16:43:00+02:00

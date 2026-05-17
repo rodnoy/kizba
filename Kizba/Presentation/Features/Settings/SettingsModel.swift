@@ -40,11 +40,73 @@ public final class SettingsModel {
     /// Toggles while a discovery operation is in-flight.
     public private(set) var isDetectingBinaries: Bool = false
 
+    // MARK: - Dirty-tracking / save state (MVP6 Phase B.2)
+
+    /// Three-state machine driving the inline "Saving…" / "Saved" footer
+    /// feedback. Transitions: `.idle → .saving → .saved → .idle` (the last
+    /// hop fires after ``savedFlashDuration`` elapses).
+    public enum SaveState: Equatable {
+        case idle
+        case saving
+        case saved
+    }
+
+    /// Live snapshot of every editable field in this model. Excludes
+    /// transient state (``isDetectingBinaries``, ``saveState``).
+    ///
+    /// IMPORTANT: keep in sync with the editable `SettingsModel` fields.
+    /// Adding a new persisted field requires extending both ``currentSnapshot``
+    /// and this struct, otherwise ``hasChanges`` will silently miss mutations.
+    private struct SettingsSnapshot: Equatable {
+        let clipboardClearDelaySeconds: Int
+        let touchIDPerRevealEnabled: Bool
+        let gitOperationTimeoutSeconds: Int
+        let showInMenuBar: Bool
+        let showRecents: Bool
+        let recentsLimit: Int
+        // String? overrides: `nil` (no override) and `""` (explicit empty
+        // override) are kept distinct on purpose so the dirty check matches
+        // the user-visible distinction surfaced by ``bindingForOptional``.
+        let storePathOverride: String?
+        let passBinaryOverride: String?
+        let gpgBinaryOverride: String?
+        let pinentryBinaryOverride: String?
+    }
+
+    private var currentSnapshot: SettingsSnapshot {
+        SettingsSnapshot(
+            clipboardClearDelaySeconds: clipboardClearDelaySeconds,
+            touchIDPerRevealEnabled: touchIDPerRevealEnabled,
+            gitOperationTimeoutSeconds: gitOperationTimeoutSeconds,
+            showInMenuBar: showInMenuBar,
+            showRecents: showRecents,
+            recentsLimit: recentsLimit,
+            storePathOverride: storePathOverride,
+            passBinaryOverride: passBinaryOverride,
+            gpgBinaryOverride: gpgBinaryOverride,
+            pinentryBinaryOverride: pinentryBinaryOverride
+        )
+    }
+
+    /// Snapshot captured at init and refreshed after every successful
+    /// ``save()`` / ``resetToDefaults()``. ``hasChanges`` compares
+    /// ``currentSnapshot`` against this baseline.
+    private var initialSnapshot: SettingsSnapshot
+
+    /// `true` when any tracked field diverges from the last persisted /
+    /// reset baseline. Drives the Save button's enabled binding.
+    public var hasChanges: Bool { currentSnapshot != initialSnapshot }
+
+    /// Current persistence state. Observed by `SettingsView` to render the
+    /// inline "Saving…" / "Saved" status text adjacent to Save.
+    public var saveState: SaveState = .idle
+
     // MARK: - Dependencies
 
     private let settings: any SettingsStoring
     private let discovery: any BinaryLocating
     private let recentStore: any RecentEntriesStoring
+    private let savedFlashDuration: Duration
 
     // MARK: - Init
 
@@ -56,39 +118,90 @@ public final class SettingsModel {
     ///     ``RecentEntriesStoring/setMaxCount(_:)`` after persisting the
     ///     settings key, so observers see the new cap reflected in the
     ///     sidebar without an app restart (MVP6 Phase A).
+    ///   - savedFlashDuration: how long ``saveState`` stays in `.saved`
+    ///     before flipping back to `.idle`. Defaults to 1500 ms for
+    ///     production; tests inject a much smaller value to keep the
+    ///     suite fast.
     public init(
         settings: any SettingsStoring,
         discovery: any BinaryLocating,
-        recentStore: any RecentEntriesStoring
+        recentStore: any RecentEntriesStoring,
+        savedFlashDuration: Duration = .milliseconds(1500)
     ) {
         self.settings = settings
         self.discovery = discovery
         self.recentStore = recentStore
+        self.savedFlashDuration = savedFlashDuration
 
         // Read initial values from the store. Use SettingsKeys constants
         // as the single source of truth for key names.
-        self.storePathOverride = settings.value(for: SettingsKey<String>(SettingsKeys.storePathOverride))
-        self.passBinaryOverride = settings.value(for: SettingsKey<String>(SettingsKeys.passBinaryOverride))
-        self.gpgBinaryOverride = settings.value(for: SettingsKey<String>(SettingsKeys.gpgBinaryOverride))
-        self.pinentryBinaryOverride = settings.value(for: SettingsKey<String>(SettingsKeys.pinentryBinaryOverride))
+        let storePathOverride = settings.value(for: SettingsKey<String>(SettingsKeys.storePathOverride))
+        let passBinaryOverride = settings.value(for: SettingsKey<String>(SettingsKeys.passBinaryOverride))
+        let gpgBinaryOverride = settings.value(for: SettingsKey<String>(SettingsKeys.gpgBinaryOverride))
+        let pinentryBinaryOverride = settings.value(for: SettingsKey<String>(SettingsKeys.pinentryBinaryOverride))
 
-        self.clipboardClearDelaySeconds = settings.value(for: SettingsKey<Int>(SettingsKeys.clipboardClearDelaySeconds))
+        let clipboardClearDelaySeconds = settings.value(for: SettingsKey<Int>(SettingsKeys.clipboardClearDelaySeconds))
             ?? SettingsKeys.defaultClipboardClearDelaySeconds
-        self.touchIDPerRevealEnabled = settings.value(for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled)) ?? false
-        self.gitOperationTimeoutSeconds = settings.value(for: SettingsKey<Int>(SettingsKeys.gitOperationTimeoutSeconds))
+        let touchIDPerRevealEnabled = settings.value(for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled)) ?? false
+        let gitOperationTimeoutSeconds = settings.value(for: SettingsKey<Int>(SettingsKeys.gitOperationTimeoutSeconds))
             ?? SettingsKeys.defaultGitOperationTimeoutSeconds
-        self.showInMenuBar = settings.value(for: SettingsKey<Bool>(SettingsKeys.showInMenuBar))
+        let showInMenuBar = settings.value(for: SettingsKey<Bool>(SettingsKeys.showInMenuBar))
             ?? SettingsKeys.defaultShowInMenuBar
-        self.showRecents = settings.value(for: SettingsKey<Bool>(SettingsKeys.showRecents))
+        let showRecents = settings.value(for: SettingsKey<Bool>(SettingsKeys.showRecents))
             ?? SettingsKeys.defaultShowRecents
-        self.recentsLimit = settings.value(for: SettingsKey<Int>(SettingsKeys.recentsLimit))
+        let recentsLimit = settings.value(for: SettingsKey<Int>(SettingsKeys.recentsLimit))
             ?? SettingsKeys.defaultRecentsLimit
+
+        self.storePathOverride = storePathOverride
+        self.passBinaryOverride = passBinaryOverride
+        self.gpgBinaryOverride = gpgBinaryOverride
+        self.pinentryBinaryOverride = pinentryBinaryOverride
+        self.clipboardClearDelaySeconds = clipboardClearDelaySeconds
+        self.touchIDPerRevealEnabled = touchIDPerRevealEnabled
+        self.gitOperationTimeoutSeconds = gitOperationTimeoutSeconds
+        self.showInMenuBar = showInMenuBar
+        self.showRecents = showRecents
+        self.recentsLimit = recentsLimit
+
+        // Seed the dirty-tracking baseline so a freshly-loaded model
+        // reports `hasChanges == false`.
+        self.initialSnapshot = SettingsSnapshot(
+            clipboardClearDelaySeconds: clipboardClearDelaySeconds,
+            touchIDPerRevealEnabled: touchIDPerRevealEnabled,
+            gitOperationTimeoutSeconds: gitOperationTimeoutSeconds,
+            showInMenuBar: showInMenuBar,
+            showRecents: showRecents,
+            recentsLimit: recentsLimit,
+            storePathOverride: storePathOverride,
+            passBinaryOverride: passBinaryOverride,
+            gpgBinaryOverride: gpgBinaryOverride,
+            pinentryBinaryOverride: pinentryBinaryOverride
+        )
     }
 
     // MARK: - Actions
 
     /// Persist current in-memory values into the provided settings store.
-    public func save() {
+    ///
+    /// No-op when ``hasChanges`` is `false`: avoids redundant disk writes
+    /// and keeps ``saveState`` at `.idle` (the UI footer stays clean).
+    ///
+    /// Flow:
+    /// 1. `.saving` flips on.
+    /// 2. Sync settings writes complete.
+    /// 3. `recentStore.setMaxCount(_:)` is awaited so the actor store has
+    ///    truly absorbed the new cap before we declare success (no
+    ///    deadlock risk: we are already off the actor and the store hop
+    ///    is one-shot).
+    /// 4. Baseline snapshot rebuilt → ``hasChanges`` returns `false`.
+    /// 5. `.saved` flashes for ``savedFlashDuration``, then `.idle`.
+    ///    A capture-check guards against another save racing in: only
+    ///    the most recent `.saved` window gets cleared.
+    public func save() async {
+        guard hasChanges else { return }
+
+        saveState = .saving
+
         settings.set(storePathOverride, for: SettingsKey<String>(SettingsKeys.storePathOverride))
         settings.set(passBinaryOverride, for: SettingsKey<String>(SettingsKeys.passBinaryOverride))
         settings.set(gpgBinaryOverride, for: SettingsKey<String>(SettingsKeys.gpgBinaryOverride))
@@ -109,12 +222,20 @@ public final class SettingsModel {
             ?? SettingsKeys.defaultRecentsLimit
         recentsLimit = persistedLimit
 
-        // Propagate the new cap to the Recents actor store so observers see
-        // the updated sidebar list without an app restart. Persist first,
-        // then signal — `setMaxCount` itself truncates and emits exactly
-        // one `recentsChanged` event (see RecentEntriesStoring contract).
-        Task { [recentStore, persistedLimit] in
-            await recentStore.setMaxCount(persistedLimit)
+        // Propagate the new cap to the Recents actor store. Awaited inline
+        // (we are async on the MainActor); the actor hop is one-shot and
+        // cannot re-enter us, so there is no deadlock risk.
+        await recentStore.setMaxCount(persistedLimit)
+
+        // Rebuild the dirty baseline AFTER persistence so `hasChanges`
+        // flips back to false in lockstep with the on-disk state.
+        initialSnapshot = currentSnapshot
+
+        saveState = .saved
+        try? await Task.sleep(for: savedFlashDuration)
+        // Only clear if no newer save() has taken over in the meantime.
+        if saveState == .saved {
+            saveState = .idle
         }
     }
 
@@ -143,6 +264,10 @@ public final class SettingsModel {
         passBinaryOverride = nil
         gpgBinaryOverride = nil
         pinentryBinaryOverride = nil
+
+        // Rebuild the dirty baseline so the Save button immediately
+        // returns to the disabled state after a reset.
+        initialSnapshot = currentSnapshot
     }
 
     /// Ask the discovery service to re-detect binaries. Toggles

@@ -255,6 +255,7 @@ public struct SettingsView: View {
     private var actionsSection: some View {
         HStack(spacing: theme.spacing.md) {
             Spacer()
+            saveStatusLabel
             Button("Reset to Defaults") {
                 showingResetConfirmation = true
             }
@@ -262,10 +263,35 @@ public struct SettingsView: View {
             .keyboardShortcut(.cancelAction)
 
             Button("Save") {
-                model.save()
+                Task { await model.save() }
             }
             .buttonStyle(.kizba(.primary))
             .keyboardShortcut(.defaultAction)
+            .disabled(!model.hasChanges || model.saveState == .saving)
+            .help("Save settings")
+        }
+    }
+
+    /// Inline footer status mirroring `SettingsModel.saveState`. Hidden
+    /// while `.idle` so the row collapses to a clean Reset / Save pair
+    /// at rest. Tokens follow the DS convention used by `BannerView`:
+    /// `caption` typography, `onSurfaceMuted` for the transient
+    /// "Saving…" state, `success` for the post-write confirmation.
+    @ViewBuilder
+    private var saveStatusLabel: some View {
+        switch model.saveState {
+        case .idle:
+            EmptyView()
+        case .saving:
+            Text("Saving…")
+                .font(theme.typography.caption)
+                .foregroundStyle(theme.colors.onSurfaceMuted)
+                .accessibilityLabel("Saving settings")
+        case .saved:
+            Text("Saved")
+                .font(theme.typography.caption)
+                .foregroundStyle(theme.colors.success)
+                .accessibilityLabel("Settings saved")
         }
     }
 
