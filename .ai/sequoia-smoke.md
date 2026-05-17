@@ -19,6 +19,12 @@ Include the following rows in the verification table. Columns: Verified (Y/N), N
 | Git pull happy | — | Git > Pull succeeds; badge updates; success/info toast appears | — | — |
 | Git push happy | — | Git > Push succeeds or shows "Already up to date" info toast | — | — |
 | Git conflict banner | — | Pull conflict shows banner with "Open Terminal at Store" action | — | — |
+| Menu-bar visibility toggle | — | Toggling Settings → "Show in menu bar" hides/shows the status item live (no restart) | — | — |
+| Menu-bar popover dismiss | — | Clicking the menu-bar icon opens the popover; clicking outside dismisses it (`.transient` behavior) | — | — |
+| Menu-bar quick search + copy | — | In popover: typing surfaces results; clicking copy puts the value on the clipboard with auto-clear | — | — |
+| ⌘K search overlay | — | ⌘K opens SearchOverlay; Esc dismisses; Enter selects the highlighted result | — | — |
+| Favorites ⭐ toggle | — | ⭐ in EntryDetail toolbar (and ⌘D) flips favorite state; sidebar Favorites section updates immediately | — | — |
+| Recents auto-record | — | Viewing an entry adds it to the sidebar Recents section (newest first, capped at 20) | — | — |
 
 Fill in the verification table as you run the checklist.
 

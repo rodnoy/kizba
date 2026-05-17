@@ -389,3 +389,19 @@ relevant accessibility features enabled.
 - [ ] GitConflictBanner: modal trait, store path selectable and labelled, primary Open Terminal action labelled.
 - [ ] Settings stepper: labelled and announces value/hint.
 - [ ] Menu items: Refresh status has shortcut announced.
+
+## SearchOverlay (MVP 5)
+
+- [ ] Text field receives focus on appear — no extra Tab needed; first keystroke goes straight to the query.
+- [ ] Text field carries an explicit `accessibilityLabel` (e.g. "Search entries") so VoiceOver does not fall back to a generic "edit text" announcement.
+- [ ] `Esc` dismisses the overlay cleanly and does not trap focus (focus returns to the previously-focused element behind the overlay).
+- [ ] Results list is keyboard-navigable (↑/↓ moves the highlight without leaving the field); `Enter` selects.
+- [ ] Each result row exposes an `accessibilityLabel` (entry path) and an `accessibilityValue` or hint communicating its rank position when useful.
+
+## MenuBarPopover (MVP 5)
+
+- [ ] `NSStatusItem` button has an `accessibilityLabel` (e.g. "Kizba menu bar") and a meaningful tooltip / help string.
+- [ ] Popover takes keyboard focus on open: the search field is first responder so the user can type immediately.
+- [ ] Copy action triggers an accessibility announcement (e.g. "Password copied") so VoiceOver users hear the result without inspecting the clipboard.
+- [ ] Recents / Favorites sections expose section headers as accessibility groups (header trait via `.accessibilityAddTraits(.isHeader)`), so the VoiceOver "next heading" rotor jumps between them.
+- [ ] Outside-click dismissal (`.transient` behavior) does not strand keyboard focus inside an invisible popover.

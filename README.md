@@ -20,6 +20,10 @@ MVP 2 ships a complete read + write surface over `pass(1)`:
 
 - **FSEvents auto-refresh** — external changes to `~/.password-store` (e.g., from the CLI) are detected automatically via FSEvents; no manual ⌘R needed.
 - **Touch ID gate** (opt-in) — require biometric authentication before revealing secrets. Disabled by default; enable in Settings. Requires a Mac with Touch ID or Apple Watch unlock.
+- **Global ⌘K search overlay** — live-ranked, in-memory fuzzy search over all entries; Esc dismisses, Enter selects.
+- **Favorites** — ⭐ toggle in the `EntryDetail` toolbar (⌘D shortcut); dedicated Favorites section in the sidebar.
+- **Recent entries** — automatically recorded when an entry is viewed; dedicated Recents sidebar section (FIFO, capped at 20, newest first).
+- **Menu-bar status item** — optional SwiftUI popover for quick search + copy, toggleable in Settings ("Show in menu bar").
 
 ## Git support
 - Sidebar badge showing repository status (clean, local changes, ahead/behind, conflict) with an actions popover.
@@ -138,15 +142,18 @@ Note: Both Touch ID per-reveal toggle and FSEvents auto-refresh are opt-in and t
   shell out to `pass`).
 - **Not sandboxed.** Distributed via Developer ID + notarization, outside the App Store.
 
-## What's deferred to MVP 3
+## What's deferred
 
-- `pass git` integration (status, push, pull, conflicts).
+- `pass git` integration (status, push, pull, conflicts). — Shipped in MVP 3.
 - System `UndoManager` integration (current `ActionHistory` is in-session only).
-- Touch ID / `LocalAuthentication` for unlock-before-reveal.
-- Menu-bar (status item) app surface.
-- Quick-search / Spotlight indexing.
-- FSEvents-based external-change detection (data layer already plumbed through
-  `StoreChange.bulk`).
+- Touch ID / `LocalAuthentication` for unlock-before-reveal. — Shipped in MVP 3.
+- FSEvents-based external-change detection. — Shipped in MVP 3.
+- Menu-bar (status item) app surface. — Shipped in MVP 5.
+- Quick-search overlay (⌘K). — Shipped in MVP 5.
+- **Global hotkey for menu-bar popover** (e.g. system-wide ⌥Space). Deferred:
+  `NSEvent.addGlobalMonitorForEvents` requires Accessibility permission and the
+  prompt UX is intrusive; will revisit when there is concrete user demand.
+- Spotlight indexing / external index file.
 - App Sandbox + helper tool for sandboxed `Process` spawn.
 - Snapshot tests.
 - `ScrubbingString` secure-string buffer.

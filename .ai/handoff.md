@@ -1,16 +1,14 @@
-Phase: MVP5.D.3
+Phase: MVP5.E.2
 Status: COMPLETED
 
-Next action: Run smart-stepper to increment .ai/step.md
+Next action: Run smart-builder to run Task E.3 (final regression: full test suite + Release build + grep bans)
 
 Notes:
-- D.2 coverage increased in MenuBarModelTests:
-  - Added `testCopyEntry_copiesToClipboard`
-  - Added `testLoadRecentsAndFavorites_populatesBoth`
-- Full verification run performed:
-  - `xcodebuild clean build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'`
-  - `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'`
-  - targeted: `xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/MenuBarModelTests -only-testing:KizbaTests/StatusItemControllerTests -only-testing:KizbaTests/SettingsModelTests -only-testing:KizbaTests/SourceGrepTests`
-- Results: full build + full test suite succeeded (0 failures). 999 tests executed, 17 skipped.
+- README updated with MVP5 features (⌘K search, favorites, recents, menu-bar); deferred section trimmed (D.4 hotkey retained as deferred).
+- .ai/decisions.md: appended 2026-05-17 MVP 5 section with durable decisions (boost values verified against LiveSearchEngine; FIFO cap and UserDefaults keys verified against stores).
+- .ai/sequoia-smoke.md: added 6 MVP5 smoke-check rows.
+- .ai/a11y-audit.md: added SearchOverlay + MenuBarPopover sections.
+- Build OK; grep bans clean (production code).
+- Reality check vs plan: StatusItemController uses `NSStatusItem.variableLength`, NOT `.squareLength` as the plan note suggested — decisions.md reflects the actual code.
 
-Timestamp: 2026-05-17 13:15:40 +0200
+Timestamp: 2026-05-17T13:42:04+0200
