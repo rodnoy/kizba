@@ -7,16 +7,20 @@ public actor UserDefaultsRecentEntriesStore: RecentEntriesStoring {
     }
 
     nonisolated(unsafe) private let defaults: UserDefaults
-    private let maxCount: Int
+    private var maxCount: Int
     private var paths: [String]
     private var continuations: [UUID: AsyncStream<Void>.Continuation] = [:]
 
-    public init(defaults: UserDefaults = .standard, maxCount: Int = 20) {
+    public init(
+        defaults: UserDefaults = .standard,
+        maxCount: Int = SettingsKeys.defaultRecentsLimit
+    ) {
         self.defaults = defaults
-        self.maxCount = max(1, maxCount)
+        let clamped = Self.clamp(maxCount)
+        self.maxCount = clamped
 
         if let stored = defaults.array(forKey: Keys.recentEntries) as? [String] {
-            self.paths = Self.normalized(stored, maxCount: max(1, maxCount))
+            self.paths = Self.normalized(stored, maxCount: clamped)
         } else {
             self.paths = []
         }
@@ -43,6 +47,18 @@ public actor UserDefaultsRecentEntriesStore: RecentEntriesStoring {
     public func clear() async {
         guard paths.isEmpty == false else { return }
         paths.removeAll(keepingCapacity: false)
+        persistPaths()
+        emitChange()
+    }
+
+    public func setMaxCount(_ newValue: Int) async {
+        let clamped = Self.clamp(newValue)
+        guard clamped != maxCount else { return }
+        maxCount = clamped
+        if paths.count > clamped {
+            paths = Array(paths.prefix(clamped))
+        }
+        // Persist first, then emit exactly one change event.
         persistPaths()
         emitChange()
     }
@@ -77,6 +93,13 @@ public actor UserDefaultsRecentEntriesStore: RecentEntriesStoring {
 
     private func unregister(id: UUID) {
         continuations.removeValue(forKey: id)
+    }
+
+    private nonisolated static func clamp(_ value: Int) -> Int {
+        min(
+            max(value, SettingsKeys.minRecentsLimit),
+            SettingsKeys.maxRecentsLimit
+        )
     }
 
     private nonisolated static func normalized(_ stored: [String], maxCount: Int) -> [String] {

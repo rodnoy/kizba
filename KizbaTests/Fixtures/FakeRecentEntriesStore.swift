@@ -3,19 +3,24 @@ import Foundation
 
 actor FakeRecentEntriesStore: RecentEntriesStoring {
 
+    private var maxCount: Int
     private var paths: [String]
     private var continuations: [UUID: AsyncStream<Void>.Continuation] = [:]
 
-    init(initialPaths: [String] = []) {
-        self.paths = initialPaths
+    init(
+        initialPaths: [String] = [],
+        maxCount: Int = SettingsKeys.defaultRecentsLimit
+    ) {
+        self.maxCount = max(1, maxCount)
+        self.paths = Array(initialPaths.prefix(self.maxCount))
     }
 
     func record(_ path: String) async {
         var updated = paths
         updated.removeAll { $0 == path }
         updated.insert(path, at: 0)
-        if updated.count > 20 {
-            updated.removeSubrange(20..<updated.count)
+        if updated.count > maxCount {
+            updated.removeSubrange(maxCount..<updated.count)
         }
 
         guard updated != paths else { return }
@@ -30,6 +35,16 @@ actor FakeRecentEntriesStore: RecentEntriesStoring {
     func clear() async {
         guard paths.isEmpty == false else { return }
         paths.removeAll(keepingCapacity: false)
+        emitChange()
+    }
+
+    func setMaxCount(_ newValue: Int) async {
+        let clamped = max(1, newValue)
+        guard clamped != maxCount else { return }
+        maxCount = clamped
+        if paths.count > clamped {
+            paths = Array(paths.prefix(clamped))
+        }
         emitChange()
     }
 

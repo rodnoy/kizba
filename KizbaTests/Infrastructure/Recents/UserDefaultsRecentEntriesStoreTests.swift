@@ -111,6 +111,129 @@ final class UserDefaultsRecentEntriesStoreTests: XCTestCase {
         await waitUntil({ didEmit }, timeout: 1.0, message: "Expected recentsChanged after clear")
     }
 
+    // MARK: - MVP6.A.2 — maxCount default + setMaxCount
+
+    func testInit_usesDefaultFromSettingsKey() async {
+        let (suiteName, defaults) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = UserDefaultsRecentEntriesStore(defaults: defaults)
+
+        // Record more entries than the default cap; the oldest must be
+        // evicted at the SettingsKeys.defaultRecentsLimit boundary.
+        let total = SettingsKeys.defaultRecentsLimit + 3
+        for i in 0..<total {
+            await store.record("entry/\(i)")
+        }
+
+        let paths = await store.recentPaths()
+        XCTAssertEqual(paths.count, SettingsKeys.defaultRecentsLimit)
+        // record() inserts at index 0; newest entries survive.
+        let expected = (0..<total)
+            .map { "entry/\($0)" }
+            .reversed()
+            .prefix(SettingsKeys.defaultRecentsLimit)
+        XCTAssertEqual(paths, Array(expected))
+    }
+
+    func testSetMaxCount_truncatesAndEmitsOnce() async {
+        let (suiteName, defaults) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = UserDefaultsRecentEntriesStore(defaults: defaults)
+
+        for i in 0..<SettingsKeys.defaultRecentsLimit {
+            await store.record("entry/\(i)")
+        }
+        let initialCount = await store.recentPaths().count
+        XCTAssertEqual(initialCount, SettingsKeys.defaultRecentsLimit)
+
+        // Subscribe BEFORE mutating, count events for a short window.
+        let counter = EventCounter()
+        let observation = Task {
+            for await _ in store.recentsChanged {
+                await counter.increment()
+            }
+        }
+        defer { observation.cancel() }
+        try? await Task.sleep(for: .milliseconds(50))
+
+        await store.setMaxCount(4)
+
+        // Allow the yield to propagate.
+        try? await Task.sleep(for: .milliseconds(100))
+
+        let paths = await store.recentPaths()
+        XCTAssertEqual(paths.count, 4)
+        // The four newest entries (highest indices) must survive,
+        // in newest-first order — consistent with testRecord_evictsOldestBeyondMax.
+        let expected = (0..<SettingsKeys.defaultRecentsLimit)
+            .map { "entry/\($0)" }
+            .reversed()
+            .prefix(4)
+        XCTAssertEqual(paths, Array(expected))
+
+        let emitted = await counter.value
+        XCTAssertEqual(emitted, 1, "setMaxCount must emit exactly one change event")
+    }
+
+    func testSetMaxCount_clampsLow() async {
+        let (suiteName, defaults) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = UserDefaultsRecentEntriesStore(defaults: defaults)
+
+        await store.setMaxCount(1) // Below SettingsKeys.minRecentsLimit (3).
+
+        for i in 0..<10 {
+            await store.record("entry/\(i)")
+        }
+
+        let paths = await store.recentPaths()
+        XCTAssertEqual(paths.count, SettingsKeys.minRecentsLimit)
+    }
+
+    func testSetMaxCount_clampsHigh() async {
+        let (suiteName, defaults) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = UserDefaultsRecentEntriesStore(defaults: defaults)
+
+        await store.setMaxCount(99) // Above SettingsKeys.maxRecentsLimit (7).
+
+        for i in 0..<10 {
+            await store.record("entry/\(i)")
+        }
+
+        let paths = await store.recentPaths()
+        XCTAssertEqual(paths.count, SettingsKeys.maxRecentsLimit)
+    }
+
+    func testSetMaxCount_noopWhenUnchanged() async {
+        let (suiteName, defaults) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = UserDefaultsRecentEntriesStore(defaults: defaults)
+
+        await store.record("entry/a")
+
+        let counter = EventCounter()
+        let observation = Task {
+            for await _ in store.recentsChanged {
+                await counter.increment()
+            }
+        }
+        defer { observation.cancel() }
+        try? await Task.sleep(for: .milliseconds(50))
+
+        // Default is SettingsKeys.defaultRecentsLimit; setting same value is a no-op.
+        await store.setMaxCount(SettingsKeys.defaultRecentsLimit)
+        try? await Task.sleep(for: .milliseconds(100))
+
+        let emitted = await counter.value
+        XCTAssertEqual(emitted, 0, "setMaxCount must be a no-op when the clamped value is unchanged")
+    }
+
+    private actor EventCounter {
+        private(set) var value: Int = 0
+        func increment() { value += 1 }
+    }
+
     private func makeIsolatedDefaults() -> (String, UserDefaults) {
         let suiteName = "kizba.recents.tests.\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suiteName) else {

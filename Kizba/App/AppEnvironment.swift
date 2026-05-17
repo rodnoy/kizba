@@ -452,6 +452,9 @@ private struct UnavailableRecentEntriesStore: RecentEntriesStoring {
     func clear() async {
         fatalError("AppEnvironment: RecentEntriesStoring is unavailable in this build configuration.")
     }
+    func setMaxCount(_ newValue: Int) async {
+        fatalError("AppEnvironment: RecentEntriesStoring is unavailable in this build configuration.")
+    }
     var recentsChanged: AsyncStream<Void> {
         AsyncStream { _ in }
     }
