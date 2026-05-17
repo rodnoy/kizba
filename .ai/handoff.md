@@ -13,6 +13,6 @@ Notes:
 - Targeted: KizbaTests/RecentsModelTests — 4/4 PASS (1 new + 3 existing), 0 failures.
 - Full suite: 1012 tests, 17 skipped, 0 failures (+1 from previous 1011 = the new test). Debug build clean.
 - Grep bans clean: `as!` 0 hits in Kizba/; `Logger.*stdin|print(.*stdin` only self-refs in SourceGrepTests; DS grep clean in Kizba/Presentation/Features/Sidebar/.
-- Commit: 3bc75c2 on main.
+- Commit: 16c71e4 on main.
 
 Timestamp: 2026-05-17T15:42:00+02:00
