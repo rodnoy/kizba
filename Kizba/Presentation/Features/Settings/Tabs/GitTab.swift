@@ -32,7 +32,7 @@ struct GitTab: View {
         FormSection("Git") {
             FormFieldRow(
                 label: "Operation timeout",
-                helpText: "Seconds before a git pull or push operation times out."
+                infoText: "Maximum seconds to wait for any git operation before aborting."
             ) {
                 HStack(spacing: theme.spacing.sm) {
                     Stepper(
@@ -57,7 +57,7 @@ struct GitTab: View {
         FormSection("Store") {
             FormFieldRow(
                 label: "Store path override",
-                helpText: "Absolute path to your password store. Leave empty for the default."
+                infoText: "Override the default password-store location (~/.password-store)."
             ) {
                 HStack(spacing: theme.spacing.sm) {
                     TextField(

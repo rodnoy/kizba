@@ -32,7 +32,7 @@ struct GeneralTab: View {
         FormSection("Clipboard") {
             FormFieldRow(
                 label: "Auto-clear delay",
-                helpText: "Seconds before a copied secret is cleared from the pasteboard."
+                infoText: "Secrets copied to the clipboard are cleared automatically after this delay."
             ) {
                 HStack(spacing: theme.spacing.sm) {
                     // Native `Stepper` has no theme hook — left system-rendered
@@ -54,7 +54,10 @@ struct GeneralTab: View {
 
     private var menuBarSection: some View {
         FormSection("Menu Bar") {
-            FormFieldRow(label: "Menu bar") {
+            FormFieldRow(
+                label: "Menu bar",
+                infoText: "Show the Kizba icon in the macOS menu bar for quick access."
+            ) {
                 Toggle(isOn: $model.showInMenuBar) {
                     Text("Show Kizba in menu bar")
                 }
@@ -66,7 +69,7 @@ struct GeneralTab: View {
         FormSection("Recents") {
             FormFieldRow(
                 label: "Visibility",
-                helpText: "When disabled, the Recents section is hidden from the sidebar entirely."
+                infoText: "Display recently used password entries at the top of the sidebar."
             ) {
                 Toggle(isOn: $model.showRecents) {
                     Text("Show Recents in Sidebar")
@@ -75,7 +78,7 @@ struct GeneralTab: View {
 
             FormFieldRow(
                 label: "Recents limit",
-                helpText: "Maximum number of recently-viewed entries shown in the sidebar."
+                infoText: "How many recent entries to show in the sidebar (3–7)."
             ) {
                 HStack(spacing: theme.spacing.sm) {
                     Stepper(

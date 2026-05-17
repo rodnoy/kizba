@@ -30,7 +30,10 @@ struct AdvancedTab: View {
 
     private var binariesSection: some View {
         FormSection("Binaries") {
-            FormFieldRow(label: "pass") {
+            FormFieldRow(
+                label: "pass",
+                infoText: "Absolute path to the pass binary. Leave empty for auto-detection."
+            ) {
                 HStack(spacing: theme.spacing.sm) {
                     TextField(
                         "pass binary override",
@@ -43,7 +46,10 @@ struct AdvancedTab: View {
                 }
             }
 
-            FormFieldRow(label: "gpg") {
+            FormFieldRow(
+                label: "gpg",
+                infoText: "Absolute path to the gpg binary. Leave empty for auto-detection."
+            ) {
                 HStack(spacing: theme.spacing.sm) {
                     TextField(
                         "gpg binary override",
@@ -56,7 +62,10 @@ struct AdvancedTab: View {
                 }
             }
 
-            FormFieldRow(label: "pinentry") {
+            FormFieldRow(
+                label: "pinentry",
+                infoText: "Absolute path to the pinentry binary. Leave empty for auto-detection."
+            ) {
                 HStack(spacing: theme.spacing.sm) {
                     TextField(
                         "pinentry binary override",

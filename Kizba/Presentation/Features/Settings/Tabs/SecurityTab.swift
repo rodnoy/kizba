@@ -29,7 +29,7 @@ struct SecurityTab: View {
         FormSection("Security") {
             FormFieldRow(
                 label: "Require Touch ID for reveal",
-                helpText: "When enabled, revealing a password prompts for Touch ID / Face ID."
+                infoText: "Require Touch ID authentication for every secret reveal."
             ) {
                 Toggle(isOn: $model.touchIDPerRevealEnabled) {
                     Text("Require Touch ID for password reveal")
