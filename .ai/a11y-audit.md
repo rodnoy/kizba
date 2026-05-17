@@ -405,3 +405,35 @@ relevant accessibility features enabled.
 - [ ] Copy action triggers an accessibility announcement (e.g. "Password copied") so VoiceOver users hear the result without inspecting the clipboard.
 - [ ] Recents / Favorites sections expose section headers as accessibility groups (header trait via `.accessibilityAddTraits(.isHeader)`), so the VoiceOver "next heading" rotor jumps between them.
 - [ ] Outside-click dismissal (`.transient` behavior) does not strand keyboard focus inside an invisible popover.
+
+## InfoTooltip (MVP 6 B.1)
+
+- [ ] `accessibilityLabel` mandatory on each `info.circle` button; default reads "More information about <label>" composed from the owning `FormFieldRow` label.
+- [ ] `info.circle` button activatable via keyboard (Space / Return), not only by mouse hover.
+- [ ] Popover content is focusable; Esc dismisses it without trapping focus.
+- [ ] Caption-size body text remains readable at the Larger Accessibility Size 5 setting (no truncation that hides the substantive guidance).
+
+## Settings TabView (MVP 6 B.3)
+
+- [ ] Each tab labeled with text + SF Symbol (`gear` / `lock` / `arrow.triangle.branch` / `slider.horizontal.3`) — icon + name announced together by VoiceOver.
+- [ ] Keyboard tab switching via `⌃Tab` / `⌃⇧Tab` (macOS-standard).
+- [ ] Shared footer Save / Reset buttons accessible regardless of the active tab.
+- [ ] Save button announces enabled / disabled state changes (`accessibilityValue` updates as `hasChanges` flips).
+
+## Sidebar Recents / Favorites DisclosureGroup (MVP 6 A.3 + G.1)
+
+- [ ] DisclosureGroup expansion state announced by VoiceOver on toggle ("expanded" / "collapsed").
+- [ ] Row taps route to entry detail (G.2 fix); tap target ≥44pt per macOS standard.
+- [ ] Empty state: section absent from the accessibility tree (not announced as an empty list).
+
+## Biometric SecurityTab (MVP 6 D)
+
+- [ ] Unavailable state: informational row reads label + reason via VoiceOver.
+- [ ] Toggle change triggers async auth; user notified of cancel / fail via inline `errorText`.
+- [ ] No silent state regression on auth failure (toggle visually reflects the persisted state, not the in-flight attempt).
+
+## Help setup topics (MVP 6 E.1)
+
+- [ ] Code blocks announced as "code" via accessibility traits.
+- [ ] Copy command buttons labeled `"Copy command: <command snippet>"` for VoiceOver context (not just "Copy").
+- [ ] Warning blocks visually distinct (icon + accent surface) and announced with a warning role.

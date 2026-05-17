@@ -25,6 +25,17 @@ MVP 2 ships a complete read + write surface over `pass(1)`:
 - **Recent entries** — automatically recorded when an entry is viewed; dedicated Recents sidebar section (FIFO, capped at 20, newest first).
 - **Menu-bar status item** — optional SwiftUI popover for quick search + copy, toggleable in Settings ("Show in menu bar").
 
+### MVP 6 polish
+
+- **Settings re-organised into Xcode-style tabs** — General / Security / Git / Advanced, with a shared footer (Save / Reset) across all tabs.
+- **Save feedback** — Save button disabled when there are no changes; transient "Saving…" / "Saved" status flash on save.
+- **Info tooltips** — `info.circle` buttons on key Settings controls open focused popovers with guidance (`infoText`).
+- **App-wide hover tooltips** — every interactive control in Settings / Sidebar / Menu-bar / Git surfaces shows a `.help(...)` tooltip on hover.
+- **Recents controls** — show/hide toggle in Settings; configurable limit (3–7); collapsible (fold/unfold) section in the sidebar with persisted expansion state.
+- **Favorites controls** — show/hide toggle in Settings; collapsible (fold/unfold) section in the sidebar, symmetric with Recents.
+- **Touch ID adapts to hardware** — toggle hidden on Macs without Touch ID hardware; disabling Touch ID requires a successful biometric prompt.
+- **Help setup topics** — guided in-app topics covering pass + GPG install, syncing the store via Git remote, and configuring `pinentry-mac`.
+
 ## Git support
 - Sidebar badge showing repository status (clean, local changes, ahead/behind, conflict) with an actions popover.
 - Pull / Push via the "Git" menu (Refresh Status — ⌘⇧R; Pull; Push). Conflict banner shows merge conflicts and a quick "Open Terminal at Store" action.
@@ -153,6 +164,9 @@ Note: Both Touch ID per-reveal toggle and FSEvents auto-refresh are opt-in and t
 - **Global hotkey for menu-bar popover** (e.g. system-wide ⌥Space). Deferred:
   `NSEvent.addGlobalMonitorForEvents` requires Accessibility permission and the
   prompt UX is intrusive; will revisit when there is concrete user demand.
+- **Help menu deep-links** — opening a specific Help topic from the menu bar
+  (e.g. Help → "Configure pinentry-mac"). Plumbing not in place; topics remain
+  reachable via the Help app's sidebar.
 - Spotlight indexing / external index file.
 - App Sandbox + helper tool for sandboxed `Process` spawn.
 - Snapshot tests.

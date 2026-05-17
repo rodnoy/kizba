@@ -550,3 +550,64 @@ The 27 architectural + UX decisions for MVP 4 (planning phase, before any code).
 - `requestToggleBiometric` persists immediately and refreshes `initialSnapshot` so `hasChanges` (B.2 dirty tracking) does not falsely flag the row as dirty.
 - `SettingsModel.init(biometricAuth:)` accepts optional `any BiometricAuthenticating`; tests and previews without an injected authenticator permit disable without prompt (no real authenticator means no real protection).
 - Domain enums `BiometricUnavailableReason` / `BiometricAvailability` / `BiometricFailureReason` / `BiometricResult` annotated `public nonisolated` to keep their synthesized `Equatable` conformances actor-neutral under the targetʼs `default-isolation=MainActor` + `InferIsolatedConformances`. Required so the nested `SettingsModel.ToggleBiometricError` (also `nonisolated`) can compose them; matches the same pattern already applied to `PassShowResult`.
+
+## 2026-05-17 — MVP 6
+
+### Recents controls (Phase A)
+
+- **Recents range narrowed to 3...7**, default 7. The previous internal cap of 20 (MVP 5) is retired; UI now exposes a Stepper in Settings → General that drives `SettingsModel.recentsMaxCount`. Rationale: 20 was an arbitrary high ceiling never surfaced to the user; a small bounded range matches sidebar real estate and lets users actively shape the surface.
+- **`RecentEntriesStoring.setMaxCount(_:) async`** — clamps to `max(1, n)`, truncates the in-memory deque, persists *before* emitting one `recentsChanged` event. Persist-first-then-emit-once avoids subscribers seeing a stale-on-disk state.
+
+### Sidebar visibility (Phase A + Phase G)
+
+- **`DisclosureGroup` pattern** introduced for both Recents and Favorites sections. Expansion state persisted via `@AppStorage("kizba.sidebar.<section>Expanded")` (one key per section). Sections are elided entirely (not just collapsed) when `!show<Section> || isEmpty` — avoids "ghost" empty headers and keeps the sidebar quiet for fresh installs.
+
+### Settings UI (Phase B)
+
+- **macOS-native `TabView`** with 4 tabs: General / Security / Git / Advanced. Each tab is labeled with a text + SF Symbol pair (`gear` / `lock` / `arrow.triangle.branch` / `slider.horizontal.3`). The Save / Reset footer (`SettingsFooter`) lives **outside** the `TabView` so it is visible regardless of the active tab.
+- **Save flow: snapshot-based dirty tracking + async `SaveState` machine**. `SettingsModel.initialSnapshot` captures the persisted state on load; `hasChanges` is a structural comparison. `SaveState` cycles `idle → saving → saved → idle` with a 1.5s `saved` flash before returning to `idle`. The Save button is disabled when `!hasChanges || saveState == .saving`.
+- **InfoTooltip canonical replacement for verbose inline `helpText`**. `FormFieldRow.infoText` (popover-backed `info.circle` button) is preferred for long-form guidance; `helpText` is kept only for terse inline notes. Display priority is **`errorText > infoText > helpText`** — any error preempts info; info preempts help.
+
+### App-wide tooltips (Phase C)
+
+- **`.help(...)` on every interactive control** across Settings / Sidebar / Menu-bar / Git surfaces. Standard macOS hover-with-delay UX; no custom implementation.
+- **Advisory SourceGrep rule `testIconOnlyButtonsHaveHelp_inAuditedFeatures`** scans audited feature roots for `Button { Image(systemName:) }` / `Button { Label(_, systemImage:) }` without an adjacent `.help(...)` modifier. Env opt-out `KIZBA_GREP_TOOLTIPS=0` keeps the rule advisory (not blocking) — it is run on CI and during local audits but does not gate routine commits, because false positives are unavoidable with a textual grep.
+
+### Biometric gating (Phase D)
+
+- **`SettingsModel.biometricAvailability`** computed from an injected `BiometricAuthenticating?`. `nil` (tests, previews) is treated as "no real authenticator present" — disable is allowed without prompt.
+- **`requestToggleBiometric(_:) async -> Result<Void, ToggleBiometricError>`**.
+  - **Enable** persists immediately without prompting. Matches Apple's UX in FileVault and the Touch ID settings pane — enabling a protection does not itself require the protection.
+  - **Disable** requires a successful biometric auth. Cancel or fail leaves the persisted value unchanged; the UI surfaces an inline `errorText` on the affected `FormFieldRow`.
+- **Hardware change to unavailable does NOT auto-flip the persisted value.** A user who moves a previously-enabled setting onto a non-biometric Mac sees a disabled toggle with an explanatory info row, but the setting stays `true` on disk until manually changed back on biometric-capable hardware. Avoids the worst case where a transient hardware probe failure silently disables protection.
+- **`initialSnapshot` refreshed after a successful biometric persist**, so the B.2 dirty-tracking logic does not falsely flag the row as dirty (the user has already "saved" the toggle via the biometric flow, not via the Save button).
+- **Biometric domain enums (`BiometricAvailability`, `BiometricResult`, `BiometricUnavailableReason`, `BiometricFailureReason`)** annotated `public nonisolated`. The Kizba target uses `default-isolation=MainActor` + `InferIsolatedConformances`, which would otherwise infer a `@MainActor` `Equatable` conformance on each enum and prevent them from being composed inside the nested `SettingsModel.ToggleBiometricError` (also `nonisolated`). Same pattern as the earlier `PassShowResult` fix.
+
+### SecurityTab error feedback (Phase D)
+
+- Biometric failures surface via **`FormFieldRow.errorText`** (inline, scoped to the row) rather than `ToastCenter`. Settings is its own scene; it does not own `AppState`, and threading a `ToastCenter` through `SettingsModel.init` would cross DI boundaries for a single signal. Inline error is also more discoverable in context (the user is looking at the toggle they just touched).
+
+### Storage key namespacing (Phase G)
+
+- **New canonical keys**: `app.kizba.recents.entries.v1` and `app.kizba.favorites.entries.v1`. The `.v1` suffix reserves room for a schema bump without colliding with the (now-legacy) MVP 5 keys.
+- **Recents migration policy: fresh start, no migration.** Legacy `kizba.recentEntries` is auto-collected data; observed DEBUG-fixture leakage into release `UserDefaults` made it safer to drop the legacy values entirely on first MVP 6 launch and let the recents list rebuild naturally.
+- **Favorites migration policy: one-shot migration from `kizba.favorites`.** User-curated data — silent loss is unacceptable. Migration is idempotent (safe to re-run); the legacy key is only deleted after a successful migration write.
+
+### Sidebar tap routing (Phase G)
+
+- **`SidebarView.init` accepts two bindings**: `selection` (folder filter, drives the middle column) and `entrySelection` (Recents / Favorites entries, drives the detail column directly). Mirrors the SearchOverlay pattern (`router.selectedEntryID = result.id`) — tapping a recent or favorite jumps straight to its detail without going through folder navigation.
+
+### HelpCatalog contract (Phase E)
+
+- **Append-only positional IDs.** `HelpCatalog.all` is ordered; block IDs within each topic are positional. New topics are appended at the end of `.all`; existing positional ID tests remain stable.
+- **First-class accessors** (`HelpCatalog.setupPassAndGPG`, `.setupGitRemote`, `.configurePinentry`) mirror the existing `aeadMDCCompatibility` pattern — lookup by id with a defensive rebuild fallback so the accessor never returns nil even if the catalog is reordered by mistake.
+
+### Deferred
+
+- **Help menu deep-links (Phase E.2).** Opening a specific Help topic from the Help menu requires switching the Help `Window("Help", id: "help")` declaration to `WindowGroup(for: String.self)` and threading `initialTopicID` through `HelpModel.init`. Out of scope for E.1's "if plumbing is simple" guard. Topics remain reachable via the Help app's sidebar.
+- **i18n.** All MVP 6 user-facing strings remain English-only; no new locales introduced.
+
+### Constraints honoured
+
+- **No new dependencies.** Only Foundation / SwiftUI / AppKit / `os` / `LocalAuthentication`.
+- **No new third-party packages.** SWIFT_STRICT_CONCURRENCY=complete still enforced.

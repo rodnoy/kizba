@@ -25,6 +25,18 @@ Include the following rows in the verification table. Columns: Verified (Y/N), N
 | ⌘K search overlay | — | ⌘K opens SearchOverlay; Esc dismisses; Enter selects the highlighted result | — | — |
 | Favorites ⭐ toggle | — | ⭐ in EntryDetail toolbar (and ⌘D) flips favorite state; sidebar Favorites section updates immediately | — | — |
 | Recents auto-record | — | Viewing an entry adds it to the sidebar Recents section (newest first, capped at 20) | — | — |
+| Settings tabs (MVP 6) | — | Settings opens with 4 tabs (General / Security / Git / Advanced); shared Save/Reset footer visible across all tabs | — | — |
+| Save feedback (MVP 6) | — | Save button disabled when no changes; "Saving…" → "Saved" → idle flash on save (~1.5s) | — | — |
+| Info tooltips (MVP 6) | — | `info.circle` buttons on Settings controls open focused popovers with caption-size text | — | — |
+| Hover tooltips (MVP 6) | — | Hovering interactive controls in Settings / Sidebar / Menu-bar / Git surfaces shows tooltip text within ~500ms | — | — |
+| Sidebar Recents fold (MVP 6) | — | Section visible when `showRecents && !isEmpty`; collapses/expands via DisclosureGroup; state persists across launches | — | — |
+| Sidebar Favorites fold (MVP 6) | — | Section visible when `showFavorites && !isEmpty`; collapses/expands; state persists | — | — |
+| Sidebar tap routing (MVP 6) | — | Tap Recent entry → detail column opens that entry. Tap Favorite → same. Tap Folder → middle column filters (no regression) | — | — |
+| Recents limit live update (MVP 6) | — | Recents limit Stepper (3–7) takes effect immediately after Save; sidebar truncates without restart | — | — |
+| Touch ID hardware gating (MVP 6) | — | Touch ID toggle absent on Macs without biometric hardware; informational row visible with `infoText` reason | — | — |
+| Touch ID disable prompt (MVP 6) | — | Disabling Touch ID prompts biometric; cancel/fail leaves it enabled with inline error message | — | — |
+| Help setup topics (MVP 6) | — | Help opens topic catalog with 4 topics (AEAD/MDC + setup-pass-and-gpg + setup-git-remote + configure-pinentry); copy command buttons copy with extended (10-min) clipboard retention | — | — |
+| Storage key cleanup (MVP 6) | — | After Release build, Recents is empty on first launch (legacy `kizba.recentEntries` cleaned up); Favorites preserved if previously set under legacy `kizba.favorites` | — | — |
 
 Fill in the verification table as you run the checklist.
 
