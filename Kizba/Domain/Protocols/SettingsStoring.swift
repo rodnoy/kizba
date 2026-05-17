@@ -104,6 +104,13 @@ public enum SettingsKeys {
     /// Timeout in seconds for git operations (pull, push).
     public nonisolated static let gitOperationTimeoutSeconds = "gitOperationTimeoutSeconds"
     public nonisolated static let showInMenuBar = "showInMenuBar"
+    /// When true, the sidebar renders the Recents section. When false,
+    /// the entire section is elided (MVP6 Phase A).
+    public nonisolated static let showRecents = "showRecents"
+    /// Soft cap on the number of recently-viewed entries surfaced in
+    /// the sidebar Recents section. Persisted user preference; clamped
+    /// to ``recentsLimitBounds`` on write.
+    public nonisolated static let recentsLimit = "recentsLimit"
 
     // MARK: - Defaults & sane bounds
     //
@@ -130,4 +137,26 @@ public enum SettingsKeys {
     /// Inclusive bounds enforced by the Settings UI stepper and at
     /// read time inside ``GitStatusModel``.
     public nonisolated static let gitOperationTimeoutBounds: ClosedRange<Int> = 10...300
+
+    /// Default for ``showRecents``: section is visible until the user
+    /// explicitly hides it.
+    public nonisolated static let defaultShowRecents: Bool = true
+
+    /// Default Recents cap. Replaces the previously-hardcoded `20`
+    /// literal in the production and DEBUG stores (MVP6 Phase A).
+    public nonisolated static let defaultRecentsLimit: Int = 7
+
+    /// Inclusive bounds enforced by the Settings UI stepper and at
+    /// write time inside ``UserDefaultsSettingsStore`` so an
+    /// out-of-range value cannot reach the Recents store.
+    public nonisolated static let recentsLimitBounds: ClosedRange<Int> = 3...7
+
+    /// Convenience lower bound — equivalent to
+    /// ``recentsLimitBounds.lowerBound`` but exposed as a top-level
+    /// constant for test readability.
+    public nonisolated static let minRecentsLimit: Int = 3
+
+    /// Convenience upper bound — equivalent to
+    /// ``recentsLimitBounds.upperBound``.
+    public nonisolated static let maxRecentsLimit: Int = 7
 }

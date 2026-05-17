@@ -73,4 +73,49 @@ final class UserDefaultsSettingsStoreTests: XCTestCase {
         XCTAssertNil(store.value(for: SettingsKey<String>("k1")))
         XCTAssertNil(store.value(for: SettingsKey<Int>("k2")))
     }
+
+    // MARK: - MVP6 Phase A.1: Recents settings keys
+
+    func testShowRecents_defaultsTrue() {
+        // No write has happened — registered default should surface.
+        let key = SettingsKey<Bool>(SettingsKeys.showRecents)
+        XCTAssertEqual(store.value(for: key), SettingsKeys.defaultShowRecents)
+        XCTAssertEqual(store.value(for: key), true)
+    }
+
+    func testShowRecents_roundTrip() {
+        let key = SettingsKey<Bool>(SettingsKeys.showRecents)
+        store.set(false, for: key)
+        XCTAssertEqual(store.value(for: key), false)
+        store.set(true, for: key)
+        XCTAssertEqual(store.value(for: key), true)
+    }
+
+    func testRecentsLimit_defaultsToSeven() {
+        let key = SettingsKey<Int>(SettingsKeys.recentsLimit)
+        XCTAssertEqual(store.value(for: key), SettingsKeys.defaultRecentsLimit)
+        XCTAssertEqual(store.value(for: key), 7)
+    }
+
+    func testRecentsLimit_clampsLow() {
+        let key = SettingsKey<Int>(SettingsKeys.recentsLimit)
+        store.set(1, for: key)
+        XCTAssertEqual(store.value(for: key), SettingsKeys.minRecentsLimit)
+        XCTAssertEqual(store.value(for: key), 3)
+    }
+
+    func testRecentsLimit_clampsHigh() {
+        let key = SettingsKey<Int>(SettingsKeys.recentsLimit)
+        store.set(99, for: key)
+        XCTAssertEqual(store.value(for: key), SettingsKeys.maxRecentsLimit)
+        XCTAssertEqual(store.value(for: key), 7)
+    }
+
+    func testRecentsLimit_roundTrip() {
+        let key = SettingsKey<Int>(SettingsKeys.recentsLimit)
+        store.set(5, for: key)
+        XCTAssertEqual(store.value(for: key), 5)
+        store.set(4, for: key)
+        XCTAssertEqual(store.value(for: key), 4)
+    }
 }

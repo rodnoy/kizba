@@ -55,6 +55,18 @@ public final class UserDefaultsSettingsStore: SettingsStoring, @unchecked Sendab
         if userDefaults.object(forKey: showInMenuBarKey) == nil {
             userDefaults.register(defaults: [showInMenuBarKey: SettingsKeys.defaultShowInMenuBar])
         }
+        // MVP6 Phase A.1: Recents controls.
+        // Default the sidebar Recents section to visible.
+        let showRecentsKey = namespaced(SettingsKeys.showRecents)
+        if userDefaults.object(forKey: showRecentsKey) == nil {
+            userDefaults.register(defaults: [showRecentsKey: SettingsKeys.defaultShowRecents])
+        }
+        // Default Recents cap — single source of truth for the value
+        // that used to be hardcoded as `20` inside the Recents stores.
+        let recentsLimitKey = namespaced(SettingsKeys.recentsLimit)
+        if userDefaults.object(forKey: recentsLimitKey) == nil {
+            userDefaults.register(defaults: [recentsLimitKey: SettingsKeys.defaultRecentsLimit])
+        }
     }
 
     // MARK: - Namespacing helper
@@ -130,7 +142,17 @@ public final class UserDefaultsSettingsStore: SettingsStoring, @unchecked Sendab
                 Log.settings.error("Settings write skipped: type mismatch for key \(key.name, privacy: .public)")
                 return
             }
-            userDefaults.set(typed, forKey: nsKey)
+            // MVP6 Phase A.1: clamp ``recentsLimit`` to its accepted
+            // bounds at the persistence layer so neither the Settings
+            // UI nor any other caller can write an out-of-range value
+            // that would later confuse the Recents store cap.
+            let toWrite: Int
+            if key.name == SettingsKeys.recentsLimit {
+                toWrite = max(SettingsKeys.minRecentsLimit, min(SettingsKeys.maxRecentsLimit, typed))
+            } else {
+                toWrite = typed
+            }
+            userDefaults.set(toWrite, forKey: nsKey)
         case is Double.Type:
             guard let typed = v as? Double else {
                 assertionFailure("Settings type mismatch for key \(key.name): expected Double, got \(type(of: v))")
