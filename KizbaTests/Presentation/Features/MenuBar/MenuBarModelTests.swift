@@ -50,14 +50,50 @@ final class MenuBarModelTests: XCTestCase {
         XCTAssertEqual(fakeClipboard.lastCall?.clearAfter, .seconds(5))
     }
 
+    func testCopyEntry_copiesToClipboard() async {
+        let fakeClipboard = FakeClipboardServicing()
+        let fakeRecentStore = FakeRecentEntriesStore()
+        let model = makeModel(
+            searchEngine: FakeSearchEngine(cannedResults: []),
+            recentStore: fakeRecentStore,
+            clipboard: fakeClipboard
+        )
+
+        await model.copyEntry(path: "work/mail")
+
+        XCTAssertEqual(fakeClipboard.lastCall?.value, "pw:work/mail")
+        XCTAssertEqual(fakeClipboard.lastCall?.clearAfter, .seconds(5))
+
+        let recents = await fakeRecentStore.recentPaths()
+        XCTAssertEqual(recents.first, "work/mail")
+    }
+
+    func testLoadRecentsAndFavorites_populatesBoth() async {
+        let fakeRecentStore = FakeRecentEntriesStore(initialPaths: ["r1", "r2"])
+        let fakeFavoritesStore = FakeFavoritesStore(initialFavorites: Set(["f1", "f2"]))
+        let model = makeModel(
+            searchEngine: FakeSearchEngine(cannedResults: []),
+            recentStore: fakeRecentStore,
+            favoritesStore: fakeFavoritesStore
+        )
+
+        await model.loadRecentsAndFavorites()
+        defer { model.stop() }
+
+        XCTAssertEqual(model.recents, ["r1", "r2"])
+        XCTAssertEqual(model.favorites, ["f1", "f2"])
+    }
+
     private func makeModel(
         searchEngine: any EntrySearching,
+        recentStore: FakeRecentEntriesStore = FakeRecentEntriesStore(),
+        favoritesStore: FakeFavoritesStore = FakeFavoritesStore(),
         clipboard: FakeClipboardServicing = FakeClipboardServicing()
     ) -> MenuBarModel {
         MenuBarModel(
             searchEngine: searchEngine,
-            recentStore: FakeRecentEntriesStore(),
-            favoritesStore: FakeFavoritesStore(),
+            recentStore: recentStore,
+            favoritesStore: favoritesStore,
             clipboard: clipboard,
             passManager: FakePassManager()
         )

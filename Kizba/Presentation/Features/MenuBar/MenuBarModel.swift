@@ -7,6 +7,9 @@ final class MenuBarModel {
     var query: String = ""
     var results: [SearchResult] = []
     var isLoading: Bool = false
+    public private(set) var recents: [String] = []
+    public private(set) var favorites: [String] = []
+    public private(set) var isCopying: Bool = false
 
     private let searchEngine: any EntrySearching
     private let recentStore: any RecentEntriesStoring
@@ -14,6 +17,8 @@ final class MenuBarModel {
     private let clipboard: any ClipboardServicing
     private let passManager: any PassManaging
     private var currentTask: Task<Void, Never>?
+    private var recentsTask: Task<Void, Never>? = nil
+    private var favoritesTask: Task<Void, Never>? = nil
 
     init(
         searchEngine: any EntrySearching,
@@ -56,12 +61,63 @@ final class MenuBarModel {
             return
         }
 
-        let entry = PassEntry(path: result.id)
-        guard let secret = try? await passManager.show(entry) else {
-            return
+        await copyEntry(path: result.id)
+    }
+
+    public func loadRecentsAndFavorites() async {
+        async let recentPaths = recentStore.recentPaths()
+        async let favoritePaths = favoritesStore.allFavorites()
+
+        recents = await recentPaths
+        favorites = Array(await favoritePaths).sorted()
+
+        stop()
+
+        recentsTask = Task { [weak self] in
+            guard let self else { return }
+            for await _ in recentStore.recentsChanged {
+                do {
+                    try Task.checkCancellation()
+                } catch {
+                    return
+                }
+                self.recents = await recentStore.recentPaths()
+            }
         }
 
-        await clipboard.copy(secret.password, clearAfter: .seconds(5))
+        favoritesTask = Task { [weak self] in
+            guard let self else { return }
+            for await _ in favoritesStore.favoritesChanged {
+                do {
+                    try Task.checkCancellation()
+                } catch {
+                    return
+                }
+                self.favorites = Array(await favoritesStore.allFavorites()).sorted()
+            }
+        }
+    }
+
+    public func stop() {
+        recentsTask?.cancel()
+        recentsTask = nil
+        favoritesTask?.cancel()
+        favoritesTask = nil
+    }
+
+    public func copyEntry(path: String) async {
+        isCopying = true
+        defer {
+            isCopying = false
+        }
+
+        do {
+            let secret = try await passManager.show(PassEntry(path: path))
+            await clipboard.copy(secret.password, clearAfter: .seconds(5))
+            await recentStore.record(path)
+        } catch {
+            // Keep parity with copyResultPassword behavior: ignore copy errors.
+        }
     }
 
     private func performSearch(_ q: String) async {
