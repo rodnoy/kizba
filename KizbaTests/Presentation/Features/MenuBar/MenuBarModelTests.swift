@@ -50,6 +50,65 @@ final class MenuBarModelTests: XCTestCase {
         XCTAssertEqual(fakeClipboard.lastCall?.clearAfter, .seconds(5))
     }
 
+    func testCopyEntry_policyOn_success_writesToClipboard() async {
+        let fakeClipboard = FakeClipboardServicing()
+        let fakeRecentStore = FakeRecentEntriesStore()
+        let settings = MutableSettingsStore()
+        settings.set(true, for: SettingsKey<Bool>(SettingsKeys.touchIDForSensitiveActions))
+        let auth = FakeBiometricAuthenticator(availability: .available, nextResult: .success)
+        let passManager = StubPassManagerForMenuBar(password: "menu-secret")
+        let model = makeModel(
+            searchEngine: FakeSearchEngine(cannedResults: []),
+            recentStore: fakeRecentStore,
+            clipboard: fakeClipboard,
+            passManager: passManager,
+            settings: settings,
+            biometricAuth: auth
+        )
+
+        await model.copyEntry(path: "work/mail")
+
+        XCTAssertEqual(fakeClipboard.lastCall?.value, "menu-secret")
+        XCTAssertEqual(fakeClipboard.lastCall?.clearAfter, .seconds(5))
+        XCTAssertEqual(auth.authenticateCalls, ["Copy password from menu bar"])
+    }
+
+    func testCopyEntry_policyOn_cancelled_doesNotWriteToClipboard() async {
+        let fakeClipboard = FakeClipboardServicing()
+        let settings = MutableSettingsStore()
+        settings.set(true, for: SettingsKey<Bool>(SettingsKeys.touchIDForSensitiveActions))
+        let auth = FakeBiometricAuthenticator(availability: .available, nextResult: .cancelled)
+        let model = makeModel(
+            searchEngine: FakeSearchEngine(cannedResults: []),
+            clipboard: fakeClipboard,
+            settings: settings,
+            biometricAuth: auth
+        )
+
+        await model.copyEntry(path: "work/mail")
+
+        XCTAssertEqual(fakeClipboard.calls.count, 0)
+        XCTAssertEqual(auth.authenticateCalls, ["Copy password from menu bar"])
+    }
+
+    func testCopyEntry_policyOff_writesToClipboardWithoutPrompt() async {
+        let fakeClipboard = FakeClipboardServicing()
+        let settings = MutableSettingsStore()
+        settings.set(false, for: SettingsKey<Bool>(SettingsKeys.touchIDForSensitiveActions))
+        let auth = FakeBiometricAuthenticator(availability: .available, nextResult: .success)
+        let model = makeModel(
+            searchEngine: FakeSearchEngine(cannedResults: []),
+            clipboard: fakeClipboard,
+            settings: settings,
+            biometricAuth: auth
+        )
+
+        await model.copyEntry(path: "work/mail")
+
+        XCTAssertEqual(fakeClipboard.lastCall?.value, "pw:work/mail")
+        XCTAssertEqual(auth.authenticateCalls.count, 0)
+    }
+
     func testCopyEntry_copiesToClipboard() async {
         let fakeClipboard = FakeClipboardServicing()
         let fakeRecentStore = FakeRecentEntriesStore()
@@ -88,15 +147,73 @@ final class MenuBarModelTests: XCTestCase {
         searchEngine: any EntrySearching,
         recentStore: FakeRecentEntriesStore = FakeRecentEntriesStore(),
         favoritesStore: FakeFavoritesStore = FakeFavoritesStore(),
-        clipboard: FakeClipboardServicing = FakeClipboardServicing()
+        clipboard: FakeClipboardServicing = FakeClipboardServicing(),
+        passManager: any PassManaging = FakePassManager(),
+        settings: any SettingsStoring = MutableSettingsStore(),
+        biometricAuth: (any BiometricAuthenticating)? = nil
     ) -> MenuBarModel {
         MenuBarModel(
             searchEngine: searchEngine,
             recentStore: recentStore,
             favoritesStore: favoritesStore,
             clipboard: clipboard,
-            passManager: FakePassManager()
+            passManager: passManager,
+            settings: settings,
+            biometricAuth: biometricAuth
         )
+    }
+}
+
+struct StubPassManagerForMenuBar: PassManaging {
+    let password: String
+
+    init(password: String) {
+        self.password = password
+    }
+
+    func listEntries() async throws -> [PassEntry] { [] }
+
+    func show(_ entry: PassEntry) async throws -> PassSecret {
+        PassSecret(password: password)
+    }
+
+    func storeLocation() -> URL {
+        URL(fileURLWithPath: "/tmp", isDirectory: true)
+    }
+
+    func insert(_ entry: PassEntry, secret: PassSecret, force: Bool) async throws -> PassEntry {
+        fatalError("Not used in these tests")
+    }
+
+    func generate(
+        _ entry: PassEntry,
+        length: Int,
+        includeSymbols: Bool,
+        force: Bool
+    ) async throws -> PassSecret {
+        fatalError("Not used in these tests")
+    }
+
+    func generateInPlace(
+        _ entry: PassEntry,
+        length: Int,
+        includeSymbols: Bool
+    ) async throws -> PassSecret {
+        fatalError("Not used in these tests")
+    }
+
+    func remove(_ entry: PassEntry) async throws {
+        fatalError("Not used in these tests")
+    }
+
+    func move(from: PassEntry, to newPath: String, force: Bool) async throws -> PassEntry {
+        fatalError("Not used in these tests")
+    }
+
+    var changes: AsyncStream<StoreChange> {
+        AsyncStream { continuation in
+            continuation.finish()
+        }
     }
 }
 

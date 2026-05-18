@@ -208,6 +208,27 @@ final class EntryDetailModel {
         await copy(secret.password, target: .password)
     }
 
+    /// Requests a password copy operation gated by Touch ID policy.
+    ///
+    /// When the model is in `.loaded`, this method evaluates the
+    /// biometric gate with reason `"Copy password"`. On success, it
+    /// routes through ``copy(_:target:)`` to preserve existing
+    /// clipboard auto-clear and toast behavior. On cancellation or
+    /// failed authentication, it performs a silent no-op.
+    public func requestCopyPassword() async {
+        guard case .loaded(let secret) = state else { return }
+
+        let gate = BiometricGate(
+            auth: environment.biometricAuth,
+            settings: environment.settings,
+            policyKey: SettingsKey<Bool>(SettingsKeys.touchIDForSensitiveActions)
+        )
+
+        let allowed = await gate.run(reason: "Copy password")
+        guard allowed else { return }
+        await copy(secret.password, target: .password)
+    }
+
     /// Convenience: copy the first metadata value matching `key`.
     /// No-op if the model is not loaded or the key is absent. Posts
     /// an `.info` confirmation toast titled `"\"<key>\" copied"`.
@@ -216,6 +237,31 @@ final class EntryDetailModel {
               let value = secret.metadata.firstValue(for: key)
         else { return }
         await copy(value, target: .metadata(key: key))
+    }
+
+    /// Requests a metadata copy operation with selective Touch ID gating.
+    ///
+    /// Non-sensitive metadata keys copy immediately. Sensitive keys are
+    /// gated via ``BiometricGate`` using reason `"Copy <key>"`. Missing
+    /// keys and declined authentication are handled as silent no-ops.
+    public func requestCopyMetadata(_ pair: MetadataPair) async {
+        guard case .loaded(let secret) = state,
+              let value = secret.metadata.firstValue(for: pair.key)
+        else { return }
+
+        guard BiometricGate.isSensitiveMetadataKey(pair.key) else {
+            await copy(value, target: .metadata(key: pair.key))
+            return
+        }
+
+        let gate = BiometricGate(
+            auth: environment.biometricAuth,
+            settings: environment.settings,
+            policyKey: SettingsKey<Bool>(SettingsKeys.touchIDForSensitiveActions)
+        )
+        let allowed = await gate.run(reason: "Copy \(pair.key)")
+        guard allowed else { return }
+        await copy(value, target: .metadata(key: pair.key))
     }
 
     /// Convenience: copy the loaded notes block if available. No-op

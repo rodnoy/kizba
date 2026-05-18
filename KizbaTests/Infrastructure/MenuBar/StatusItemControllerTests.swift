@@ -53,7 +53,9 @@ final class StatusItemControllerTests: XCTestCase {
             recentStore: FakeRecentEntriesStore(),
             favoritesStore: FakeFavoritesStore(),
             clipboard: FakeClipboardServicing(),
-            passManager: FakePassManager()
+            passManager: FakePassManager(),
+            settings: MutableSettingsStore(),
+            biometricAuth: nil
         )
 
         return StatusItemController(

@@ -16,6 +16,8 @@ final class MenuBarModel {
     private let favoritesStore: any FavoritesStoring
     private let clipboard: any ClipboardServicing
     private let passManager: any PassManaging
+    private let settings: any SettingsStoring
+    private let biometricAuth: (any BiometricAuthenticating)?
     private var currentTask: Task<Void, Never>?
     private var recentsTask: Task<Void, Never>? = nil
     private var favoritesTask: Task<Void, Never>? = nil
@@ -25,13 +27,17 @@ final class MenuBarModel {
         recentStore: any RecentEntriesStoring,
         favoritesStore: any FavoritesStoring,
         clipboard: any ClipboardServicing,
-        passManager: any PassManaging
+        passManager: any PassManaging,
+        settings: any SettingsStoring,
+        biometricAuth: (any BiometricAuthenticating)?
     ) {
         self.searchEngine = searchEngine
         self.recentStore = recentStore
         self.favoritesStore = favoritesStore
         self.clipboard = clipboard
         self.passManager = passManager
+        self.settings = settings
+        self.biometricAuth = biometricAuth
     }
 
     func updateQuery(_ q: String) {
@@ -113,6 +119,15 @@ final class MenuBarModel {
 
         do {
             let secret = try await passManager.show(PassEntry(path: path))
+
+            let gate = BiometricGate(
+                auth: biometricAuth,
+                settings: settings,
+                policyKey: SettingsKey<Bool>(SettingsKeys.touchIDForSensitiveActions)
+            )
+            let allowed = await gate.run(reason: "Copy password from menu bar")
+            guard allowed else { return }
+
             await clipboard.copy(secret.password, clearAfter: .seconds(5))
             await recentStore.record(path)
         } catch {

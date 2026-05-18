@@ -32,7 +32,9 @@ struct KizbaApp: App {
             recentStore: env.recentStore,
             favoritesStore: env.favoritesStore,
             clipboard: env.clipboard,
-            passManager: env.passManager
+            passManager: env.passManager,
+            settings: env.settings,
+            biometricAuth: env.biometricAuth
         )
         let statusItemController = StatusItemController(
             environment: env,

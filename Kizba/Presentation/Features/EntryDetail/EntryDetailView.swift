@@ -98,7 +98,7 @@ struct EntryDetailView: View {
                 LoadedSecretView(
                     secret: secret,
                     isRevealed: revealBinding,
-                    onCopyPassword: { @Sendable in Task { await model.copyPassword() } },
+                    onCopyPassword: { @Sendable in Task { await model.requestCopyPassword() } },
                     // Per-field copy callbacks route through the
                     // model's typed copy methods so each post yields
                     // a semantic confirmation toast (`"Password
@@ -107,8 +107,8 @@ struct EntryDetailView: View {
                     // toast text. The model owns BOTH the clipboard
                     // write AND the toast; the view only knows
                     // which field was tapped.
-                    onCopyMetadataKey: { key in
-                        Task { await model.copyMetadata(forKey: key) }
+                    onCopyMetadata: { pair in
+                        Task { await model.requestCopyMetadata(pair) }
                     },
                     onCopyNotes: {
                         Task { await model.copyNotes() }
@@ -319,7 +319,7 @@ private struct LoadedSecretView: View {
     /// clipboard write and the confirmation toast. Routing by key
     /// keeps the toast title semantic (`"\"<key>\" copied"`) without
     /// the view ever composing toast text.
-    let onCopyMetadataKey: @MainActor (String) -> Void
+    let onCopyMetadata: @MainActor (MetadataPair) -> Void
     /// Tapping the Notes Copy button drives the model's
     /// ``EntryDetailModel/copyNotes()`` so the toast can be labelled
     /// `"Notes copied"`.
@@ -372,7 +372,9 @@ private struct LoadedSecretView: View {
                             .foregroundStyle(theme.colors.onSurface)
                             .textSelection(.enabled)
                         Spacer()
-                        Button("Copy") { onCopyMetadataKey(field.key) }
+                        Button("Copy") {
+                            onCopyMetadata(MetadataPair(key: field.key, value: field.value))
+                        }
                             .buttonStyle(.kizba(.ghost, size: .compact))
                             .accessibilityIdentifier("copy-meta-\(index)-button")
                     }
