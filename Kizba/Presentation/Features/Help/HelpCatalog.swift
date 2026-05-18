@@ -78,6 +78,13 @@ public enum HelpCatalog {
         return topic
     }
 
+    public static var oneTimePasswords: HelpTopic {
+        guard let topic = all.first(where: { $0.id == "one-time-passwords" }) else {
+            return Self.makeOneTimePasswords()
+        }
+        return topic
+    }
+
     // MARK: - Topic builders
 
     /// Build the AEAD/MDC compatibility topic. The wording is final
