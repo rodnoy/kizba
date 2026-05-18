@@ -437,3 +437,11 @@ relevant accessibility features enabled.
 - [ ] Code blocks announced as "code" via accessibility traits.
 - [ ] Copy command buttons labeled `"Copy command: <command snippet>"` for VoiceOver context (not just "Copy").
 - [ ] Warning blocks visually distinct (icon + accent surface) and announced with a warning role.
+
+## OTP display (MVP 7)
+
+- [ ] OTP code rendered in a monospaced font with the digits grouped (e.g. `123 456`), reinforcing readability without sacrificing copy fidelity (the underlying value remains the ungrouped number).
+- [ ] Progress indicator carries an accessible label of the form "Time remaining: <N> seconds"; the value updates as the countdown advances so a VoiceOver user querying the element hears a current number.
+- [ ] Copy button labeled `"Copy one-time code"` (not just "Copy") so the rotor and VoiceOver utterance disambiguate it from the adjacent password-copy affordance.
+- [ ] Reduce-motion variant: the animated progress ring is replaced by a static `Text` reading "Time remaining: <N> seconds". The same accessible label is used in both variants so VoiceOver behaviour is identical with or without Reduce Motion.
+- [ ] Code groups announced as one continuous number for VoiceOver: visually `123 456`, audibly `"123456"` (not `"one two three space four five six"`). Achieved by exposing the ungrouped value via `accessibilityLabel(...)` on the OTP code element while keeping the grouped form visual-only.

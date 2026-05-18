@@ -24,6 +24,8 @@ MVP 2 ships a complete read + write surface over `pass(1)`:
 - **Favorites** — ⭐ toggle in the `EntryDetail` toolbar (⌘D shortcut); dedicated Favorites section in the sidebar.
 - **Recent entries** — automatically recorded when an entry is viewed; dedicated Recents sidebar section (FIFO, capped at 20, newest first).
 - **Menu-bar status item** — optional SwiftUI popover for quick search + copy, toggleable in Settings ("Show in menu bar").
+- **Touch ID gating expanded** — when "Require Touch ID for sensitive actions" is enabled, the biometric prompt now covers password copy and sensitive metadata copy (token / secret / pin / otpauth / key), not just on-screen reveal. Cancel or failure silently skips the copy; biometrics unavailable bypasses the gate.
+- **One-time password (TOTP/HOTP) display** — detects `otpauth://` URIs in entry metadata or notes and shows the live code with a refresh timer above the metadata. Toggleable via Settings → General → "Show one-time codes". Reduce-motion variant replaces the progress ring with a static seconds-remaining label.
 
 ### MVP 6 polish
 

@@ -611,3 +611,63 @@ The 27 architectural + UX decisions for MVP 4 (planning phase, before any code).
 
 - **No new dependencies.** Only Foundation / SwiftUI / AppKit / `os` / `LocalAuthentication`.
 - **No new third-party packages.** SWIFT_STRICT_CONCURRENCY=complete still enforced.
+
+## 2026-05-18 — MVP 7 (Touch ID Copy Gate + OTP Display)
+
+### BiometricGate helper
+
+- **Single `@MainActor struct BiometricGate`** consolidating the `auth.authenticate(reason:)` call site. Used by reveal AND copy paths (`EntryDetailModel` + `MenuBarModel`). Graceful by design: returns `true` (allow) when the policy is off, the injected authenticator is `nil`, or the platform reports biometrics unavailable. Eliminates four near-duplicate `do { try await ... } catch { ... }` blocks that diverged in error handling across the codebase.
+
+### Setting consolidation
+
+- **`touchIDPerRevealEnabled` → `touchIDForSensitiveActions`** (Bool, default `false`). One-shot migration in `UserDefaultsSettingsStore.init` copies the old key's value to the new one and removes the old key. Single mental model surfaced in Settings → Security: "Touch ID protects sensitive actions" (reveal + copy + OTP code copy), instead of one toggle per surface.
+
+### Copy whitelist
+
+- **Gated metadata keys** = `{password, pin, token, secret, otpauth, key}` (case-insensitive match against `MetadataPair.key`). Source of truth: `BiometricGate.sensitiveMetadataKeys` (static Set<String>). Username copy and non-whitelisted metadata copy stay ungated — the friction is reserved for material the user would lose to a shoulder-surfing copy.
+
+### MenuBar password copy
+
+- **Menu-bar quick-copy** (password row in the `StatusItemPopover`) routes through the same `BiometricGate` as `EntryDetailModel`. Without this the menu bar would silently bypass the user's stated preference.
+
+### Failure semantics
+
+- **Cancel / fail → silent skip**: no clipboard write, no banner, no toast. Matches the macOS Touch ID pattern (cancelling a sudo prompt does not yell at the user). The reveal path already followed this convention; copy now matches.
+- **Unavailable → bypass**: returns `true` so the copy completes. The setting is documented as best-effort — if the hardware later becomes available the gate kicks in automatically with no migration step.
+
+### OTP model
+
+- **`OTPSecret`** (struct, `Sendable`, `Equatable`, `Hashable`): TOTP `period` / HOTP `counter`, `algorithm ∈ {sha1, sha256, sha512}`, `digits ∈ {6, 8}`, optional `label`, optional `issuer`.
+- **Not Codable, not CustomStringConvertible, not CustomDebugStringConvertible** — enforced by `SourceGrepTests`, mirroring the `PassSecret` discipline. Rationale: the base32 secret material is HMAC key material and must follow the same in-memory-only / no-leak rules as the cleartext password.
+
+### OTP discovery order (after MVP7.F.bugfix)
+
+- **Three-pass discovery in `OTPDiscovery.firstOTPSecret(in:)`**:
+  1. Metadata field with key `otpauth` (case-insensitive). Try the value verbatim, then with the `otpauth:` scheme re-prepended if it looks like a scheme-less `//totp/...` / `//hotp/...` body. The scheme-recovery branch handles `PassShowParser` splitting a bare `otpauth://totp/...` body line by its first colon — the parser yields `key="otpauth", value="//totp/..."` (scheme stripped) and earlier MVP 7 code returned `nil` silently.
+  2. Any other metadata field whose value (trimmed, lowercased) starts with `otpauth://`. Forward-looking: users may store the URI under a custom key (`totp`, `2fa`).
+  3. Notes block, line-by-line, lines starting with `otpauth://`.
+- **`PassShowParser` is NOT modified.** It is a stable low-level parser; broadening its URI handling would risk regressions for values like `url: https://example.com:8443`. The recovery lives in the OTP-specific consumer.
+
+### OTP UI
+
+- **`OTPModel`** (`@Observable @MainActor`) refreshes the live code via `ClockServicing` on a 250ms tick. Code recomputation is gated on the period boundary (TOTP) so we are not rehashing every quarter-second.
+- **Reduce-motion variant**: the animated progress ring is replaced by a static "Time remaining: <N> seconds" `Text`. Honors `accessibilityReduceMotion`.
+- **Copy** of the rendered code routes through `BiometricGate` exactly as a password copy does (OTP key is treated as sensitive material).
+
+### OTP setting
+
+- **`showOTP`** (Bool, default `true`) in **General tab**, not Security. UX decision: OTP visibility is a display preference (some users prefer to copy via the menu bar without the inline UI), distinct from the biometric gate which is a separate setting in Security. Two-axis model is clearer than a single combined "OTP" section in Security.
+
+### Crypto
+
+- **CryptoKit HMAC** for SHA1 / SHA256 / SHA512. Big-endian 8-byte counter. Dynamic truncation per RFC 4226 §5.3 (low-order nibble of last byte selects the 4-byte slice). Zero rolled crypto — all primitives via CryptoKit.
+
+### Base32
+
+- **Small pure-Swift decoder (~30 LOC)** in the domain layer; no third-party package. Pure stdlib (Foundation) — keeps the zero-dependency posture intact.
+
+### MVP7.F.bugfix (post-MVP7 finalisation)
+
+- **Symptom**: entries whose body contained a bare `otpauth://totp/...` line (the natural shape of `pass otp insert` output and the standard `pass-otp` extension format) showed no OTP code. Reveal worked; metadata showed `otpauth: //totp/...` (with the scheme stripped) but the inline OTP UI never appeared.
+- **Cause**: `PassShowParser`'s metadata regex `^[A-Za-z0-9_.-]+:` matched `otpauth:` as a metadata key, so the line was split into `key="otpauth", value="//totp/GitHub:..."`. `OTPDiscovery` early-returned on the first `otpauth` metadata field with `try? OTPAuthURIParser.parse(value)`, and the parser rejected the URI for missing scheme (`OTPAuthURIParserError.malformedURI`). The notes fallback never ran.
+- **Fix**: `OTPDiscovery` now re-prepends `otpauth:` when the value matches the scheme-less `//totp/` / `//hotp/` shape, and additionally scans non-`otpauth` metadata fields for full `otpauth://` URIs (custom-key support). Three new tests cover the scheme-recovery happy path, the full-scheme regression, and the custom-key forward-looking case.

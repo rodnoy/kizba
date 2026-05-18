@@ -37,6 +37,16 @@ Include the following rows in the verification table. Columns: Verified (Y/N), N
 | Touch ID disable prompt (MVP 6) | — | Disabling Touch ID prompts biometric; cancel/fail leaves it enabled with inline error message | — | — |
 | Help setup topics (MVP 6) | — | Help opens topic catalog with 4 topics (AEAD/MDC + setup-pass-and-gpg + setup-git-remote + configure-pinentry); copy command buttons copy with extended (10-min) clipboard retention | — | — |
 | Storage key cleanup (MVP 6) | — | After Release build, Recents is empty on first launch (legacy `kizba.recentEntries` cleaned up); Favorites preserved if previously set under legacy `kizba.favorites` | — | — |
+| Touch ID copy gate — password (MVP 7) | — | With Settings → Security → "Require Touch ID for sensitive actions" ON, copying the entry password prompts Touch ID; success copies, cancel/fail silently leaves the clipboard untouched | — | — |
+| Touch ID copy gate — OTP code (MVP 7) | — | Same toggle gates the "Copy one-time code" button on the OTP row; cancel leaves clipboard untouched | — | — |
+| Touch ID copy gate — reveal symmetry (MVP 7) | — | Same toggle continues to gate password REVEAL (reveal + copy + OTP copy all behave consistently) | — | — |
+| Touch ID copy gate — cancel semantics (MVP 7) | — | Cancel the Touch ID prompt during password copy: clipboard contents are unchanged; no banner, no toast | — | — |
+| OTP discovery — metadata key (MVP 7) | — | Enter an entry with `otpauth: otpauth://totp/...` in metadata: OTP code visible above metadata, refreshes on period boundary | — | — |
+| OTP discovery — bare URI line (MVP 7.F.bugfix) | — | Enter an entry whose body contains a bare `otpauth://totp/...` line (no `otpauth:` prefix on the line): OTP code STILL visible (scheme recovery from PassShowParser's split) | — | — |
+| OTP discovery — notes block (MVP 7) | — | Enter an entry with `otpauth://totp/...` in the notes block (not metadata): OTP code visible | — | — |
+| OTP setting toggle (MVP 7) | — | Toggle Settings → General → "Show one-time codes": OTP section appears / disappears live | — | — |
+| OTP reduce-motion variant (MVP 7) | — | Enable System Settings → Accessibility → Display → Reduce Motion: animated progress ring replaced by static "Time remaining: <N> seconds" label | — | — |
+| OTP copy button (MVP 7) | — | "Copy one-time code" button: clipboard contains the current code; Touch ID prompt if the sensitive-actions toggle is ON | — | — |
 
 Fill in the verification table as you run the checklist.
 
