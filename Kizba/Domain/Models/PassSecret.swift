@@ -36,4 +36,8 @@ public struct PassSecret: Sendable, Equatable {
         self.password = password
         self.metadata = metadata
     }
+
+    public var otpSecret: OTPSecret? {
+        OTPDiscovery.firstOTPSecret(in: self)
+    }
 }
