@@ -78,29 +78,13 @@ final class EntryDetailModel {
         // Fast-path: already revealed — no-op.
         guard !isPasswordRevealed else { return }
 
-        let requireBio = environment.settings
-            .value(for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled)) ?? false
-
-        guard requireBio, let auth = environment.biometricAuth else {
-            // Setting disabled or no authenticator injected: reveal.
-            isPasswordRevealed = true
-            return
-        }
-
-        switch auth.isAvailable() {
-        case .available:
-            let result = await auth.authenticate(reason: "Reveal password")
-            switch result {
-            case .success:
-                isPasswordRevealed = true
-            case .cancelled, .failed(_):
-                isPasswordRevealed = false
-            }
-        case .unavailable(_):
-            // Graceful fallback when device reports biometrics
-            // unavailable: reveal immediately.
-            isPasswordRevealed = true
-        }
+        let gate = BiometricGate(
+            auth: environment.biometricAuth,
+            settings: environment.settings,
+            policyKey: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled)
+        )
+        let allowed = await gate.run(reason: "Reveal password")
+        isPasswordRevealed = allowed
     }
 
     init(environment: AppEnvironment, state: AppState) {
