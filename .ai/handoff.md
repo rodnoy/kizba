@@ -1,8 +1,6 @@
 Phase: MVP7 (EXECUTING)
-Status: Phase A complete; Phase B in progress.
+Status: Phase A complete; Phase B in progress. B.2 complete.
 
-Next action: Run smart-worker on Task B.1 (OTPSecret model + OTPAuthURIParser) from .ai/plan.md.
+Next action: Run smart-worker on Task B.3 (PassSecret.otpSecret discovery) from .ai/plan.md.
 
-Notes: OTPSecret must NOT be Codable or CustomStringConvertible; parser validates Base32 and parsing rules per RFC.
-
-Timestamp: 2026-05-18T09:36+0200
+Timestamp: 2026-05-18T10:00+0200
