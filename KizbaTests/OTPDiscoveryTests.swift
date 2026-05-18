@@ -83,4 +83,58 @@ final class OTPDiscoveryTests: XCTestCase {
 
         XCTAssertEqual(otp, try OTPAuthURIParser.parse(validURI))
     }
+
+    // MARK: - MVP7.F.bugfix: scheme-recovery + custom-key scanning
+
+    /// Simulates `PassShowParser` output for a body containing a bare
+    /// `otpauth://totp/...` line. The parser splits on the first ':' and
+    /// produces a field `key="otpauth", value="//totp/..."` (scheme lost).
+    /// `OTPDiscovery` must recover the scheme and parse the URI.
+    func testOtpSecret_bareUriInMetadataValue_schemeRecovered() throws {
+        let secret = PassSecret(
+            password: "pw",
+            metadata: PassMetadata(fields: [
+                .init(
+                    key: "otpauth",
+                    value: "//totp/GitHub:ksimagin?secret=ZV42HPXAWPAVMCFB&issuer=GitHub"
+                ),
+            ])
+        )
+
+        let otp = try XCTUnwrap(secret.otpSecret)
+
+        XCTAssertEqual(otp.label, "ksimagin")
+        XCTAssertEqual(otp.issuer, "GitHub")
+        XCTAssertEqual(otp.secretBase32, "ZV42HPXAWPAVMCFB")
+    }
+
+    /// Regression: when the user manually stored the full URI under the
+    /// `otpauth` key, the existing happy-path still works (no double scheme).
+    func testOtpSecret_fullSchemeInMetadataValue_stillWorks() throws {
+        let secret = PassSecret(
+            password: "pw",
+            metadata: PassMetadata(fields: [
+                .init(
+                    key: "otpauth",
+                    value: "otpauth://totp/Acme:bob?secret=JBSWY3DPEHPK3PXP&issuer=Acme"
+                ),
+            ])
+        )
+
+        XCTAssertNotNil(secret.otpSecret)
+    }
+
+    /// Forward-looking: user might store the full URI under any key
+    /// (e.g. `totp`, `2fa`). The second discovery pass scans non-`otpauth`
+    /// fields for values starting with `otpauth://`.
+    func testOtpSecret_fullUriUnderCustomMetadataKey_isDiscovered() throws {
+        let secret = PassSecret(
+            password: "pw",
+            metadata: PassMetadata(fields: [
+                .init(key: "totp", value: "otpauth://totp/X:y?secret=JBSWY3DPEHPK3PXP"),
+            ])
+        )
+
+        XCTAssertNotNil(secret.otpSecret)
+    }
 }
