@@ -37,6 +37,7 @@ struct EntryDetailView: View {
 
     @State private var model: EntryDetailModel
     @State private var favoritesModel: FavoritesModel
+    @State private var otpModel: OTPModel?
 
     /// Sheet-bound edit model held in `@State` so it survives parent
     /// re-renders. Constructed by the matching `.onChange(of:
@@ -97,6 +98,7 @@ struct EntryDetailView: View {
 
                 LoadedSecretView(
                     secret: secret,
+                    otpModel: otpModel,
                     isRevealed: revealBinding,
                     onCopyPassword: { @Sendable in Task { await model.requestCopyPassword() } },
                     // Per-field copy callbacks route through the
@@ -227,7 +229,17 @@ struct EntryDetailView: View {
             }
         }
         .onChange(of: state.router.selectedEntryID, initial: true) { _, newValue in
+            otpModel?.stop()
+            otpModel = nil
             model.handleSelectionChange(newValue)
+        }
+        .onChange(of: currentOTPSecret, initial: true) { _, newSecret in
+            otpModel?.stop()
+            guard let newSecret else {
+                otpModel = nil
+                return
+            }
+            otpModel = makeOTPModel(secret: newSecret)
         }
         // Phase H.1 — subscribe the detail model to `pass.changes` so
         // a `.updated`/`.removed`/`.moved` event targeting the
@@ -278,6 +290,25 @@ struct EntryDetailView: View {
             appState: state
         )
     }
+
+    private var currentOTPSecret: OTPSecret? {
+        guard case .loaded(let secret) = model.state else { return nil }
+        return secret.otpSecret
+    }
+
+    private func makeOTPModel(secret: OTPSecret) -> OTPModel {
+        OTPModel(
+            secret: secret,
+            generator: environment.otpGenerator,
+            clock: environment.clock,
+            gate: BiometricGate(
+                auth: environment.biometricAuth,
+                settings: environment.settings,
+                policyKey: SettingsKey<Bool>(SettingsKeys.touchIDForSensitiveActions)
+            ),
+            clipboard: environment.clipboard
+        )
+    }
 }
 
 // MARK: - Loading placeholder
@@ -312,6 +343,7 @@ private struct LoadingPlaceholder: View {
 
 private struct LoadedSecretView: View {
     let secret: PassSecret
+    let otpModel: OTPModel?
     @Binding var isRevealed: Bool
     let onCopyPassword: @MainActor @Sendable () -> Void
     /// Tapping the per-row Copy button forwards the metadata key
@@ -341,6 +373,12 @@ private struct LoadedSecretView: View {
                     gateEnabled: gateEnabled
                 )
                 .accessibilityIdentifier("password-reveal-field")
+
+                if secret.otpSecret != nil, let otpModel {
+                    OTPView(model: otpModel)
+                        .onAppear { otpModel.start() }
+                        .onDisappear { otpModel.stop() }
+                }
 
                 if !secret.metadata.fields.isEmpty {
                     metadataSection

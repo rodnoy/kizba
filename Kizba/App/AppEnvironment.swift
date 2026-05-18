@@ -41,6 +41,12 @@ struct AppEnvironment: Sendable {
     /// Favorites storage used by the sidebar favorites model.
     let favoritesStore: any FavoritesStoring
 
+    /// One-time password generator used by OTP presentation flows.
+    let otpGenerator: any OTPGenerating
+
+    /// Wall-clock provider used by OTP presentation flows.
+    let clock: any ClockServicing
+
     /// Recent entries storage used by the sidebar recents model.
     let recentStore: any RecentEntriesStoring
 
@@ -83,6 +89,8 @@ struct AppEnvironment: Sendable {
         clipboard: any ClipboardServicing,
         settings: any SettingsStoring,
         passwordGenerator: any PasswordGenerating,
+        otpGenerator: any OTPGenerating = LiveOTPGenerator(),
+        clock: any ClockServicing = LiveClock(),
         favoritesStore: any FavoritesStoring = UserDefaultsFavoritesStore(),
         recentStore: any RecentEntriesStoring = UserDefaultsRecentEntriesStore(),
         recentsValidator: (any RecentEntriesValidating)? = nil,
@@ -96,6 +104,8 @@ struct AppEnvironment: Sendable {
         self.clipboard = clipboard
         self.settings = settings
         self.passwordGenerator = passwordGenerator
+        self.otpGenerator = otpGenerator
+        self.clock = clock
         self.favoritesStore = favoritesStore
         self.recentStore = recentStore
         // MVP6.H.2: `live()` wires this to a real
@@ -119,6 +129,8 @@ struct AppEnvironment: Sendable {
         clipboard: any ClipboardServicing,
         settings: any SettingsStoring,
         passwordGenerator: any PasswordGenerating,
+        otpGenerator: any OTPGenerating = LiveOTPGenerator(),
+        clock: any ClockServicing = LiveClock(),
         favoritesStore: any FavoritesStoring = UserDefaultsFavoritesStore(),
         recentStore: any RecentEntriesStoring = UserDefaultsRecentEntriesStore(),
         recentsValidator: (any RecentEntriesValidating)? = nil,
@@ -132,6 +144,8 @@ struct AppEnvironment: Sendable {
             clipboard: clipboard,
             settings: settings,
             passwordGenerator: passwordGenerator,
+            otpGenerator: otpGenerator,
+            clock: clock,
             favoritesStore: favoritesStore,
             recentStore: recentStore,
             recentsValidator: recentsValidator,
@@ -273,6 +287,8 @@ extension AppEnvironment {
             clipboard: clipboard,
             settings: settings,
             passwordGenerator: LivePasswordGenerator(),
+            otpGenerator: LiveOTPGenerator(),
+            clock: LiveClock(),
             favoritesStore: UserDefaultsFavoritesStore(),
             recentStore: UserDefaultsRecentEntriesStore(),
             // MVP6.H.2: validate persisted recent paths against the live
@@ -351,6 +367,8 @@ extension AppEnvironment {
             clipboard: NoopClipboard(),
             settings: InMemorySettingsStore(),
             passwordGenerator: LivePasswordGenerator(),
+            otpGenerator: LiveOTPGenerator(),
+            clock: LiveClock(),
             favoritesStore: InMemoryFavoritesStore(),
             recentStore: InMemoryRecentEntriesStore(),
             searchEngine: searchEngine,
@@ -364,6 +382,8 @@ extension AppEnvironment {
             clipboard: UnavailableClipboard(),
             settings: UnavailableSettingsStore(),
             passwordGenerator: LivePasswordGenerator(),
+            otpGenerator: LiveOTPGenerator(),
+            clock: LiveClock(),
             favoritesStore: UnavailableFavoritesStore(),
             recentStore: UnavailableRecentEntriesStore(),
             searchEngine: UnavailableSearchEngine(),
