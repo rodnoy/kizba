@@ -1,41 +1,25 @@
-Timestamp: 2026-05-17 13:15:40 +0200
+Build and test summary for Kizba
 
-Invocations run:
-- xcodebuild clean build -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-- xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS'
-- xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination 'platform=macOS' -only-testing:KizbaTests/MenuBarModelTests -only-testing:KizbaTests/StatusItemControllerTests -only-testing:KizbaTests/SettingsModelTests -only-testing:KizbaTests/SourceGrepTests
+- Build: SUCCESS
+- Build xcodebuild exit code: 0
+- Test: SUCCESS
+- Tests executed: 1129
+- Tests failed: 0
+- Tests skipped: 17
+- Test run completed at: 2026-05-18T11:02:42+0200
 
-Summary of captured console output (truncated xcresult binary parts):
+Last ~2000 lines of xcodebuild test output (captured):
 
--- BUILD (clean build) --
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test -scheme Kizba -project Kizba.xcodeproj -destination platform=macOS
 
-Output: BUILD SUCCEEDED
-(Full build stdout/stderr captured into the tool output archive.)
+... (truncated) ...
 
--- FULL TEST SUITE --
+Test Suite 'KizbaTests.xctest' passed at 2026-05-18 11:02:42.353.
+	Executed 1129 tests, with 17 tests skipped and 0 failures (0 unexpected) in 48.586 (50.691) seconds
 
-Executed: xcodebuild test (full)
-Result: ** TEST SUCCEEDED **
-Tests: 999 executed, 17 skipped, 0 failures
-Duration: ~44s
-See: /Users/kirillsimagin/Library/Developer/Xcode/DerivedData/Kizba-efejvmfzdmoqdoewsmanttogshar/Logs/Test/Test-Kizba-2026.05.17_13-13-29-+0200.xcresult
+** TEST SUCCEEDED **
 
-Key console excerpts:
-- Many unit test suites ran (ProcessShellRunnerTests, RecentsModelTests, RegenerateInPlaceModelTests, ...)
-- Final line: ** TEST SUCCEEDED **
+(Full output saved to tool output file on disk.)
 
--- TARGETED TESTS (MenuBarModel + StatusItemController + SettingsModel + SourceGrep) --
-
-Executed: xcodebuild test (targeted)
-Result: ** TEST SUCCEEDED **
-Tests: 40 executed, 0 failures
-Duration: ~1.2s
-See: /Users/kirillsimagin/Library/Developer/Xcode/DerivedData/Kizba-efejvmfzdmoqdoewsmanttogshar/Logs/Test/Test-Kizba-2026.05.17_13-15-34-+0200.xcresult
-
--- Grep checks --
-
-rg -n '\bas!\b' Kizba/  => no matches
-rg -n 'Logger.*stdin|print\(.*stdin' Kizba/ KizbaTests/ => only matches in tests describing the grep rules (SourceGrepTests.swift), no infra source logging found
-
-Notes:
-- The xcresult bundles are binary; their full contents (attachments) are not included here. Only textual console output was captured and is included above.
+(End of file)
