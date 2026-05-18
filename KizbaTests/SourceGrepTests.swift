@@ -161,6 +161,40 @@ final class SourceGrepTests: XCTestCase {
         XCTAssertFalse((PassSecret.self as Any) is CustomDebugStringConvertible.Type)
     }
 
+    func testOTPSecretIsNotCodable() throws {
+        let kizbaRoot = Self.repoRoot.appendingPathComponent("Kizba", isDirectory: true)
+
+        let pattern =
+            #"(?:struct|extension)\s+OTPSecret\b[^:{]*:\s*([^{]*?\b(?:Codable|Encodable|Decodable)\b[^{]*)"#
+        let regex = try NSRegularExpression(pattern: pattern, options: [])
+
+        var hits: [String] = []
+        let files = try Self.swiftFiles(under: kizbaRoot)
+        for url in files {
+            let contents = try String(contentsOf: url, encoding: .utf8)
+            let nsRange = NSRange(contents.startIndex..., in: contents)
+            regex.enumerateMatches(in: contents, options: [], range: nsRange) { match, _, _ in
+                guard let match else { return }
+                let lineNumber = Self.lineNumber(of: match.range.location, in: contents)
+                let snippet = (contents as NSString).substring(with: match.range)
+                hits.append("\(url.path):\(lineNumber): \(snippet)")
+            }
+        }
+
+        if !hits.isEmpty {
+            XCTFail(
+                "OTPSecret must NOT conform to Codable/Encodable/Decodable. "
+                + "See .ai/decisions.md. Offending declarations:\n"
+                + hits.joined(separator: "\n")
+            )
+        }
+    }
+
+    func testOTPSecretIsNotStringConvertible() throws {
+        XCTAssertFalse((OTPSecret.self as Any) is CustomStringConvertible.Type)
+        XCTAssertFalse((OTPSecret.self as Any) is CustomDebugStringConvertible.Type)
+    }
+
     /// (5b) `SearchResult` must not gain `Codable`/`Encodable`/`Decodable`
     /// or `CustomStringConvertible`/`CustomDebugStringConvertible`
     /// conformances. Mirrors the `PassSecret` discipline: search hits

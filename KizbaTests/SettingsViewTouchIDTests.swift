@@ -23,7 +23,7 @@ final class SettingsViewTouchIDTests: XCTestCase {
         case .unavailable:
             // Expect the toggle to be present on the model and default
             // to false; the view disables it based on availability.
-            XCTAssertFalse(model.touchIDPerRevealEnabled)
+            XCTAssertFalse(model.touchIDForSensitiveActions)
         }
     }
 
@@ -38,9 +38,9 @@ final class SettingsViewTouchIDTests: XCTestCase {
 
         // Model exposes the persisted property; availability is
         // orthogonal — when available the UI would enable the Toggle.
-        XCTAssertFalse(model.touchIDPerRevealEnabled)
-        model.touchIDPerRevealEnabled = true
-        XCTAssertTrue(model.touchIDPerRevealEnabled)
+        XCTAssertFalse(model.touchIDForSensitiveActions)
+        model.touchIDForSensitiveActions = true
+        XCTAssertTrue(model.touchIDForSensitiveActions)
     }
 }
 

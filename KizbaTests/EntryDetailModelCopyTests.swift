@@ -62,6 +62,110 @@ final class EntryDetailModelCopyTests: XCTestCase {
         )
     }
 
+    func test_requestCopyPassword_policyOn_success_writesToClipboard() async {
+        let secret = PassSecret(password: "pw-123")
+        let entry = PassEntry(path: "work/example/alice")
+        let clipboard = FakeClipboardServicing()
+        let passManager = StubPassManager(entry: entry, secret: secret)
+        let settings = MutableSettingsStore()
+        settings.set(true, for: SettingsKey<Bool>(SettingsKeys.touchIDForSensitiveActions))
+        let biometric = FakeBiometricAuthenticator(availability: .available, nextResult: .success)
+        let model = makeModel(
+            passManager: passManager,
+            clipboard: clipboard,
+            settings: settings,
+            biometricAuth: biometric
+        )
+
+        model.handleSelectionChange(entry.id)
+        await waitForLoaded(model, timeout: 1.0)
+
+        await model.requestCopyPassword()
+
+        XCTAssertEqual(clipboard.calls.count, 1)
+        XCTAssertEqual(clipboard.calls.first?.value, "pw-123")
+        XCTAssertEqual(biometric.authenticateCalls, ["Copy password"])
+    }
+
+    func test_requestCopyPassword_policyOn_cancelled_doesNotWriteToClipboard() async {
+        let secret = PassSecret(password: "pw-123")
+        let entry = PassEntry(path: "work/example/alice")
+        let clipboard = FakeClipboardServicing()
+        let passManager = StubPassManager(entry: entry, secret: secret)
+        let settings = MutableSettingsStore()
+        settings.set(true, for: SettingsKey<Bool>(SettingsKeys.touchIDForSensitiveActions))
+        let biometric = FakeBiometricAuthenticator(availability: .available, nextResult: .cancelled)
+        let model = makeModel(
+            passManager: passManager,
+            clipboard: clipboard,
+            settings: settings,
+            biometricAuth: biometric
+        )
+
+        model.handleSelectionChange(entry.id)
+        await waitForLoaded(model, timeout: 1.0)
+
+        await model.requestCopyPassword()
+
+        XCTAssertEqual(clipboard.calls.count, 0)
+        XCTAssertEqual(biometric.authenticateCalls, ["Copy password"])
+    }
+
+    func test_requestCopyMetadata_sensitiveKey_policyOn_cancelled_doesNotWrite() async {
+        let secret = PassSecret(
+            password: "pw-123",
+            metadata: PassMetadata(fields: [.init(key: "token", value: "top-secret-token")])
+        )
+        let entry = PassEntry(path: "work/example/alice")
+        let clipboard = FakeClipboardServicing()
+        let passManager = StubPassManager(entry: entry, secret: secret)
+        let settings = MutableSettingsStore()
+        settings.set(true, for: SettingsKey<Bool>(SettingsKeys.touchIDForSensitiveActions))
+        let biometric = FakeBiometricAuthenticator(availability: .available, nextResult: .cancelled)
+        let model = makeModel(
+            passManager: passManager,
+            clipboard: clipboard,
+            settings: settings,
+            biometricAuth: biometric
+        )
+
+        model.handleSelectionChange(entry.id)
+        await waitForLoaded(model, timeout: 1.0)
+
+        await model.requestCopyMetadata(MetadataPair(key: "token", value: "ignored"))
+
+        XCTAssertEqual(clipboard.calls.count, 0)
+        XCTAssertEqual(biometric.authenticateCalls, ["Copy token"])
+    }
+
+    func test_requestCopyMetadata_nonSensitiveKey_policyOn_writesWithoutPrompt() async {
+        let secret = PassSecret(
+            password: "pw-123",
+            metadata: PassMetadata(fields: [.init(key: "email", value: "alice@example.com")])
+        )
+        let entry = PassEntry(path: "work/example/alice")
+        let clipboard = FakeClipboardServicing()
+        let passManager = StubPassManager(entry: entry, secret: secret)
+        let settings = MutableSettingsStore()
+        settings.set(true, for: SettingsKey<Bool>(SettingsKeys.touchIDForSensitiveActions))
+        let biometric = FakeBiometricAuthenticator(availability: .available, nextResult: .success)
+        let model = makeModel(
+            passManager: passManager,
+            clipboard: clipboard,
+            settings: settings,
+            biometricAuth: biometric
+        )
+
+        model.handleSelectionChange(entry.id)
+        await waitForLoaded(model, timeout: 1.0)
+
+        await model.requestCopyMetadata(MetadataPair(key: "email", value: "ignored"))
+
+        XCTAssertEqual(clipboard.calls.count, 1)
+        XCTAssertEqual(clipboard.calls.first?.value, "alice@example.com")
+        XCTAssertEqual(biometric.authenticateCalls.count, 0)
+    }
+
     // MARK: - Phase A.6: live read of `clipboardClearDelaySeconds`
 
     /// Setting a non-default value in the injected ``SettingsStoring``
@@ -229,6 +333,7 @@ final class EntryDetailModelCopyTests: XCTestCase {
         passManager: any PassManaging = NullPassManager(),
         clipboard: any ClipboardServicing,
         settings: any SettingsStoring = MutableSettingsStore(),
+        biometricAuth: (any BiometricAuthenticating)? = nil,
         appState: AppState? = nil
     ) -> EntryDetailModel {
         let env = AppEnvironment(
@@ -236,6 +341,7 @@ final class EntryDetailModelCopyTests: XCTestCase {
             clipboard: clipboard,
             settings: settings,
             passwordGenerator: LivePasswordGenerator(),
+            biometricAuth: biometricAuth,
             discovery: nil
         )
         return EntryDetailModel(environment: env, state: appState ?? AppState())

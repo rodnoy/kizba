@@ -149,6 +149,13 @@ final class HelpCatalogTests: XCTestCase {
         )
     }
 
+    func testCatalog_containsOneTimePasswordsTopic() {
+        XCTAssertNotNil(
+            HelpCatalog.all.first(where: { $0.id == "one-time-passwords" }),
+            "Catalog must contain the OTP help topic by id"
+        )
+    }
+
     func testSetupTopics_haveAccessors() {
         XCTAssertEqual(HelpCatalog.setupPassAndGPG.id, "setup-pass-and-gpg")
         XCTAssertEqual(HelpCatalog.setupGitRemote.id, "setup-git-remote")

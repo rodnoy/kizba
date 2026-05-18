@@ -37,6 +37,7 @@ struct EntryDetailView: View {
 
     @State private var model: EntryDetailModel
     @State private var favoritesModel: FavoritesModel
+    @State private var otpModel: OTPModel?
 
     /// Sheet-bound edit model held in `@State` so it survives parent
     /// re-renders. Constructed by the matching `.onChange(of:
@@ -97,8 +98,10 @@ struct EntryDetailView: View {
 
                 LoadedSecretView(
                     secret: secret,
+                    showOTP: showOTPEnabled,
+                    otpModel: otpModel,
                     isRevealed: revealBinding,
-                    onCopyPassword: { @Sendable in Task { await model.copyPassword() } },
+                    onCopyPassword: { @Sendable in Task { await model.requestCopyPassword() } },
                     // Per-field copy callbacks route through the
                     // model's typed copy methods so each post yields
                     // a semantic confirmation toast (`"Password
@@ -107,8 +110,8 @@ struct EntryDetailView: View {
                     // toast text. The model owns BOTH the clipboard
                     // write AND the toast; the view only knows
                     // which field was tapped.
-                    onCopyMetadataKey: { key in
-                        Task { await model.copyMetadata(forKey: key) }
+                    onCopyMetadata: { pair in
+                        Task { await model.requestCopyMetadata(pair) }
                     },
                     onCopyNotes: {
                         Task { await model.copyNotes() }
@@ -227,7 +230,25 @@ struct EntryDetailView: View {
             }
         }
         .onChange(of: state.router.selectedEntryID, initial: true) { _, newValue in
+            otpModel?.stop()
+            otpModel = nil
             model.handleSelectionChange(newValue)
+        }
+        .onChange(of: currentOTPSecret, initial: true) { _, newSecret in
+            otpModel?.stop()
+            guard showOTPEnabled, let newSecret else {
+                otpModel = nil
+                return
+            }
+            otpModel = makeOTPModel(secret: newSecret)
+        }
+        .onChange(of: showOTPEnabled, initial: true) { _, enabled in
+            otpModel?.stop()
+            guard enabled, let secret = currentOTPSecret else {
+                otpModel = nil
+                return
+            }
+            otpModel = makeOTPModel(secret: secret)
         }
         // Phase H.1 — subscribe the detail model to `pass.changes` so
         // a `.updated`/`.removed`/`.moved` event targeting the
@@ -278,6 +299,30 @@ struct EntryDetailView: View {
             appState: state
         )
     }
+
+    private var currentOTPSecret: OTPSecret? {
+        guard case .loaded(let secret) = model.state else { return nil }
+        return secret.otpSecret
+    }
+
+    private var showOTPEnabled: Bool {
+        environment.settings.value(for: SettingsKey<Bool>(SettingsKeys.showOTP))
+            ?? SettingsKeys.defaultShowOTP
+    }
+
+    private func makeOTPModel(secret: OTPSecret) -> OTPModel {
+        OTPModel(
+            secret: secret,
+            generator: environment.otpGenerator,
+            clock: environment.clock,
+            gate: BiometricGate(
+                auth: environment.biometricAuth,
+                settings: environment.settings,
+                policyKey: SettingsKey<Bool>(SettingsKeys.touchIDForSensitiveActions)
+            ),
+            clipboard: environment.clipboard
+        )
+    }
 }
 
 // MARK: - Loading placeholder
@@ -312,6 +357,8 @@ private struct LoadingPlaceholder: View {
 
 private struct LoadedSecretView: View {
     let secret: PassSecret
+    let showOTP: Bool
+    let otpModel: OTPModel?
     @Binding var isRevealed: Bool
     let onCopyPassword: @MainActor @Sendable () -> Void
     /// Tapping the per-row Copy button forwards the metadata key
@@ -319,7 +366,7 @@ private struct LoadedSecretView: View {
     /// clipboard write and the confirmation toast. Routing by key
     /// keeps the toast title semantic (`"\"<key>\" copied"`) without
     /// the view ever composing toast text.
-    let onCopyMetadataKey: @MainActor (String) -> Void
+    let onCopyMetadata: @MainActor (MetadataPair) -> Void
     /// Tapping the Notes Copy button drives the model's
     /// ``EntryDetailModel/copyNotes()`` so the toast can be labelled
     /// `"Notes copied"`.
@@ -341,6 +388,12 @@ private struct LoadedSecretView: View {
                     gateEnabled: gateEnabled
                 )
                 .accessibilityIdentifier("password-reveal-field")
+
+                if showOTP, secret.otpSecret != nil, let otpModel {
+                    OTPView(model: otpModel)
+                        .onAppear { otpModel.start() }
+                        .onDisappear { otpModel.stop() }
+                }
 
                 if !secret.metadata.fields.isEmpty {
                     metadataSection
@@ -372,7 +425,9 @@ private struct LoadedSecretView: View {
                             .foregroundStyle(theme.colors.onSurface)
                             .textSelection(.enabled)
                         Spacer()
-                        Button("Copy") { onCopyMetadataKey(field.key) }
+                        Button("Copy") {
+                            onCopyMetadata(MetadataPair(key: field.key, value: field.value))
+                        }
                             .buttonStyle(.kizba(.ghost, size: .compact))
                             .accessibilityIdentifier("copy-meta-\(index)-button")
                     }

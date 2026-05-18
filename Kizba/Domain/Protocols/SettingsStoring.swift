@@ -98,9 +98,9 @@ public enum SettingsKeys {
     public nonisolated static let gpgBinaryOverride = "gpgBinaryOverride"
     public nonisolated static let pinentryBinaryOverride = "pinentryBinaryOverride"
     public nonisolated static let clipboardClearDelaySeconds = "clipboardClearDelaySeconds"
-    /// When true, require biometric authentication (Touch ID / Face ID)
-    /// for each password reveal in the detail view.
+    /// Legacy MVP6 key — migrated by UserDefaultsSettingsStore.init
     public nonisolated static let touchIDPerRevealEnabled = "touchIDPerRevealEnabled"
+    public nonisolated static let touchIDForSensitiveActions = "touchIDForSensitiveActions"
     /// Timeout in seconds for git operations (pull, push).
     public nonisolated static let gitOperationTimeoutSeconds = "gitOperationTimeoutSeconds"
     public nonisolated static let showInMenuBar = "showInMenuBar"
@@ -111,6 +111,7 @@ public enum SettingsKeys {
     /// false, the entire section is elided (MVP6 Phase G.1). Symmetric
     /// with ``showRecents``.
     public nonisolated static let showFavorites = "showFavorites"
+    public nonisolated static let showOTP = "showOTP"
     /// Soft cap on the number of recently-viewed entries surfaced in
     /// the sidebar Recents section. Persisted user preference; clamped
     /// to ``recentsLimitBounds`` on write.
@@ -149,6 +150,8 @@ public enum SettingsKeys {
     /// Default for ``showFavorites``: section is visible until the user
     /// explicitly hides it. Mirrors ``defaultShowRecents`` (MVP6 G.1).
     public nonisolated static let defaultShowFavorites: Bool = true
+
+    public nonisolated static let defaultShowOTP: Bool = true
 
     /// Default Recents cap. Replaces the previously-hardcoded `20`
     /// literal in the production and DEBUG stores (MVP6 Phase A).
