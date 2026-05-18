@@ -156,6 +156,10 @@ final class HelpCatalogTests: XCTestCase {
         )
     }
 
+    func testCatalog_oneTimePasswordsAccessorExists() {
+        XCTAssertEqual(HelpCatalog.oneTimePasswords.id, "one-time-passwords")
+    }
+
     func testSetupTopics_haveAccessors() {
         XCTAssertEqual(HelpCatalog.setupPassAndGPG.id, "setup-pass-and-gpg")
         XCTAssertEqual(HelpCatalog.setupGitRemote.id, "setup-git-remote")
