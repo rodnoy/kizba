@@ -33,6 +33,7 @@ public enum HelpCatalog {
         Self.makeSetupPassAndGPG(),
         Self.makeSetupGitRemote(),
         Self.makeConfigurePinentry(),
+        Self.makeTouchIDProtection(),
     ]
 
     /// First-class accessor for the AEAD/MDC compatibility topic so
@@ -563,6 +564,89 @@ public enum HelpCatalog {
             id: topicID,
             title: "Configure pinentry-mac",
             subtitle: "Make GPG passphrase prompts appear as native macOS dialogs so Kizba can decrypt entries.",
+            sections: [section1, section2, section3, section4, section5]
+        )
+    }
+
+    private static func makeTouchIDProtection() -> HelpTopic {
+        let topicID = "touch-id-protection"
+
+        let section1 = makeSection(
+            topicID: topicID,
+            sectionIndex: 0,
+            heading: "What Touch ID protection covers",
+            blocks: [
+                .paragraph(
+                    text: "Touch ID protection can gate three sensitive actions: revealing a password, copying a password, and copying sensitive metadata values."
+                ),
+                .paragraph(
+                    text: "When the policy is enabled, Kizba asks for Touch ID before these actions continue."
+                ),
+            ]
+        )
+
+        let section2 = makeSection(
+            topicID: topicID,
+            sectionIndex: 1,
+            heading: "Sensitive metadata whitelist",
+            blocks: [
+                .paragraph(
+                    text: "Metadata keys are matched case-insensitively. Touch ID gating applies only to this whitelist:"
+                ),
+                .bulletList(items: [
+                    "password",
+                    "pin",
+                    "token",
+                    "secret",
+                    "otpauth",
+                    "key",
+                ]),
+            ]
+        )
+
+        let section3 = makeSection(
+            topicID: topicID,
+            sectionIndex: 2,
+            heading: "What is not gated",
+            blocks: [
+                .paragraph(
+                    text: "Username copy is not gated."
+                ),
+                .paragraph(
+                    text: "Non-sensitive metadata is not gated, including keys such as notes, url, email, and comment."
+                ),
+            ]
+        )
+
+        let section4 = makeSection(
+            topicID: topicID,
+            sectionIndex: 3,
+            heading: "Graceful fallback behavior",
+            blocks: [
+                .paragraph(
+                    text: "If biometrics are unavailable on this Mac, reveal and copy actions continue without blocking."
+                ),
+                .warning(
+                    text: "If authentication is cancelled or fails, Kizba silently skips the action (no clipboard write, no extra error banner)."
+                ),
+            ]
+        )
+
+        let section5 = makeSection(
+            topicID: topicID,
+            sectionIndex: 4,
+            heading: "How to enable it",
+            blocks: [
+                .paragraph(
+                    text: "Open Settings → Security and enable \"Require Touch ID for sensitive actions\"."
+                ),
+            ]
+        )
+
+        return HelpTopic(
+            id: topicID,
+            title: "Touch ID protection",
+            subtitle: "Control which sensitive reveal and copy actions require Touch ID.",
             sections: [section1, section2, section3, section4, section5]
         )
     }
