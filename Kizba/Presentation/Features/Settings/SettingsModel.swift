@@ -22,9 +22,8 @@ public final class SettingsModel {
     /// Non-optional clipboard clear delay. Defaults to 30 when the
     /// underlying store has no explicit value.
     public var clipboardClearDelaySeconds: Int
-    /// When true, require biometric authentication for each password
-    /// reveal in the detail view.
-    public var touchIDPerRevealEnabled: Bool
+    /// When true, require biometric authentication for sensitive actions.
+    public var touchIDForSensitiveActions: Bool
     /// Git operation timeout in seconds (pull, push).
     public var gitOperationTimeoutSeconds: Int
     public var showInMenuBar: Bool
@@ -88,7 +87,7 @@ public final class SettingsModel {
     /// and this struct, otherwise ``hasChanges`` will silently miss mutations.
     private struct SettingsSnapshot: Equatable {
         let clipboardClearDelaySeconds: Int
-        let touchIDPerRevealEnabled: Bool
+        let touchIDForSensitiveActions: Bool
         let gitOperationTimeoutSeconds: Int
         let showInMenuBar: Bool
         let showRecents: Bool
@@ -106,7 +105,7 @@ public final class SettingsModel {
     private var currentSnapshot: SettingsSnapshot {
         SettingsSnapshot(
             clipboardClearDelaySeconds: clipboardClearDelaySeconds,
-            touchIDPerRevealEnabled: touchIDPerRevealEnabled,
+            touchIDForSensitiveActions: touchIDForSensitiveActions,
             gitOperationTimeoutSeconds: gitOperationTimeoutSeconds,
             showInMenuBar: showInMenuBar,
             showRecents: showRecents,
@@ -180,7 +179,7 @@ public final class SettingsModel {
 
         let clipboardClearDelaySeconds = settings.value(for: SettingsKey<Int>(SettingsKeys.clipboardClearDelaySeconds))
             ?? SettingsKeys.defaultClipboardClearDelaySeconds
-        let touchIDPerRevealEnabled = settings.value(for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled)) ?? false
+        let touchIDForSensitiveActions = settings.value(for: SettingsKey<Bool>(SettingsKeys.touchIDForSensitiveActions)) ?? false
         let gitOperationTimeoutSeconds = settings.value(for: SettingsKey<Int>(SettingsKeys.gitOperationTimeoutSeconds))
             ?? SettingsKeys.defaultGitOperationTimeoutSeconds
         let showInMenuBar = settings.value(for: SettingsKey<Bool>(SettingsKeys.showInMenuBar))
@@ -197,7 +196,7 @@ public final class SettingsModel {
         self.gpgBinaryOverride = gpgBinaryOverride
         self.pinentryBinaryOverride = pinentryBinaryOverride
         self.clipboardClearDelaySeconds = clipboardClearDelaySeconds
-        self.touchIDPerRevealEnabled = touchIDPerRevealEnabled
+        self.touchIDForSensitiveActions = touchIDForSensitiveActions
         self.gitOperationTimeoutSeconds = gitOperationTimeoutSeconds
         self.showInMenuBar = showInMenuBar
         self.showRecents = showRecents
@@ -208,7 +207,7 @@ public final class SettingsModel {
         // reports `hasChanges == false`.
         self.initialSnapshot = SettingsSnapshot(
             clipboardClearDelaySeconds: clipboardClearDelaySeconds,
-            touchIDPerRevealEnabled: touchIDPerRevealEnabled,
+            touchIDForSensitiveActions: touchIDForSensitiveActions,
             gitOperationTimeoutSeconds: gitOperationTimeoutSeconds,
             showInMenuBar: showInMenuBar,
             showRecents: showRecents,
@@ -249,7 +248,7 @@ public final class SettingsModel {
         settings.set(gpgBinaryOverride, for: SettingsKey<String>(SettingsKeys.gpgBinaryOverride))
         settings.set(pinentryBinaryOverride, for: SettingsKey<String>(SettingsKeys.pinentryBinaryOverride))
         settings.set(clipboardClearDelaySeconds, for: SettingsKey<Int>(SettingsKeys.clipboardClearDelaySeconds))
-        settings.set(touchIDPerRevealEnabled, for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled))
+        settings.set(touchIDForSensitiveActions, for: SettingsKey<Bool>(SettingsKeys.touchIDForSensitiveActions))
         settings.set(gitOperationTimeoutSeconds, for: SettingsKey<Int>(SettingsKeys.gitOperationTimeoutSeconds))
         settings.set(showInMenuBar, for: SettingsKey<Bool>(SettingsKeys.showInMenuBar))
         settings.set(showRecents, for: SettingsKey<Bool>(SettingsKeys.showRecents))
@@ -295,8 +294,8 @@ public final class SettingsModel {
         clipboardClearDelaySeconds = SettingsKeys.defaultClipboardClearDelaySeconds
         settings.set(clipboardClearDelaySeconds, for: SettingsKey<Int>(SettingsKeys.clipboardClearDelaySeconds))
         // Reset biometric reveal setting to default (false).
-        touchIDPerRevealEnabled = false
-        settings.removeValue(forKey: SettingsKeys.touchIDPerRevealEnabled)
+        touchIDForSensitiveActions = false
+        settings.removeValue(forKey: SettingsKeys.touchIDForSensitiveActions)
         gitOperationTimeoutSeconds = SettingsKeys.defaultGitOperationTimeoutSeconds
         settings.set(gitOperationTimeoutSeconds, for: SettingsKey<Int>(SettingsKeys.gitOperationTimeoutSeconds))
         showInMenuBar = SettingsKeys.defaultShowInMenuBar
@@ -332,7 +331,7 @@ public final class SettingsModel {
         biometricAuth?.isAvailable() ?? .unavailable(.hardwareUnavailable)
     }
 
-    /// Request a flip of ``touchIDPerRevealEnabled`` with the platform's
+    /// Request a flip of ``touchIDForSensitiveActions`` with the platform's
     /// "enable freely, prompt-to-disable" semantics (see
     /// `.ai/decisions.md` — MVP6.D.1):
     ///
@@ -354,8 +353,8 @@ public final class SettingsModel {
         // Enable path: no prompt, persist immediately. Matches FileVault /
         // Touch ID system settings UX.
         if desired {
-            touchIDPerRevealEnabled = true
-            settings.set(true, for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled))
+            touchIDForSensitiveActions = true
+            settings.set(true, for: SettingsKey<Bool>(SettingsKeys.touchIDForSensitiveActions))
             // Refresh snapshot so hasChanges (B.2 dirty tracking) reflects
             // only un-persisted UI mutations — this write bypasses save().
             initialSnapshot = currentSnapshot
@@ -365,8 +364,8 @@ public final class SettingsModel {
         // Disable path: no authenticator wired (tests/preview). There is no
         // real protection to defeat, so let the disable through.
         guard let auth = biometricAuth else {
-            touchIDPerRevealEnabled = false
-            settings.set(false, for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled))
+            touchIDForSensitiveActions = false
+            settings.set(false, for: SettingsKey<Bool>(SettingsKeys.touchIDForSensitiveActions))
             initialSnapshot = currentSnapshot
             return .success(())
         }
@@ -384,8 +383,8 @@ public final class SettingsModel {
         // our Result-friendly error shape.
         switch await auth.authenticate(reason: "Confirm to disable Touch ID protection") {
         case .success:
-            touchIDPerRevealEnabled = false
-            settings.set(false, for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled))
+            touchIDForSensitiveActions = false
+            settings.set(false, for: SettingsKey<Bool>(SettingsKeys.touchIDForSensitiveActions))
             initialSnapshot = currentSnapshot
             return .success(())
         case .cancelled:

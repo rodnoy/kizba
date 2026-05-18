@@ -42,14 +42,14 @@ final class SettingsModelTests: XCTestCase {
 
     /// Helper for the MVP6 D.3 biometric-toggle matrix. Seeds the
     /// in-memory store with the desired initial value for the
-    /// `touchIDPerRevealEnabled` key, then constructs a SettingsModel
+    /// `touchIDForSensitiveActions` key, then constructs a SettingsModel
     /// with the supplied fake authenticator injected.
     private func makeModelWithBiometric(
         initialEnabled: Bool,
         fake: FakeBiometricAuthenticator
     ) -> SettingsModel {
         let store = makeInMemoryStore()
-        store.set(initialEnabled, for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled))
+        store.set(initialEnabled, for: SettingsKey<Bool>(SettingsKeys.touchIDForSensitiveActions))
         let discovery = TestBinaryLocator(paths: [:])
         return makeModel(
             settings: store,
@@ -465,7 +465,7 @@ final class SettingsModelTests: XCTestCase {
             nextResult: .success
         )
         let model = makeModelWithBiometric(initialEnabled: true, fake: fake)
-        XCTAssertTrue(model.touchIDPerRevealEnabled)
+        XCTAssertTrue(model.touchIDForSensitiveActions)
 
         let result = await model.requestToggleBiometric(false)
 
@@ -474,7 +474,7 @@ final class SettingsModelTests: XCTestCase {
         guard case .success = result else {
             XCTFail("Expected success, got \(result)"); return
         }
-        XCTAssertFalse(model.touchIDPerRevealEnabled,
+        XCTAssertFalse(model.touchIDForSensitiveActions,
                        "Successful biometric auth must persist the disable")
         XCTAssertEqual(fake.authenticateCalls.count, 1,
                        "Disable path must present exactly one biometric prompt")
@@ -495,7 +495,7 @@ final class SettingsModelTests: XCTestCase {
             XCTFail("Expected failure, got \(result)"); return
         }
         XCTAssertEqual(err, .cancelled)
-        XCTAssertTrue(model.touchIDPerRevealEnabled,
+        XCTAssertTrue(model.touchIDForSensitiveActions,
                       "Value must remain enabled when auth is cancelled")
         XCTAssertEqual(fake.authenticateCalls.count, 1)
     }
@@ -512,7 +512,7 @@ final class SettingsModelTests: XCTestCase {
         guard case .success = result else {
             XCTFail("Expected success, got \(result)"); return
         }
-        XCTAssertTrue(model.touchIDPerRevealEnabled)
+        XCTAssertTrue(model.touchIDForSensitiveActions)
         XCTAssertEqual(fake.authenticateCalls.count, 0,
                        "Enabling biometric protection must not prompt the user")
     }
@@ -540,7 +540,7 @@ final class SettingsModelTests: XCTestCase {
             XCTFail("Expected failure, got \(result)"); return
         }
         XCTAssertEqual(err, .failed(.userFailed))
-        XCTAssertTrue(model.touchIDPerRevealEnabled,
+        XCTAssertTrue(model.touchIDForSensitiveActions,
                       "Failed auth must NOT persist the disable")
         XCTAssertEqual(fake.authenticateCalls.count, 1)
     }

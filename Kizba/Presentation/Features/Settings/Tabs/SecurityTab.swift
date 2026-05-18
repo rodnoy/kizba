@@ -67,7 +67,7 @@ struct SecurityTab: View {
         // SwiftUI Binding setters are synchronous; the model itself is
         // `@MainActor` so the awaited hop stays on the main thread.
         let binding = Binding<Bool>(
-            get: { model.touchIDPerRevealEnabled },
+            get: { model.touchIDForSensitiveActions },
             set: { newValue in
                 Task { @MainActor in
                     let result = await model.requestToggleBiometric(newValue)
@@ -82,12 +82,12 @@ struct SecurityTab: View {
         )
 
         return FormFieldRow(
-            label: "Require Touch ID for reveal",
+            label: "Require Touch ID for sensitive actions",
             errorText: lastBiometricError,
-            infoText: "Require Touch ID authentication for every secret reveal."
+            infoText: "When enabled, Kizba asks for Touch ID before revealing a password and before copying passwords or other sensitive metadata (PIN, token, secret, OTP, key) to the clipboard. Username and non-sensitive metadata are not gated."
         ) {
             Toggle(isOn: binding) {
-                Text("Require Touch ID for password reveal")
+                Text("Require Touch ID for sensitive actions")
             }
             .labelsHidden()
         }
@@ -95,7 +95,7 @@ struct SecurityTab: View {
 
     private func unavailableRow(reason: BiometricUnavailableReason) -> some View {
         FormFieldRow(
-            label: "Require Touch ID for reveal",
+            label: "Require Touch ID for sensitive actions",
             infoText: "Touch ID is not available on this Mac: \(Self.reasonText(reason))."
         ) {
             Text("Unavailable")

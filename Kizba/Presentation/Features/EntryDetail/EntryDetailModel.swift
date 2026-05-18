@@ -81,7 +81,7 @@ final class EntryDetailModel {
         let gate = BiometricGate(
             auth: environment.biometricAuth,
             settings: environment.settings,
-            policyKey: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled)
+            policyKey: SettingsKey<Bool>(SettingsKeys.touchIDForSensitiveActions)
         )
         let allowed = await gate.run(reason: "Reveal password")
         isPasswordRevealed = allowed

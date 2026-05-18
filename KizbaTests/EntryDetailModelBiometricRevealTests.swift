@@ -18,7 +18,7 @@ final class EntryDetailModelBiometricRevealTests: XCTestCase {
 
     func testRequestReveal_settingDisabled_revealsWithoutAuth() async {
         let settings = MutableSettingsStore()
-        settings.set(false, for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled))
+        settings.set(false, for: SettingsKey<Bool>(SettingsKeys.touchIDForSensitiveActions))
         let fake = FakeBiometricAuthenticator()
         let model = makeModel(settings: settings, biometric: fake)
 
@@ -30,7 +30,7 @@ final class EntryDetailModelBiometricRevealTests: XCTestCase {
 
     func testRequestReveal_settingEnabled_authSuccess_reveals() async {
         let settings = MutableSettingsStore()
-        settings.set(true, for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled))
+        settings.set(true, for: SettingsKey<Bool>(SettingsKeys.touchIDForSensitiveActions))
         let fake = FakeBiometricAuthenticator(availability: .available, nextResult: .success)
         let model = makeModel(settings: settings, biometric: fake)
 
@@ -42,7 +42,7 @@ final class EntryDetailModelBiometricRevealTests: XCTestCase {
 
     func testRequestReveal_settingEnabled_authCancelled_noReveal() async {
         let settings = MutableSettingsStore()
-        settings.set(true, for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled))
+        settings.set(true, for: SettingsKey<Bool>(SettingsKeys.touchIDForSensitiveActions))
         let fake = FakeBiometricAuthenticator(availability: .available, nextResult: .cancelled)
         let model = makeModel(settings: settings, biometric: fake)
 
@@ -53,7 +53,7 @@ final class EntryDetailModelBiometricRevealTests: XCTestCase {
 
     func testRequestReveal_settingEnabled_authUnavailable_fallsBackToReveal() async {
         let settings = MutableSettingsStore()
-        settings.set(true, for: SettingsKey<Bool>(SettingsKeys.touchIDPerRevealEnabled))
+        settings.set(true, for: SettingsKey<Bool>(SettingsKeys.touchIDForSensitiveActions))
         let fake = FakeBiometricAuthenticator(availability: .unavailable(.notEnrolled), nextResult: .success)
         let model = makeModel(settings: settings, biometric: fake)
 

@@ -39,11 +39,17 @@ public final class UserDefaultsSettingsStore: SettingsStoring, @unchecked Sendab
         if userDefaults.object(forKey: key) == nil {
             userDefaults.register(defaults: [key: SettingsKeys.defaultClipboardClearDelaySeconds])
         }
-        // Ensure default for Touch ID per-reveal setting is false when
-        // the key has not been set yet.
-        let touchKey = namespaced(SettingsKeys.touchIDPerRevealEnabled)
-        if userDefaults.object(forKey: touchKey) == nil {
-            userDefaults.register(defaults: [touchKey: false])
+        // MVP7.A.2: migrate legacy reveal-only flag into combined
+        // sensitive-actions flag.
+        let legacyKey = namespaced(SettingsKeys.touchIDPerRevealEnabled)
+        let newKey = namespaced(SettingsKeys.touchIDForSensitiveActions)
+        if userDefaults.object(forKey: newKey) == nil,
+           let legacyValue = userDefaults.object(forKey: legacyKey) as? Bool {
+            userDefaults.set(legacyValue, forKey: newKey)
+            userDefaults.removeObject(forKey: legacyKey)
+        }
+        if userDefaults.object(forKey: newKey) == nil {
+            userDefaults.register(defaults: [newKey: false])
         }
         // Ensure default for git operation timeout.
         let gitTimeoutKey = namespaced(SettingsKeys.gitOperationTimeoutSeconds)
