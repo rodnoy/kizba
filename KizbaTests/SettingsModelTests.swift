@@ -272,6 +272,57 @@ final class SettingsModelTests: XCTestCase {
         XCTAssertFalse(fresh.showFavorites)
     }
 
+    func testShowOTP_defaultIsTrue() {
+        let store = makeInMemoryStore()
+        store.removeValue(forKey: SettingsKeys.showOTP)
+        let discovery = TestBinaryLocator(paths: [:])
+
+        let model = makeModel(settings: store, discovery: discovery)
+
+        XCTAssertTrue(model.showOTP)
+        XCTAssertEqual(model.showOTP, SettingsKeys.defaultShowOTP)
+    }
+
+    func testShowOTP_persists() async {
+        let store = makeInMemoryStore()
+        let discovery = TestBinaryLocator(paths: [:])
+
+        let model = makeModel(settings: store, discovery: discovery)
+        model.showOTP = false
+        await model.save()
+
+        let fresh = makeModel(settings: store, discovery: discovery)
+        XCTAssertFalse(fresh.showOTP)
+    }
+
+    func testReset_restoresShowOTPDefault() async {
+        let store = makeInMemoryStore()
+        let discovery = TestBinaryLocator(paths: [:])
+
+        let model = makeModel(settings: store, discovery: discovery)
+        model.showOTP = false
+        await model.save()
+
+        model.resetToDefaults()
+
+        let fresh = makeModel(settings: store, discovery: discovery)
+        XCTAssertEqual(fresh.showOTP, SettingsKeys.defaultShowOTP)
+    }
+
+    func testHasChanges_flipsWhenShowOTPMutated() {
+        let store = makeInMemoryStore()
+        let discovery = TestBinaryLocator(paths: [:])
+
+        let model = makeModel(settings: store, discovery: discovery)
+        XCTAssertFalse(model.hasChanges)
+
+        model.showOTP.toggle()
+        XCTAssertTrue(model.hasChanges)
+
+        model.showOTP.toggle()
+        XCTAssertFalse(model.hasChanges)
+    }
+
     func testHasChanges_flipsWhenShowFavoritesMutated() {
         let store = makeInMemoryStore()
         let discovery = TestBinaryLocator(paths: [:])

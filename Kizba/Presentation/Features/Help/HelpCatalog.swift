@@ -34,6 +34,7 @@ public enum HelpCatalog {
         Self.makeSetupGitRemote(),
         Self.makeConfigurePinentry(),
         Self.makeTouchIDProtection(),
+        Self.makeOneTimePasswords(),
     ]
 
     /// First-class accessor for the AEAD/MDC compatibility topic so
@@ -648,6 +649,64 @@ public enum HelpCatalog {
             title: "Touch ID protection",
             subtitle: "Control which sensitive reveal and copy actions require Touch ID.",
             sections: [section1, section2, section3, section4, section5]
+        )
+    }
+
+    private static func makeOneTimePasswords() -> HelpTopic {
+        let topicID = "one-time-passwords"
+
+        let section1 = makeSection(
+            topicID: topicID,
+            sectionIndex: 0,
+            heading: "What it is",
+            blocks: [
+                .paragraph(
+                    text: "Kizba detects OTP URIs (otpauth://...) in an entry and shows a live one-time code in the detail view."
+                ),
+                .paragraph(
+                    text: "Both TOTP and HOTP formats are recognized when present in the entry metadata."
+                ),
+            ]
+        )
+
+        let section2 = makeSection(
+            topicID: topicID,
+            sectionIndex: 1,
+            heading: "Security",
+            blocks: [
+                .paragraph(
+                    text: "OTP copy can be protected by Touch ID if you enable \"Require Touch ID for sensitive actions\" in Settings → Security."
+                ),
+            ]
+        )
+
+        let section3 = makeSection(
+            topicID: topicID,
+            sectionIndex: 2,
+            heading: "Copying",
+            blocks: [
+                .paragraph(
+                    text: "Use the Copy button next to the OTP code to place it on the clipboard for quick paste into login prompts."
+                ),
+            ]
+        )
+
+        let section4 = makeSection(
+            topicID: topicID,
+            sectionIndex: 3,
+            heading: "Disable OTP display",
+            blocks: [
+                .paragraph(
+                    text: "You can hide OTP codes from the detail view in Settings → General by turning off \"Show one-time codes in detail\"."
+                ),
+            ]
+        )
+
+        return HelpTopic(
+            id: topicID,
+            title: "One-time passwords (OTP)",
+            subtitle: "How OTP codes are detected, copied, and controlled in Kizba.",
+            sections: [section1, section2, section3, section4]
         )
     }
 

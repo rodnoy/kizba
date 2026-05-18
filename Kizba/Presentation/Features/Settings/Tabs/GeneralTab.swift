@@ -22,6 +22,7 @@ struct GeneralTab: View {
                 clipboardSection
                 menuBarSection
                 favoritesSection
+                otpSection
                 recentsSection
             }
             .padding(theme.spacing.lg)
@@ -111,6 +112,19 @@ struct GeneralTab: View {
                     .accessibilityValue("\(model.recentsLimit) entries")
                     .accessibilityHint("Maximum number of entries kept in the sidebar Recents section")
                     Spacer()
+                }
+            }
+        }
+    }
+
+    private var otpSection: some View {
+        FormSection("OTP") {
+            FormFieldRow(
+                label: "One-time passwords",
+                infoText: "Render detected TOTP/HOTP codes in the entry detail view."
+            ) {
+                Toggle(isOn: $model.showOTP) {
+                    Text("Show one-time codes in detail")
                 }
             }
         }

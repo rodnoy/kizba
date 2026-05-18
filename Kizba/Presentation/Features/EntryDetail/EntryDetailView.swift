@@ -98,6 +98,7 @@ struct EntryDetailView: View {
 
                 LoadedSecretView(
                     secret: secret,
+                    showOTP: showOTPEnabled,
                     otpModel: otpModel,
                     isRevealed: revealBinding,
                     onCopyPassword: { @Sendable in Task { await model.requestCopyPassword() } },
@@ -235,11 +236,19 @@ struct EntryDetailView: View {
         }
         .onChange(of: currentOTPSecret, initial: true) { _, newSecret in
             otpModel?.stop()
-            guard let newSecret else {
+            guard showOTPEnabled, let newSecret else {
                 otpModel = nil
                 return
             }
             otpModel = makeOTPModel(secret: newSecret)
+        }
+        .onChange(of: showOTPEnabled, initial: true) { _, enabled in
+            otpModel?.stop()
+            guard enabled, let secret = currentOTPSecret else {
+                otpModel = nil
+                return
+            }
+            otpModel = makeOTPModel(secret: secret)
         }
         // Phase H.1 — subscribe the detail model to `pass.changes` so
         // a `.updated`/`.removed`/`.moved` event targeting the
@@ -296,6 +305,11 @@ struct EntryDetailView: View {
         return secret.otpSecret
     }
 
+    private var showOTPEnabled: Bool {
+        environment.settings.value(for: SettingsKey<Bool>(SettingsKeys.showOTP))
+            ?? SettingsKeys.defaultShowOTP
+    }
+
     private func makeOTPModel(secret: OTPSecret) -> OTPModel {
         OTPModel(
             secret: secret,
@@ -343,6 +357,7 @@ private struct LoadingPlaceholder: View {
 
 private struct LoadedSecretView: View {
     let secret: PassSecret
+    let showOTP: Bool
     let otpModel: OTPModel?
     @Binding var isRevealed: Bool
     let onCopyPassword: @MainActor @Sendable () -> Void
@@ -374,7 +389,7 @@ private struct LoadedSecretView: View {
                 )
                 .accessibilityIdentifier("password-reveal-field")
 
-                if secret.otpSecret != nil, let otpModel {
+                if showOTP, secret.otpSecret != nil, let otpModel {
                     OTPView(model: otpModel)
                         .onAppear { otpModel.start() }
                         .onDisappear { otpModel.stop() }
