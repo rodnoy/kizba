@@ -50,6 +50,14 @@ public struct EntryFormBody<Header: View, Footer: View>: View {
     /// rendered in cleartext until the user explicitly opts in.
     @State private var isPasswordRevealed: Bool = false
 
+    /// MVP9.2 — presentation of the "Add TOTP" sheet from the new
+    /// One-time password section. The sheet hands back an
+    /// `OTPSecret` which we serialise to an `otpauth://` URI and
+    /// stash on the draft as a `MetadataPair(key: "otpauth", ...)`
+    /// — Convention #1 of `OTPDiscovery` so the entry detail OTP
+    /// view picks it up automatically.
+    @State private var isAddOTPSheetPresented: Bool = false
+
     /// Construct a body backed by `model`.
     init(
         model: EntryFormModel,
@@ -75,10 +83,24 @@ public struct EntryFormBody<Header: View, Footer: View>: View {
                     passwordSection
                     metadataSection
                     notesSection
+                    otpSection
                 }
             }
 
             footerView
+        }
+        .sheet(isPresented: $isAddOTPSheetPresented) {
+            AddTOTPSheet(
+                defaultIssuer: EntryFormBody<Header, Footer>.derivedIssuer(fromPath: model.path),
+                defaultLabel: nil,
+                onAdd: { secret in
+                    addOTP(secret)
+                    isAddOTPSheetPresented = false
+                },
+                onCancel: {
+                    isAddOTPSheetPresented = false
+                }
+            )
         }
         .onChange(of: isGenerateSheetPresented) { _, presented in
             if presented {
@@ -207,6 +229,56 @@ public struct EntryFormBody<Header: View, Footer: View>: View {
         }
     }
 
+    private var otpSection: some View {
+        FormSection("One-time password") {
+            if hasOTPInMetadata {
+                HStack {
+                    Text("TOTP configured")
+                        .font(theme.typography.body)
+                        .foregroundStyle(theme.colors.success)
+                    Spacer()
+                    Button("Remove", role: .destructive, action: removeOTP)
+                        .buttonStyle(.kizba(.ghost, size: .compact))
+                }
+            } else {
+                HStack {
+                    Text("No one-time password attached.")
+                        .font(theme.typography.body)
+                        .foregroundStyle(theme.colors.onSurfaceMuted)
+                    Spacer()
+                    Button("Add TOTP…") {
+                        isAddOTPSheetPresented = true
+                    }
+                    .buttonStyle(.kizba(.secondary, size: .compact))
+                }
+            }
+        }
+    }
+
+    // MARK: - OTP helpers
+
+    /// `true` when the draft already carries an `otpauth` metadata
+    /// pair. Comparison is case-insensitive on the key — matches the
+    /// discovery rule used by `OTPDiscovery`.
+    private var hasOTPInMetadata: Bool {
+        model.draft.metadata.contains {
+            $0.key.lowercased() == "otpauth"
+        }
+    }
+
+    private func addOTP(_ secret: OTPSecret) {
+        let uri = OTPAuthURIBuilder.build(secret)
+        // If the user is replacing an existing OTP (rare — the UI
+        // only shows Add when there isn't one), drop the prior
+        // entry first so we don't end up with two `otpauth` keys.
+        model.draft.metadata.removeAll { $0.key.lowercased() == "otpauth" }
+        model.draft.metadata.append(MetadataPair(key: "otpauth", value: uri))
+    }
+
+    private func removeOTP() {
+        model.draft.metadata.removeAll { $0.key.lowercased() == "otpauth" }
+    }
+
     // MARK: - Bindings
 
     private var keyValueEditorBinding: Binding<[KeyValueEditor.Pair]> {
@@ -233,5 +305,22 @@ public struct EntryFormBody<Header: View, Footer: View>: View {
     /// vocabulary to assistive tech.
     static func passwordRevealAccessibilityValue(isRevealed: Bool) -> String {
         isRevealed ? "Revealed" : "Hidden"
+    }
+
+    /// Best-effort default issuer derived from the entry path. The
+    /// last component is treated as the account/leaf, so the issuer
+    /// is the second-to-last component when present (`work/aws/root`
+    /// → `aws`). Returns `nil` when the path is empty or has only a
+    /// single component (no folder structure to mine).
+    ///
+    /// Pure / testable so the prefill rule can be pinned down
+    /// without instantiating SwiftUI.
+    static func derivedIssuer(fromPath path: String) -> String? {
+        let components = path.split(separator: "/").map(String.init)
+        guard components.count >= 2 else { return nil }
+        // Path shape `<...>/<issuer>/<account>` → take the segment
+        // right before the leaf.
+        let candidate = components[components.count - 2]
+        return candidate.isEmpty ? nil : candidate
     }
 }

@@ -59,4 +59,33 @@ final class EntryFormBodyTests: XCTestCase {
             SecretRevealField.accessibilityValueText(isRevealed: false)
         )
     }
+
+    // MARK: - MVP9.2 — derivedIssuer prefill rule
+
+    /// Single-component paths have no folder structure to mine for
+    /// an issuer; the AddTOTP sheet must fall back to "no prefill"
+    /// so the user can type the value.
+    func testDerivedIssuer_singleComponent_returnsNil() {
+        XCTAssertNil(EntryFormBody<EmptyView, EmptyView>.derivedIssuer(fromPath: ""))
+        XCTAssertNil(EntryFormBody<EmptyView, EmptyView>.derivedIssuer(fromPath: "github"))
+    }
+
+    /// Two-component paths (`<issuer>/<account>`) yield the first
+    /// segment as the issuer prefill.
+    func testDerivedIssuer_twoComponents_takesFirst() {
+        XCTAssertEqual(
+            EntryFormBody<EmptyView, EmptyView>.derivedIssuer(fromPath: "github/alice"),
+            "github"
+        )
+    }
+
+    /// Deeper paths take the second-to-last segment — the leaf is
+    /// treated as the account, the segment right before it as the
+    /// issuer (`work/aws/root` → `aws`).
+    func testDerivedIssuer_deepPath_takesSecondToLast() {
+        XCTAssertEqual(
+            EntryFormBody<EmptyView, EmptyView>.derivedIssuer(fromPath: "work/aws/root"),
+            "aws"
+        )
+    }
 }
