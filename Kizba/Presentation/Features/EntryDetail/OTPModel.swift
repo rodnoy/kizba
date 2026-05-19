@@ -71,6 +71,58 @@ public final class OTPModel {
         )
     }
 
+    // MARK: - Reveal (MVP9.2)
+    //
+    // The reveal helpers gate the SECRET-bearing operations (URI,
+    // manual Base32, QR payload) through the same `BiometricGate`
+    // the code-copy already uses. Per MVP9.2 the gating policy for
+    // reveal is stricter than for code-copy: revealing the secret
+    // hands the user (or anything looking at the screen) the full
+    // ability to mint codes off-device, so the gate is mandatory.
+    //
+    // Each helper returns `nil` on cancellation / failed
+    // authentication so the call site can keep its sheet closed.
+    // The Sheet drives its own dismissal and is responsible for
+    // nilling the revealed string from its `@State` when it closes,
+    // so the cleartext never lingers beyond the user's session.
+
+    /// Reveal the secret as a canonical `otpauth://` URI. Gated by
+    /// Touch ID. Returns `nil` if the gate denies the operation.
+    public func revealURI() async -> String? {
+        let allowed = await gate.run(reason: "Reveal OTP URI")
+        guard allowed else { return nil }
+        return OTPAuthURIBuilder.build(secret)
+    }
+
+    /// Reveal the secret as its raw Base32 string (for manual entry
+    /// in another authenticator app). Gated by Touch ID.
+    public func revealSecret() async -> String? {
+        let allowed = await gate.run(reason: "Reveal OTP secret")
+        guard allowed else { return nil }
+        return secret.secretBase32
+    }
+
+    /// Build the otpauth payload used by a QR render. Gated by
+    /// Touch ID. The payload itself IS the secret, hence the gate —
+    /// anyone scanning the resulting QR enrols the OTP into their
+    /// own authenticator.
+    public func revealQRPayload() async -> String? {
+        let allowed = await gate.run(reason: "Show OTP QR code")
+        guard allowed else { return nil }
+        return OTPAuthURIBuilder.build(secret)
+    }
+
+    /// Copy a previously-revealed export string (URI / Base32) to
+    /// the system pasteboard with the standard auto-clear window.
+    /// Used by the reveal sheet's "Copy" button so the export path
+    /// shares the same clipboard discipline as code-copy.
+    public func copyRevealedExport(_ value: String) async {
+        await clipboard.copy(
+            value,
+            clearAfter: .seconds(SettingsKeys.defaultClipboardClearDelaySeconds)
+        )
+    }
+
     private func refresh(date: Date) {
         guard case let .totp(period) = secret.kind, period > 0 else { return }
 
