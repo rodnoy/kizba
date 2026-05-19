@@ -1,18 +1,24 @@
-Phase: MVP8 (COMPLETED — Release & Distribution scaffolded)
-Status: SHIPPED — workflow + tap scaffold + LICENSE + instructions ready
+Phase: MVP8 (HOTFIX-2 — Xcode 26 / macos-15 CI compat)
+Status: COMPLETED
 
-Next action: Пользователь следует MVP8-RELEASE.md (push repo → extract tap → generate PAT → add secret → tag v1.0.0).
+Next action: User retries `git tag v1.0.0 && git push origin v1.0.0` after deleting old tag.
 
 Notes:
-- Pre-flight fixes in Kizba.xcodeproj/project.pbxproj (Release config of Kizba target): added CODE_SIGN_ENTITLEMENTS = Kizba/Kizba.entitlements; CODE_SIGN_IDENTITY = "-". Debug config untouched (Automatic + Apple Development preserved).
-- LICENSE (MIT) added at repo root.
-- .github/workflows/release.yml: full pipeline (resolve tag → select Xcode 15.4 → test → archive Release universal → ad-hoc codesign with entitlements → lipo verify → ditto zip → sha256 → GitHub Release → render & push cask to rodnoy/homebrew-kizba via HOMEBREW_TAP_TOKEN).
-- homebrew-kizba/ scaffold (README.md, LICENSE, Casks/kizba.rb placeholder, .gitignore) ready to be extracted into separate repo git@github.com:rodnoy/homebrew-kizba.git.
-- MVP8-RELEASE.md: step-by-step setup (push repo, extract tap, fine-grained PAT scope, secret, first tag, troubleshooting).
-- Ad-hoc signed; no notarization (no Apple Developer account). Cask uses --no-quarantine; caveats document xattr fallback.
-- Universal binary (arm64 + x86_64) via default ARCHS_STANDARD on generic/platform=macOS archive.
-- Existing .github/workflows/release-audit.yml left as-is (independent trigger on v* tags — runs in parallel with new release workflow).
-- Sanity Debug build: OK (xcodebuild -scheme Kizba -configuration Debug -destination 'platform=macOS' -quiet succeeded).
-- Commit: <hash filled by git below>.
+- Root cause: user's Xcode 26.5 bumped pbxproj objectVersion to 77 (Xcode 26 format). macos-14 GitHub runner has max Xcode 16.4 which cannot read format 77.
+- Fix: switched both workflows to runs-on: macos-15 (has Xcode 26.3 preinstalled).
+- release.yml: pinned Xcode_26.3.app via xcode-select (was Xcode_16.4.app).
+- release-audit.yml: switched runs-on from macos-latest to macos-15 + added xcode-select step pinning Xcode_26.3.app (was using default 16.4).
+- Both workflows now also print `swift --version` after Xcode select for traceability.
+- Previous Swift 6 fixes (@Sendable BannerAction, @preconcurrency TextFieldStyle) remain valid — Swift 6 in Xcode 26.3 is even stricter.
+- macos-14 runner is deprecated by GitHub (deprecation starts July 6 2026, full removal Nov 2 2026). macos-15 is the path forward regardless.
+- Commit: <pending — will fill after commit> on main.
 
-Timestamp: 2026-05-19T09:25:00+0200
+User retry commands (delete old tag if it exists, then re-tag):
+```
+git tag -d v1.0.0
+git push origin :refs/tags/v1.0.0
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Timestamp: 2026-05-19T11:09:53+0200

@@ -16,7 +16,7 @@ permissions:
 jobs:
   build-and-release:
     name: Build, sign (ad-hoc), and publish release
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 30
 
     steps:
@@ -40,11 +40,13 @@ jobs:
           echo "build=$BUILD"     >> "$GITHUB_OUTPUT"
           echo "Resolved: tag=$TAG version=$VERSION build=$BUILD"
 
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.4.app
+      - name: Select Xcode 26.3
+        run: sudo xcode-select -s /Applications/Xcode_26.3.app
 
-      - name: Show Xcode version
-        run: xcodebuild -version
+      - name: Show Xcode + Swift versions
+        run: |
+          xcodebuild -version
+          swift --version
 
       - name: Run tests
         run: |
