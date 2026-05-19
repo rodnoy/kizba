@@ -1,19 +1,16 @@
-Phase: MVP9.4 (Import/Export) — COMPLETED
-Status: MVP9 SHIPPED (all 4 phases complete)
+Phase: MVP9.5 (folder filter — immediate children)
+Status: COMPLETED
 
-Next action: Push main + tag v1.1.0 (major increment due to significant new features). Pending: фикс PassErrorMapper для bug на втором Маке после получения подтверждения от пользователя (Diagnostics stderr).
+Next action: Push main + tag v1.1.0 (или v1.1.1 если v1.1.0 уже отгружен).
 
 Notes:
-- 4a: ExportRecord DTO (Codable, local-only — security note in header forbids persistence/logging), ImportConflictResolver (skip/overwrite/rename with case-sensitive existingPaths Set, `-2` rename suffix algorithm), ImportPreview value type with newCount / conflictCount / totalCount accessors.
-- 4b: BitwardenJSONImporter (login type=1 only, folders dictionary lookup, drops items with no password as parse warnings, sanitises `:` and `\` in names), GenericCSVImporter (header-driven, accepts `name|title` + `url|website` + `totp|otpauth` aliases, case-insensitive headers, throws `.emptyFile|.missingNameColumn|.missingPasswordColumn`), OnePasswordCSVImporter (1Password "Common Fields" subset — Title/Website/Username/Password/Notes; reuses `GenericCSVImporter.ImportError`), CSVRow (RFC 4180 parser/serializer — iterates over Unicode scalars not Characters because Swift collapses CR+LF into a single grapheme cluster which would otherwise hide the line ending).
-- 4c: BitwardenJSONExporter (collapses `parent/child/leaf` paths into a single Bitwarden folder "parent/child" + item "leaf"; deduplicates folder UUIDs), GenericCSVExporter (lowercase header — round-trips loss-free through GenericCSVImporter), PassSecretExporter bridge (case-insensitive alias resolution for user/url/otpauth keys; everything else lands in extraFields; lives in Infrastructure because ExportRecord is Infrastructure-tier).
-- 4d: DataTab as the 5th Settings tab — accepts passManager/biometricAuth/settings directly (NOT via SettingsModel — keeps existing Settings tests untouched). Composes `BiometricGate` inline on every export so policy flips take effect without a save. Export menu (BW JSON + Generic CSV) gated through BiometricGate.run("Export password store"); Import menu (BW JSON + Generic CSV + 1Password CSV) opens NSOpenPanel → parses → opens ImportPreviewSheet with strategy picker. Batch import is sequential (each insert independent; failures collected, no rollback). Inline ProgressView + "N of M" caption during importing. NSOpenPanel/NSSavePanel wrapped in withCheckedContinuation for clean async composition. SettingsView gains optional `dataTabDependencies: DataTabDependencies?` — when nil (preview/test wirings) the Data tab is elided so existing surface stays callable.
-- 4e: Help topic `import-export-guide` (7 sections: location, exporting + plaintext warning, importing from 1Password, importing from Bitwarden, importing from browsers, conflict strategies, git per-insert commit caveat + squash recipe). Appended to HelpCatalog.all + first-class accessor.
-- Storage: no schema changes; reuses existing pass insert/show through PassManaging.
-- Security: Export ALWAYS routes through BiometricGate (gate returns true when policy off or biometrics unavailable — same semantics as MVP6.D.1); Import does NOT — it is a write op, not a raw-read.
-- Known limitations documented in Help: each insert creates a git commit (pass CLI behavior, not Kizba bug); batch import = N commits. Squash recipe provided.
-- Tests: +61 new (4a: 6 ImportConflictResolver; 4b: 16 CSVRow RFC 4180 vectors + 8 BitwardenJSONImporter + 10 GenericCSVImporter + 5 OnePasswordCSVImporter = 39; 4c: 5 BitwardenJSONExporter + 6 GenericCSVExporter + 5 RoundTrip incl. PassSecretExporter bridge = 16; 4d: zero — UI test out of scope per spec; 4e: zero new tests — Help topic appended to existing catalog).
-- Full suite: 1283 tests, 17 skipped, 0 failures (was 1222 — net +61). Release build clean. Grep bans clean (no `as!`, no stdin-logging).
-- Commits this phase: bced0f1 (4a), 93f7e48 (4b), 1c66dda (4c), 6c1a090 (4d), <4e> on main.
+- EntryListModel.entries folder filter changed from MVP9.3 prefix-match to immediate-children-only semantics.
+- New filter: entry.path == folder OR (entry.path has folder+"/" prefix AND suffix has no further "/").
+- UX implication: tapping top-level "system" now shows only entries directly in system/* (e.g. 4pda, amazon), NOT entries in system/work/* — user drills into sidebar tree to see subfolder contents. Matches Finder.
+- Sidebar tree (FolderTreeBuilder + FolderTreeRow + fold/unfold) untouched — still works correctly.
+- Search query bypass preserved — search shows global matches regardless of selectedFolder.
+- Tests: adapted 5 existing in EntryListModelTests.swift (top-level count expectations 7/8/5 → flipped to subfolder cases like work/aws → 2, personal/email → 2; topLevelPrefixIncludesAllSubfolders → inverted to topLevelExcludesNestedSubfolders asserting count == 0 and !contains personal/email/gmail; matchesEntryWithExactPath extended with system/foo immediate child + system/work/email grandchild exclusion); added 2 new (excludesGrandchildren for folder="a" excluding a/c/d & a/c/e/f; nestedSelectionExcludesDeeperNesting for folder="a/b" including a/b/c, a/b/d and excluding a/b/e/f).
+- Full suite: 1285 tests, 17 skipped, 0 failures (was 1283 — net +2). Release build clean. Grep bans clean (no `as!`, no stdin-logging); old prefix-match comment grep returns 0 hits.
+- Commit: 240e28f on main.
 
-Timestamp: 2026-05-19T20:48:00+0200
+Timestamp: 2026-05-19T22:45:09+0200
