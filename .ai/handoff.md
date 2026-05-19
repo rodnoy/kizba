@@ -10,6 +10,6 @@ Notes:
 - SearchModel.moveSelection(down:) already implemented with clamp-at-bounds behavior; already covered by KizbaTests/Presentation/Features/Search/SearchModelSelectionTests.swift::testMoveSelection_downAndUp_clampsCorrectly. No new test added (full coverage already in place).
 - Manual smoke documented in commit body.
 - Full suite green: 1140 tests, 17 skipped, 0 failures. Build clean.
-- Commit: <hash> on main.
+- Commit: 5ff440e on main.
 
 Timestamp: 2026-05-19T14:13:00+0200
