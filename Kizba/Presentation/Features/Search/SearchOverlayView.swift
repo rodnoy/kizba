@@ -31,41 +31,59 @@ struct SearchOverlayView: View {
                             onSelect(result)
                         }
                     }
+                    .onKeyPress(.downArrow) {
+                        model.moveSelection(down: true)
+                        return .handled
+                    }
+                    .onKeyPress(.upArrow) {
+                        model.moveSelection(down: false)
+                        return .handled
+                    }
 
                 if model.isLoading {
                     ProgressView()
                 }
 
-                ScrollView {
-                    LazyVStack(spacing: theme.spacing.xs) {
-                        ForEach(Array(model.results.enumerated()), id: \.element.id) { index, result in
-                            Button {
-                                onSelect(result)
-                            } label: {
-                                VStack(alignment: .leading, spacing: theme.spacing.xs) {
-                                    Text(result.title)
-                                        .foregroundStyle(theme.colors.onSurface)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: theme.spacing.xs) {
+                            ForEach(Array(model.results.enumerated()), id: \.element.id) { index, result in
+                                Button {
+                                    onSelect(result)
+                                } label: {
+                                    VStack(alignment: .leading, spacing: theme.spacing.xs) {
+                                        Text(result.title)
+                                            .foregroundStyle(theme.colors.onSurface)
 
-                                    if let subtitle = result.subtitle {
-                                        Text(subtitle)
-                                            .font(theme.typography.caption)
-                                            .foregroundStyle(theme.colors.onSurfaceMuted)
+                                        if let subtitle = result.subtitle {
+                                            Text(subtitle)
+                                                .font(theme.typography.caption)
+                                                .foregroundStyle(theme.colors.onSurfaceMuted)
+                                        }
                                     }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal, theme.spacing.sm)
+                                    .padding(.vertical, theme.spacing.xs)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: theme.radius.sm)
+                                            .fill(model.selectedIndex == index ? theme.colors.accentMuted : Color.clear)
+                                    )
                                 }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, theme.spacing.sm)
-                                .padding(.vertical, theme.spacing.xs)
-                                .background(
-                                    RoundedRectangle(cornerRadius: theme.radius.sm)
-                                        .fill(model.selectedIndex == index ? theme.colors.accentMuted : Color.clear)
-                                )
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(result.title)
+                                .id(result.id)
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(result.title)
+                        }
+                    }
+                    .frame(maxHeight: 320)
+                    .onChange(of: model.selectedIndex) { _, newIndex in
+                        guard let newIndex, model.results.indices.contains(newIndex) else { return }
+                        let targetID = model.results[newIndex].id
+                        withAnimation(.easeOut(duration: 0.1)) {
+                            proxy.scrollTo(targetID, anchor: .center)
                         }
                     }
                 }
-                .frame(maxHeight: 320)
 
                 Button("Dismiss Search") {
                     onDismiss()
