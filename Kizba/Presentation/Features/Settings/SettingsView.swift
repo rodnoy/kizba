@@ -18,14 +18,49 @@
 import SwiftUI
 
 /// Settings screen bound to a `SettingsModel`.
+///
+/// Extra dependencies (`passManager`, `biometricAuth`, `settings`)
+/// are accepted as `init` parameters but routed exclusively to the
+/// MVP9.4 Data tab; the other tabs continue to consume the
+/// ``SettingsModel`` they already had. When the new arguments are
+/// omitted (test / preview wirings) the Data tab is elided so the
+/// surface stays callable without changes.
 public struct SettingsView: View {
 
     @State private var model: SettingsModel
 
+    /// Optional — when nil, the Data tab is hidden. Preview / test
+    /// wirings that don't supply a real ``PassManaging`` get a
+    /// 4-tab Settings scene identical to the pre-MVP9.4 layout.
+    private let dataTabDependencies: DataTabDependencies?
+
     @Environment(\.theme) private var theme
 
-    public init(model: SettingsModel) {
+    /// Bundle of dependencies required by the Data tab. Kept as a
+    /// nested type so test / preview wirings can opt out of the tab
+    /// by passing `nil` instead of synthesising fake protocol values.
+    public struct DataTabDependencies {
+        public let passManager: any PassManaging
+        public let biometricAuth: (any BiometricAuthenticating)?
+        public let settings: any SettingsStoring
+
+        public init(
+            passManager: any PassManaging,
+            biometricAuth: (any BiometricAuthenticating)?,
+            settings: any SettingsStoring
+        ) {
+            self.passManager = passManager
+            self.biometricAuth = biometricAuth
+            self.settings = settings
+        }
+    }
+
+    public init(
+        model: SettingsModel,
+        dataTabDependencies: DataTabDependencies? = nil
+    ) {
         _model = State(wrappedValue: model)
+        self.dataTabDependencies = dataTabDependencies
     }
 
     public var body: some View {
@@ -50,6 +85,17 @@ public struct SettingsView: View {
                     .tabItem {
                         Label("Advanced", systemImage: "slider.horizontal.3")
                     }
+
+                if let deps = dataTabDependencies {
+                    DataTab(
+                        passManager: deps.passManager,
+                        biometricAuth: deps.biometricAuth,
+                        settings: deps.settings
+                    )
+                    .tabItem {
+                        Label("Data", systemImage: "square.and.arrow.up.on.square")
+                    }
+                }
             }
 
             SettingsFooter(

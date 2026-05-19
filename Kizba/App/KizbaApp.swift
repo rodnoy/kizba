@@ -130,6 +130,11 @@ struct KizbaApp: App {
                         discovery: environment.discovery!,
                         recentStore: environment.recentStore,
                         biometricAuth: environment.biometricAuth
+                    ),
+                    dataTabDependencies: SettingsView.DataTabDependencies(
+                        passManager: environment.passManager,
+                        biometricAuth: environment.biometricAuth,
+                        settings: environment.settings
                     )
                 )
             }
