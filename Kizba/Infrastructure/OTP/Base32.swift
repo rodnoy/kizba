@@ -50,6 +50,40 @@ public enum Base32 {
         return Data(bytes)
     }
 
+    /// RFC 4648 Base32 encoder. Emits the canonical 32-character
+    /// alphabet (`A-Z2-7`) with NO `=` padding — consistent with the
+    /// otpauth:// URI convention this codebase follows everywhere
+    /// (parser strips padding on decode; encoder never produces it).
+    ///
+    /// Pure / no allocations beyond the result string. Safe to call
+    /// with empty input — returns `""`.
+    public static func encode(_ data: Data) -> String {
+        if data.isEmpty { return "" }
+
+        let alphabet: [Character] = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ234567")
+        var result = ""
+        result.reserveCapacity((data.count * 8 + 4) / 5)
+
+        var buffer: UInt32 = 0
+        var bitsInBuffer = 0
+        for byte in data {
+            buffer = (buffer << 8) | UInt32(byte)
+            bitsInBuffer += 8
+            while bitsInBuffer >= 5 {
+                bitsInBuffer -= 5
+                let index = Int((buffer >> UInt32(bitsInBuffer)) & 0x1F)
+                result.append(alphabet[index])
+            }
+        }
+
+        if bitsInBuffer > 0 {
+            let index = Int((buffer << UInt32(5 - bitsInBuffer)) & 0x1F)
+            result.append(alphabet[index])
+        }
+
+        return result
+    }
+
     private static func value(for char: Character) -> UInt8? {
         guard let scalar = char.unicodeScalars.first, char.unicodeScalars.count == 1 else {
             return nil
