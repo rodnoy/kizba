@@ -124,13 +124,14 @@ final class EntryListModel {
     ///    bypassed so users can find an entry without first having to
     ///    navigate to its folder. Match is a case-insensitive
     ///    substring over the full entry path.
-    /// 2. **No search** — folder filter applies. MVP9.3 widens the
-    ///    semantics from "top-level component equality" to a true
-    ///    Finder-style **prefix match**: selecting ``"system"`` shows
-    ///    every entry whose path is ``"system"`` itself OR starts
-    ///    with ``"system/"`` (including nested subfolders such as
-    ///    ``"system/work/whatever"``). Selecting ``"system/work"``
-    ///    therefore narrows the listing to that subtree.
+    /// 2. **No search** — folder filter applies with **immediate-
+    ///    children-only** semantics (MVP9.5, tightened from the
+    ///    MVP9.3 recursive prefix-match). Selecting ``"system"``
+    ///    shows only entries that live DIRECTLY inside ``system/``
+    ///    (e.g. ``"system/4pda"``); entries in nested subfolders
+    ///    such as ``"system/work/whatever"`` are reached by drilling
+    ///    into the sidebar tree. This matches Finder behavior and
+    ///    keeps the middle column readable on deeply nested stores.
     ///
     /// The folder scope is restored automatically when the search
     /// query is cleared.
@@ -147,12 +148,15 @@ final class EntryListModel {
         let folder = state.router.selectedFolder
         return allEntries.filter { entry in
             guard let folder, !folder.isEmpty else { return true }
-            // MVP9.3 — hierarchical folder selection. Prefix match
-            // mirrors Finder: tapping a folder shows everything
-            // inside it, including nested subfolders. Plain equality
-            // (`entry.path == folder`) handles the edge case where a
-            // top-level entry happens to share the folder's name.
-            return entry.path == folder || entry.path.hasPrefix(folder + "/")
+            // MVP9.5 — immediate-children semantics. Tapping a folder shows only entries
+            // that live DIRECTLY inside it; entries in nested subfolders are reached by
+            // drilling into the sidebar tree. Matches Finder behavior.
+            // The `entry.path == folder` arm handles a rare edge case: a top-level entry
+            // whose path equals the selected folder's name verbatim (no `/`).
+            if entry.path == folder { return true }
+            guard entry.path.hasPrefix(folder + "/") else { return false }
+            let suffix = entry.path.dropFirst(folder.count + 1)
+            return !suffix.contains("/")
         }
     }
 
