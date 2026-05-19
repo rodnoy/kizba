@@ -123,6 +123,74 @@ final class EntryListModelTests: XCTestCase {
         XCTAssertTrue(results.allSatisfy { $0.path.hasPrefix("personal/") })
     }
 
+    // MARK: - MVP9.3 — hierarchical folder selection (prefix match)
+
+    func testEntries_folderFilter_topLevelPrefixIncludesAllSubfolders() async {
+        // Selecting `"personal"` must include every entry whose path
+        // starts with `personal/` — including deeply nested ones such
+        // as `personal/email/gmail`. The MVP9.2 (pre-MVP9.3) head-
+        // equality filter happened to produce the same result for
+        // 2-component paths; this test pins the new semantic so any
+        // future regression to "head-only" matching is caught.
+        let env = AppEnvironment.preview()
+        let state = AppState()
+        let model = EntryListModel(environment: env, state: state)
+        await model.refresh()
+
+        state.router.selectedFolder = "personal"
+        let filtered = model.entries
+        XCTAssertEqual(filtered.count, 7)
+        XCTAssertTrue(filtered.allSatisfy { $0.path.hasPrefix("personal/") })
+        // The deeply-nested case is the surprising one — assert it
+        // explicitly.
+        XCTAssertTrue(filtered.contains { $0.path == "personal/email/gmail" })
+    }
+
+    func testEntries_folderFilter_nestedSelection_narrowsToSubtree() {
+        // Selecting `"personal/email"` must show ONLY entries under
+        // that sub-folder, even though `personal/bank/checking`
+        // shares the same top-level component.
+        let entries = [
+            PassEntry(path: "personal/email/gmail"),
+            PassEntry(path: "personal/email/yahoo"),
+            PassEntry(path: "personal/bank/checking"),
+        ]
+        let state = AppState()
+        state.router.selectedFolder = "personal/email"
+
+        // Build a tiny in-memory env that returns the synthetic entries.
+        // We use ``AppEnvironment.preview()`` solely for the
+        // collaborator shapes and substitute the snapshot directly.
+        let env = AppEnvironment.preview()
+        let model = EntryListModel(environment: env, state: state)
+        model.setAllEntriesForTesting(entries)
+
+        let filtered = model.entries
+        XCTAssertEqual(filtered.count, 2)
+        XCTAssertTrue(filtered.allSatisfy { $0.path.hasPrefix("personal/email/") })
+        XCTAssertFalse(filtered.contains { $0.path == "personal/bank/checking" })
+    }
+
+    func testEntries_folderFilter_matchesEntryWithExactPath() {
+        // Edge case: a top-level entry whose path equals the selected
+        // folder name (no `/`). Selecting that name should include it.
+        let entries = [
+            PassEntry(path: "system"),
+            PassEntry(path: "system/work/email"),
+        ]
+        let state = AppState()
+        state.router.selectedFolder = "system"
+
+        let env = AppEnvironment.preview()
+        let model = EntryListModel(environment: env, state: state)
+        model.setAllEntriesForTesting(entries)
+
+        let filtered = model.entries
+        XCTAssertEqual(filtered.count, 2)
+        XCTAssertTrue(filtered.contains { $0.path == "system" })
+        XCTAssertTrue(filtered.contains { $0.path == "system/work/email" })
+    }
+
     func testSelect_updatesAppStateSelectedEntryID() async {
         let env = AppEnvironment.preview()
         let state = AppState()

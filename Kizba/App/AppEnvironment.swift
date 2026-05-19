@@ -41,6 +41,10 @@ struct AppEnvironment: Sendable {
     /// Favorites storage used by the sidebar favorites model.
     let favoritesStore: any FavoritesStoring
 
+    /// MVP9.3 — persisted per-folder expansion state for the
+    /// hierarchical sidebar tree.
+    let folderExpansionStore: any FolderExpansionStoring
+
     /// One-time password generator used by OTP presentation flows.
     let otpGenerator: any OTPGenerating
 
@@ -92,6 +96,7 @@ struct AppEnvironment: Sendable {
         otpGenerator: any OTPGenerating = LiveOTPGenerator(),
         clock: any ClockServicing = LiveClock(),
         favoritesStore: any FavoritesStoring = UserDefaultsFavoritesStore(),
+        folderExpansionStore: any FolderExpansionStoring = UserDefaultsFolderExpansionStore(),
         recentStore: any RecentEntriesStoring = UserDefaultsRecentEntriesStore(),
         recentsValidator: (any RecentEntriesValidating)? = nil,
         searchEngine: any EntrySearching,
@@ -107,6 +112,7 @@ struct AppEnvironment: Sendable {
         self.otpGenerator = otpGenerator
         self.clock = clock
         self.favoritesStore = favoritesStore
+        self.folderExpansionStore = folderExpansionStore
         self.recentStore = recentStore
         // MVP6.H.2: `live()` wires this to a real
         // `PassManagerRecentEntriesValidator`; tests/preview default
@@ -132,6 +138,7 @@ struct AppEnvironment: Sendable {
         otpGenerator: any OTPGenerating = LiveOTPGenerator(),
         clock: any ClockServicing = LiveClock(),
         favoritesStore: any FavoritesStoring = UserDefaultsFavoritesStore(),
+        folderExpansionStore: any FolderExpansionStoring = UserDefaultsFolderExpansionStore(),
         recentStore: any RecentEntriesStoring = UserDefaultsRecentEntriesStore(),
         recentsValidator: (any RecentEntriesValidating)? = nil,
         biometricAuth: (any BiometricAuthenticating)? = nil,
@@ -147,6 +154,7 @@ struct AppEnvironment: Sendable {
             otpGenerator: otpGenerator,
             clock: clock,
             favoritesStore: favoritesStore,
+            folderExpansionStore: folderExpansionStore,
             recentStore: recentStore,
             recentsValidator: recentsValidator,
             searchEngine: LiveSearchEngine(passManager: passManager),
@@ -290,6 +298,7 @@ extension AppEnvironment {
             otpGenerator: LiveOTPGenerator(),
             clock: LiveClock(),
             favoritesStore: UserDefaultsFavoritesStore(),
+            folderExpansionStore: UserDefaultsFolderExpansionStore(),
             recentStore: UserDefaultsRecentEntriesStore(),
             // MVP6.H.2: validate persisted recent paths against the live
             // store so legacy fixture / removed entries never reach the
@@ -370,6 +379,7 @@ extension AppEnvironment {
             otpGenerator: LiveOTPGenerator(),
             clock: LiveClock(),
             favoritesStore: InMemoryFavoritesStore(),
+            folderExpansionStore: InMemoryFolderExpansionStore(),
             recentStore: InMemoryRecentEntriesStore(),
             searchEngine: searchEngine,
             passCLI: nil,
@@ -385,6 +395,7 @@ extension AppEnvironment {
             otpGenerator: LiveOTPGenerator(),
             clock: LiveClock(),
             favoritesStore: UnavailableFavoritesStore(),
+            folderExpansionStore: UnavailableFolderExpansionStore(),
             recentStore: UnavailableRecentEntriesStore(),
             searchEngine: UnavailableSearchEngine(),
             passCLI: nil,
@@ -480,6 +491,16 @@ private struct UnavailableFavoritesStore: FavoritesStoring {
     }
     func allFavorites() async -> Set<String> { [] }
     var favoritesChanged: AsyncStream<Void> {
+        AsyncStream { _ in }
+    }
+}
+
+private struct UnavailableFolderExpansionStore: FolderExpansionStoring {
+    func isExpanded(_ folderPath: String) async -> Bool { false }
+    func setExpanded(_ folderPath: String, expanded: Bool) async {
+        fatalError("AppEnvironment: FolderExpansionStoring is unavailable in this build configuration.")
+    }
+    var folderExpansionChanged: AsyncStream<Void> {
         AsyncStream { _ in }
     }
 }

@@ -37,25 +37,38 @@ final class SidebarModel {
 
     /// Sorted list of top-level folders. Empty until ``load()`` runs
     /// (or after a load that returned no entries).
+    ///
+    /// Retained for backward compatibility with call-sites and tests
+    /// that expected the flat first-component listing pre-MVP9.3.
+    /// New UI surfaces should consume ``folderTree`` instead.
     private(set) var folders: [SidebarFolder]
+
+    /// MVP9.3 — full hierarchical tree derived from the latest
+    /// ``listEntries()`` snapshot. Empty until ``load()`` runs (or
+    /// after a load that returned no entries).
+    private(set) var folderTree: [FolderNode]
 
     private let passManager: any PassManaging
 
     init(passManager: any PassManaging) {
         self.passManager = passManager
         self.folders = []
+        self.folderTree = []
     }
 
     /// Refresh the folder list from the pass-manager surface.
     ///
-    /// On `PassError` (or any other failure) the folder list is left
-    /// empty — error UI surfaces are wired in Phase 8.
+    /// On `PassError` (or any other failure) both the flat folder
+    /// list and the hierarchical tree are left empty — error UI
+    /// surfaces are wired in Phase 8.
     func load() async {
         do {
             let entries = try await passManager.listEntries()
             self.folders = Self.topLevelFolders(from: entries)
+            self.folderTree = FolderTreeBuilder.build(from: entries)
         } catch {
             self.folders = []
+            self.folderTree = []
         }
     }
 

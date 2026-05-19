@@ -124,10 +124,13 @@ final class EntryListModel {
     ///    bypassed so users can find an entry without first having to
     ///    navigate to its folder. Match is a case-insensitive
     ///    substring over the full entry path.
-    /// 2. **No search** — folder filter applies: when
-    ///    `AppState.selectedFolder` is non-empty, only entries whose
-    ///    top-level path component matches are kept; otherwise every
-    ///    entry is returned.
+    /// 2. **No search** — folder filter applies. MVP9.3 widens the
+    ///    semantics from "top-level component equality" to a true
+    ///    Finder-style **prefix match**: selecting ``"system"`` shows
+    ///    every entry whose path is ``"system"`` itself OR starts
+    ///    with ``"system/"`` (including nested subfolders such as
+    ///    ``"system/work/whatever"``). Selecting ``"system/work"``
+    ///    therefore narrows the listing to that subtree.
     ///
     /// The folder scope is restored automatically when the search
     /// query is cleared.
@@ -144,15 +147,25 @@ final class EntryListModel {
         let folder = state.router.selectedFolder
         return allEntries.filter { entry in
             guard let folder, !folder.isEmpty else { return true }
-            let head: String
-            if let slash = entry.path.firstIndex(of: "/") {
-                head = String(entry.path[..<slash])
-            } else {
-                head = entry.path
-            }
-            return head == folder
+            // MVP9.3 — hierarchical folder selection. Prefix match
+            // mirrors Finder: tapping a folder shows everything
+            // inside it, including nested subfolders. Plain equality
+            // (`entry.path == folder`) handles the edge case where a
+            // top-level entry happens to share the folder's name.
+            return entry.path == folder || entry.path.hasPrefix(folder + "/")
         }
     }
+
+    #if DEBUG
+    /// Test-only seam used by unit tests that need to exercise the
+    /// pure derivation of ``entries`` without driving the
+    /// ``passManager`` through a fixture round-trip. Production code
+    /// never calls this — the snapshot is always refreshed via
+    /// ``refresh()``.
+    func setAllEntriesForTesting(_ entries: [PassEntry]) {
+        self.allEntries = entries
+    }
+    #endif
 
     /// Reload the underlying entry snapshot from the pass-manager.
     ///

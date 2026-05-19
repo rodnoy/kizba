@@ -35,6 +35,9 @@ struct SidebarView: View {
     @State private var favoritesModel: FavoritesModel
     @State private var recentsModel: RecentsModel
     private let gitStatusModel: GitStatusModel?
+    // MVP9.3: passed through to ``FolderTreeRow`` so each
+    // DisclosureGroup persists its expansion state across launches.
+    private let folderExpansionStore: any FolderExpansionStoring
     @Environment(\.theme) private var theme
 
     // MVP6 Phase A.3: Recents section is user-controllable.
@@ -71,6 +74,7 @@ struct SidebarView: View {
             validator: environment.recentsValidator
         ))
         self.gitStatusModel = gitStatusModel
+        self.folderExpansionStore = environment.folderExpansionStore
     }
 
     var body: some View {
@@ -133,26 +137,23 @@ struct SidebarView: View {
                     }
                 }
 
-                Section("Folders") {
-                    ForEach(model.folders) { folder in
-                        EntryRowView(
-                            leadingIconName: "folder",
-                            title: folder.name,
-                            isSelected: selection == folder.name
-                        )
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            selection = folder.name
+                // MVP9.3 — hierarchical folder tree (Finder-style).
+                // ``FolderTreeRow`` is recursive: leaf folders render
+                // as flat tappable rows; parents wrap their children
+                // in a ``DisclosureGroup`` whose expansion state is
+                // persisted via ``folderExpansionStore``. Tapping any
+                // row writes its full path into ``selection``; the
+                // entry list resolves the displayed entries via a
+                // prefix match on ``selectedFolder``.
+                if !model.folderTree.isEmpty {
+                    Section("Folders") {
+                        ForEach(model.folderTree) { node in
+                            FolderTreeRow(
+                                node: node,
+                                expansionStore: folderExpansionStore,
+                                selectedPath: $selection
+                            )
                         }
-                        .listRowBackground(Color.clear)
-                        // I.3 a11y — VoiceOver row label includes the
-                        // semantic role ("folder") so users navigating by
-                        // ear can distinguish folder rows from entry rows
-                        // (which carry no role suffix). The leading icon
-                        // is `.accessibilityHidden(true)` inside
-                        // `EntryRowView`, so this is the only carrier of
-                        // the "folder" semantic.
-                        .accessibilityLabel("\(folder.name), folder")
                     }
                 }
             }
