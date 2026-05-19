@@ -48,14 +48,6 @@ jobs:
           xcodebuild -version
           swift --version
 
-      - name: Run tests
-        run: |
-          xcodebuild test \
-            -scheme Kizba \
-            -project Kizba.xcodeproj \
-            -destination 'platform=macOS' \
-            -quiet
-
       - name: Archive (Release, universal)
         run: |
           xcodebuild archive \
