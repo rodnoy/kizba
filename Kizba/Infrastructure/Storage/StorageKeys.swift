@@ -15,6 +15,11 @@ public enum StorageKeys {
     public nonisolated static let recentsEntriesV2 = "app.kizba.recents.entries.v2"
     public nonisolated static let favoritesEntriesV1 = "app.kizba.favorites.entries.v1"
 
+    /// MVP9.3: per-folder expansion state for the hierarchical sidebar
+    /// tree. Stored as `[String]` (a serialised `Set<String>` of
+    /// ``FolderNode.fullPath`` values that are currently expanded).
+    public nonisolated static let folderExpansionV1 = "app.kizba.folder-expansion.v1"
+
     // Legacy keys retained for one-shot cleanup only — never written.
     public nonisolated static let legacyRecentsEntries = "kizba.recentEntries"
     public nonisolated static let legacyRecentsEntriesV1 = "app.kizba.recents.entries.v1"
