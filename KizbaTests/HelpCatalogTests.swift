@@ -253,6 +253,40 @@ final class HelpCatalogTests: XCTestCase {
         }
     }
 
+    // MARK: - GPG key trust topic
+
+    func testCatalog_containsGPGKeyTrustTopic() {
+        XCTAssertNotNil(
+            HelpCatalog.all.first(where: { $0.id == "gpg-key-trust" }),
+            "Catalog must contain the GPG key trust troubleshooting topic by id"
+        )
+    }
+
+    func testGPGKeyTrust_accessorExists() {
+        XCTAssertEqual(HelpCatalog.gpgKeyTrust.id, "gpg-key-trust")
+    }
+
+    func testGPGKeyTrust_hasExpectedSectionCount() {
+        XCTAssertEqual(HelpCatalog.gpgKeyTrust.sections.count, 6)
+    }
+
+    func testGPGKeyTrust_containsCommandAndWarningBlocks() {
+        let topic = HelpCatalog.gpgKeyTrust
+        let allBlocks = topic.sections.flatMap(\.body)
+        let hasCommand = allBlocks.contains { block in
+            switch block {
+            case .command, .commandSequence: return true
+            default: return false
+            }
+        }
+        let hasWarning = allBlocks.contains { block in
+            if case .warning = block { return true }
+            return false
+        }
+        XCTAssertTrue(hasCommand, "GPG key trust topic must contain at least one command block")
+        XCTAssertTrue(hasWarning, "GPG key trust topic must contain at least one warning block")
+    }
+
     // MARK: - D1 anchor: discovery script uses `find`, not bash globstar
 
     /// The Section 6 discovery script must not regress to bash

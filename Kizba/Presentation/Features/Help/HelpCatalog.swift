@@ -35,6 +35,7 @@ public enum HelpCatalog {
         Self.makeConfigurePinentry(),
         Self.makeTouchIDProtection(),
         Self.makeOneTimePasswords(),
+        Self.makeGPGKeyTrust(),
     ]
 
     /// First-class accessor for the AEAD/MDC compatibility topic so
@@ -81,6 +82,16 @@ public enum HelpCatalog {
     public static var oneTimePasswords: HelpTopic {
         guard let topic = all.first(where: { $0.id == "one-time-passwords" }) else {
             return Self.makeOneTimePasswords()
+        }
+        return topic
+    }
+
+    /// First-class accessor for the GPG key trust troubleshooting
+    /// topic. Mirrors the defensive-rebuild fallback used by the
+    /// other topic accessors above.
+    public static var gpgKeyTrust: HelpTopic {
+        guard let topic = all.first(where: { $0.id == "gpg-key-trust" }) else {
+            return Self.makeGPGKeyTrust()
         }
         return topic
     }
@@ -714,6 +725,144 @@ public enum HelpCatalog {
             title: "One-time passwords (OTP)",
             subtitle: "How OTP codes are detected, copied, and controlled in Kizba.",
             sections: [section1, section2, section3, section4]
+        )
+    }
+
+    /// Build the "Fix GPG key trust errors" topic. Targets the common
+    /// second-Mac scenario where the user imported their GPG key from
+    /// another machine and now sees encryption fail because the key
+    /// is marked `[unknown]` in `gpg --list-secret-keys`. Decryption
+    /// still works, so the failure mode is "reads fine, writes fail",
+    /// which is documented in Section 2. Companion to the inline
+    /// banner produced by `PassError.recipientKeyNotTrusted`.
+    private static func makeGPGKeyTrust() -> HelpTopic {
+        let topicID = "gpg-key-trust"
+
+        // Section 1 — What's the error
+        let section1 = makeSection(
+            topicID: topicID,
+            sectionIndex: 0,
+            heading: "What's the error",
+            blocks: [
+                .paragraph(
+                    text: "When creating or editing entries on a Mac where you've imported a GPG key from another machine, you may see this error: `pass exited with code 1` (or in Kizba: \"GPG cannot encrypt because your key is not trusted at ultimate level\")."
+                ),
+                .warning(
+                    text: "This is not a Kizba bug — it's a GPG security feature. By default, GPG marks imported keys as 'untrusted' until you explicitly tell it 'yes, this is my own key'."
+                ),
+            ]
+        )
+
+        // Section 2 — Why this happens
+        let section2 = makeSection(
+            topicID: topicID,
+            sectionIndex: 1,
+            heading: "Why this happens",
+            blocks: [
+                .paragraph(
+                    text: "GPG distinguishes between keys you generated (automatically trusted) and keys you imported (untrusted by default). When encrypting, GPG wants to show a confirmation prompt: 'Are you sure you want to encrypt to this untrusted key?' On a terminal, GPG opens `/dev/tty` to ask. But Kizba runs `pass` as a background process without a terminal, so GPG cannot show the prompt — and the operation aborts."
+                ),
+                .paragraph(
+                    text: "Reading existing entries works fine — decryption does not require trust confirmation. Only encryption (insert / edit / generate) is affected."
+                ),
+            ]
+        )
+
+        // Section 3 — Find your key ID
+        let section3 = makeSection(
+            topicID: topicID,
+            sectionIndex: 2,
+            heading: "Step 1 — Find your key ID",
+            blocks: [
+                .paragraph(
+                    text: "First, identify which key you need to trust. It's the recipient listed in `~/.password-store/.gpg-id`."
+                ),
+                .commandSequence(
+                    label: "Print the recipient and list your secret keys",
+                    commands: [
+                        "cat ~/.password-store/.gpg-id",
+                        "gpg --list-secret-keys --keyid-format=LONG",
+                    ],
+                    note: "Match the id printed by `cat` against the output of `--list-secret-keys` to find the right key."
+                ),
+                .paragraph(
+                    text: "The output of `--list-secret-keys` will look like:\n\n```\nsec ed25519/879AB8122AF22F7D 2023-03-07 [SC]\n      3F6A188FC23877EB65E8FFF1879AB8122AF22F7D\nuid [unknown] Your Name <you@example.com>\n```\n\nThe `[unknown]` label is the problem. You need to change it to `[ultimate]`. The key ID is the long hex after `ed25519/` (here: `879AB8122AF22F7D`)."
+                ),
+            ]
+        )
+
+        // Section 4 — Set ultimate trust
+        let section4 = makeSection(
+            topicID: topicID,
+            sectionIndex: 3,
+            heading: "Step 2 — Set ultimate trust",
+            blocks: [
+                .paragraph(
+                    text: "Run this interactive command in Terminal, replacing `<key-id>` with the long hex from step 1:"
+                ),
+                .command(
+                    label: "Open the key editor",
+                    command: "gpg --edit-key <key-id>",
+                    note: "Replace `<key-id>` with the long hex you found above."
+                ),
+                .paragraph(
+                    text: "Inside the GPG interactive prompt, type these commands one by one:"
+                ),
+                .commandSequence(
+                    label: "At the gpg> prompt, run:",
+                    commands: [
+                        "trust",
+                        "5",
+                        "y",
+                        "save",
+                    ],
+                    note: "`trust` opens the trust menu, `5` selects 'I trust ultimately' (this is your own key, you trust it absolutely), `y` confirms, `save` exits and saves."
+                ),
+            ]
+        )
+
+        // Section 5 — Verify the fix
+        let section5 = makeSection(
+            topicID: topicID,
+            sectionIndex: 4,
+            heading: "Step 3 — Verify the fix",
+            blocks: [
+                .commandSequence(
+                    label: "Re-list your secret keys",
+                    commands: [
+                        "gpg --list-secret-keys --keyid-format=LONG",
+                    ],
+                    note: nil
+                ),
+                .paragraph(
+                    text: "The `uid` line should now show `[ultimate]` instead of `[unknown]`. Try creating or editing an entry in Kizba — it should now work."
+                ),
+            ]
+        )
+
+        // Section 6 — When this happens
+        let section6 = makeSection(
+            topicID: topicID,
+            sectionIndex: 5,
+            heading: "When this happens",
+            blocks: [
+                .bulletList(items: [
+                    "After installing Kizba on a second Mac and importing your GPG key from the first Mac.",
+                    "After restoring your GPG key from a backup on a new machine.",
+                    "After a fresh macOS install where you re-imported your existing key.",
+                    "Whenever you see `uid [unknown]` in `gpg --list-secret-keys` output for a key you trust.",
+                ]),
+                .warning(
+                    text: "Setting ultimate trust on a key you did NOT create is a security decision. Only do this for keys you generated yourself. If someone else sent you a key, use level 4 (\"I trust fully\") instead."
+                ),
+            ]
+        )
+
+        return HelpTopic(
+            id: topicID,
+            title: "Fix GPG key trust errors",
+            subtitle: "Resolve `pass` encryption failures after importing your GPG key onto a second Mac.",
+            sections: [section1, section2, section3, section4, section5, section6]
         )
     }
 
