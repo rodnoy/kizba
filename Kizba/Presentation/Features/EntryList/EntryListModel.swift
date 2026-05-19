@@ -367,6 +367,11 @@ final class EntryListModel {
             return "An entry already exists at \(path)."
         case .invalidLength:
             return "The requested length was rejected."
+        case .recipientKeyNotTrusted:
+            // Toast variant: short pointer to the actionable command.
+            // The full multi-line fix instructions live on the banner
+            // rendered by `ErrorPresentation` and in Diagnostics.
+            return "GPG key not trusted. Run `gpg --edit-key <id>` → trust → 5 → y → save."
         case .writeFailed(let reason):
             if let reason, !reason.isEmpty {
                 return "Delete failed: \(reason)."

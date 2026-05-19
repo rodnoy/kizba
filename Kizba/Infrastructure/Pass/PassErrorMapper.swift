@@ -52,6 +52,11 @@ import Foundation
 /// | `is not in the password store` + `commandContext` ∈ {.move, .remove} | `.sourceNotFound(path:)` |
 /// | `is not in the password store` + other context         | `.invalidGpgId`           |
 ///
+/// GPG trust hotfix (MVP 9):
+/// | Signature                                              | Mapped case               |
+/// | ------------------------------------------------------ | ------------------------- |
+/// | locale-specific "no assurance this key belongs" + TTY/abort companion (`cannot open '/dev/tty'`, `Device not configured`, `encryption aborted`, `signing failed`) | `.recipientKeyNotTrusted(keyHint:)` |
+///
 /// The accompanying excerpt is always passed through ``sanitize(_:maxLength:)``.
 public nonisolated struct PassErrorMapper: Sendable {
 
@@ -202,6 +207,52 @@ public nonisolated struct PassErrorMapper: Sendable {
                 // `.invalidGpgId`, which the UI maps to onboarding.
                 return (.invalidGpgId, excerpt)
             }
+        }
+
+        // ──────────────────────────────────────────────────────────────
+        // MVP9 hotfix: GPG recipient key not trusted at ultimate level,
+        // combined with the absence of a controlling TTY (Kizba runs
+        // `gpg` as a subprocess with no `/dev/tty`, so the implicit
+        // "trust this key anyway?" confirmation prompt cannot be
+        // answered and the encryption is aborted).
+        //
+        // Stays AFTER `pinentryNotConfigured` so the broader `pinentry`
+        // signature wins when both fire, AFTER the write-side specific
+        // signatures (overwrite refusal, recipient resolution failure),
+        // and BEFORE the binary-not-found / shell-failure fallbacks so
+        // the actionable trust message is surfaced even though the
+        // process exits with a generic non-zero code.
+        //
+        // Observed locale variants of the trust-warning line:
+        //   en: "<id>: There is no assurance this key belongs to the
+        //        named user."
+        //   fr: "<id>: aucune assurance que la clef appartienne vraiment
+        //        à l'utilisateur nommé."
+        //   de: "<id>: Es gibt keinerlei Garantie, dass dieser Schlüssel
+        //        wirklich der genannten Person gehört."
+        //   es: "<id>: No hay indicios de que la firma pertenezca al
+        //        propietario."
+        //
+        // Match conservatively on a stable substring per locale; combine
+        // with the TTY/abort companion line so we never mistake an
+        // unrelated `Inappropriate ioctl` for this case (the pinentry
+        // branch above handles those).
+        let trustNeedles = [
+            "no assurance this key belongs",   // en
+            "aucune assurance que la clef",    // fr
+            "keinerlei garantie",              // de
+            "no hay indicios",                 // es
+        ]
+        let abortNeedles = [
+            "cannot open '/dev/tty'",
+            "device not configured",
+            "encryption aborted",
+            "signing failed",
+        ]
+        let hasTrust = matchesAny(lower, trustNeedles)
+        let hasAbort = matchesAny(lower, abortNeedles)
+        if hasTrust && hasAbort {
+            return (.recipientKeyNotTrusted(keyHint: extractKeyHint(from: stderr)), excerpt)
         }
 
         // ──────────────────────────────────────────────────────────────
@@ -463,6 +514,28 @@ public nonisolated struct PassErrorMapper: Sendable {
             return candidate
         }
         return ""
+    }
+
+    /// Best-effort extraction of a GPG key id (8+ hex chars) from
+    /// stderr. Used by the `recipientKeyNotTrusted` mapping to attach
+    /// an actionable hint to the error case. Returns `nil` when the id
+    /// has already been redacted (e.g. callers feeding a sanitised
+    /// excerpt back through the mapper) or when stderr carries no
+    /// recognisable key id at all — the user-facing message degrades
+    /// gracefully to a generic instruction in that case.
+    private static func extractKeyHint(from stderr: String) -> String? {
+        // Case-insensitive match: gpg may print the key id in upper or
+        // mixed case depending on the version / locale.
+        let pattern = #"(?i)\b[0-9A-F]{8,40}\b"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return nil
+        }
+        let range = NSRange(stderr.startIndex..., in: stderr)
+        guard let match = regex.firstMatch(in: stderr, options: [], range: range),
+              let swiftRange = Range(match.range, in: stderr) else {
+            return nil
+        }
+        return String(stderr[swiftRange])
     }
 
     /// Tiny wrapper around `NSRegularExpression` that returns the input

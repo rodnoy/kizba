@@ -596,6 +596,11 @@ final class EntryFormModel {
             return "The entry \(path) is no longer in the store."
         case .invalidLength:
             return "The requested password length was rejected."
+        case .recipientKeyNotTrusted:
+            // Toast variant: short pointer to the actionable command.
+            // The full multi-line fix instructions live on the banner
+            // rendered by `ErrorPresentation` and in Diagnostics.
+            return "GPG key not trusted. Run `gpg --edit-key <id>` → trust → 5 → y → save."
         case .writeFailed(let reason):
             if let reason, !reason.isEmpty {
                 return "Write failed: \(reason)."

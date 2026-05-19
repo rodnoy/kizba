@@ -406,6 +406,109 @@ final class PassErrorMapperTests: XCTestCase {
         XCTAssertEqual(result.error, .invalidGpgId)
     }
 
+    // MARK: - GPG key not trusted (MVP 9 hotfix)
+
+    func testRecipientKeyNotTrusted_french_mapsToCase() {
+        // Real-world stderr captured on a French-locale macOS after
+        // importing a key without re-setting ownertrust. The TTY
+        // companion line is required so the mapper does not over-match
+        // on unrelated locale-specific GPG warnings.
+        let stderr = """
+        gpg: ABCD1234EF: aucune assurance que la clef appartienne vraiment à l'utilisateur nommé.
+        gpg: cannot open '/dev/tty': Device not configured
+        Password encryption aborted.
+        """
+
+        let result = PassErrorMapper.map(stderr: stderr, exitCode: 1, commandContext: .insert)
+
+        guard case let .recipientKeyNotTrusted(keyHint) = result.error else {
+            XCTFail("Expected .recipientKeyNotTrusted, got \(result.error)")
+            return
+        }
+        XCTAssertEqual(keyHint, "ABCD1234EF")
+    }
+
+    func testRecipientKeyNotTrusted_english_mapsToCase() {
+        let stderr = """
+        gpg: 0123456789ABCDEF: There is no assurance this key belongs to the named user.
+        gpg: cannot open '/dev/tty': Device not configured
+        Password encryption aborted.
+        """
+
+        let result = PassErrorMapper.map(stderr: stderr, exitCode: 1, commandContext: .insert)
+
+        guard case let .recipientKeyNotTrusted(keyHint) = result.error else {
+            XCTFail("Expected .recipientKeyNotTrusted, got \(result.error)")
+            return
+        }
+        XCTAssertEqual(keyHint, "0123456789ABCDEF")
+    }
+
+    func testRecipientKeyNotTrusted_german_mapsToCase() {
+        let stderr = """
+        gpg: DEADBEEF12345678: Es gibt keinerlei Garantie, dass dieser Schlüssel wirklich der genannten Person gehört.
+        gpg: signing failed: No such device
+        """
+
+        let result = PassErrorMapper.map(stderr: stderr, exitCode: 1, commandContext: .insert)
+
+        guard case .recipientKeyNotTrusted = result.error else {
+            XCTFail("Expected .recipientKeyNotTrusted, got \(result.error)")
+            return
+        }
+    }
+
+    func testRecipientKeyNotTrusted_trustOnlyWithoutTTY_doesNotMatch() {
+        // Guardrail: a bare trust warning without the TTY/abort
+        // companion must NOT be hijacked into the trust case — the user
+        // can still answer the prompt interactively in that scenario,
+        // so a generic shell failure is the correct fallback.
+        let stderr = "gpg: ABCD1234EF: There is no assurance this key belongs to the named user."
+
+        let result = PassErrorMapper.map(stderr: stderr, exitCode: 1, commandContext: .insert)
+
+        guard case .shellFailure = result.error else {
+            XCTFail("Expected .shellFailure, got \(result.error)")
+            return
+        }
+    }
+
+    func testRecipientKeyNotTrusted_ttyOnlyWithoutTrust_doesNotMatch() {
+        // Guardrail: a bare `/dev/tty` failure (e.g. from an unrelated
+        // git-sign prompt) must NOT be misclassified as a trust issue.
+        // Note: the pinentry rule will claim this if it mentions
+        // pinentry; here we keep stderr neutral so it falls through to
+        // the generic shell failure.
+        let stderr = "cannot open '/dev/tty': Device not configured"
+
+        let result = PassErrorMapper.map(stderr: stderr, exitCode: 1)
+
+        guard case .shellFailure = result.error else {
+            XCTFail("Expected .shellFailure, got \(result.error)")
+            return
+        }
+    }
+
+    func testRecipientKeyNotTrusted_sanitisedInput_keyHintIsNil() {
+        // After the excerpt has been sanitised, the hex id is already
+        // replaced with `<redacted-id>` — feeding such input back
+        // through the mapper must not crash and must yield a nil hint
+        // (the user-facing message degrades to a generic instruction).
+        let stderr = """
+        gpg: <redacted-id>: There is no assurance this key belongs to the named user.
+        gpg: cannot open '/dev/tty': Device not configured
+        Password encryption aborted.
+        """
+
+        let result = PassErrorMapper.map(stderr: stderr, exitCode: 1, commandContext: .insert)
+
+        guard case let .recipientKeyNotTrusted(keyHint) = result.error else {
+            XCTFail("Expected .recipientKeyNotTrusted, got \(result.error)")
+            return
+        }
+        XCTAssertNil(keyHint)
+    }
+
     // MARK: - Idempotency (Phase E.4)
 
     func testWriteSideMapping_isIdempotent() {

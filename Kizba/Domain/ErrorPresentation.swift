@@ -112,6 +112,14 @@ public enum ErrorPresentation: Sendable {
             // confusing toast — the form will keep its own inline error.
             return .silent
 
+        case let .recipientKeyNotTrusted(keyHint):
+            // Surface as a banner (not a toast) so the multi-line fix
+            // instructions stay on screen long enough to read and copy.
+            return .banner(
+                message: trustFixMessage(for: keyHint),
+                helpURL: nil
+            )
+
         // MARK: - Git-side (MVP 4)
 
         case .gitNotInitialized:
@@ -135,5 +143,29 @@ public enum ErrorPresentation: Sendable {
         case let .gitRejected(reason):
             return .toastWithDiagnostics(message: "Push rejected: \(reason)")
         }
+    }
+
+    /// User-facing instructions for ``PassError/recipientKeyNotTrusted``.
+    /// Shared by ``ErrorPresentation`` and the per-feature toast/banner
+    /// renderers so the wording — and the command to copy — stays in
+    /// one place. The optional `keyHint` is substituted into the
+    /// `gpg --edit-key` line when present; otherwise a generic
+    /// placeholder is used and the user is told how to discover it.
+    public static func trustFixMessage(for keyHint: String?) -> String {
+        let target = keyHint ?? "<your-key-id>"
+        return """
+        GPG cannot encrypt: your key is not trusted at the ultimate level, \
+        and Kizba has no TTY to confirm the trust prompt.
+
+        Fix in Terminal:
+          gpg --edit-key \(target)
+          trust
+          5
+          y
+          save
+
+        Find your key id with:
+          gpg --list-secret-keys --keyid-format=LONG
+        """
     }
 }

@@ -98,6 +98,16 @@ public enum PassError: Error, Hashable, Sendable {
     /// the configured `pass-length` cap).
     case invalidLength
 
+    /// `gpg` refused to encrypt because the recipient key is not trusted
+    /// at the ultimate level and the process has no controlling TTY to
+    /// confirm the trust prompt (`/dev/tty` is unavailable to Kizba
+    /// subprocesses). Common on a second machine after importing a key
+    /// without re-setting ownertrust. The optional `keyHint` carries an
+    /// extracted hex key id when present in stderr; nil when the id was
+    /// already sanitised or otherwise unavailable. The UI renders an
+    /// actionable instruction (`gpg --edit-key … trust … 5 … y … save`).
+    case recipientKeyNotTrusted(keyHint: String?)
+
     // MARK: - Git-side (MVP 4)
 
     /// Git is not initialised in the password store (no .git directory).
@@ -139,6 +149,7 @@ public extension PassError {
              .storeNotFound, .timedOut, .shellFailure, .parsingFailed,
              .cancelled, .recipientNotFound, .invalidGpgId,
              .sourceNotFound, .writeFailed, .invalidLength,
+             .recipientKeyNotTrusted,
              // Git-side
              .gitNotInitialized, .gitNoRemote, .gitAuthFailed,
              .gitConflict, .gitNetworkUnavailable, .gitRejected:
@@ -162,7 +173,7 @@ public extension PassError {
         case .binaryNotFound, .pinentryNotConfigured, .decryptionFailed,
              .storeNotFound, .timedOut, .shellFailure, .parsingFailed,
              .cancelled, .entryAlreadyExists, .sourceNotFound,
-             .writeFailed, .invalidLength,
+             .writeFailed, .invalidLength, .recipientKeyNotTrusted,
              // Git-side (other cases)
              .gitAuthFailed, .gitNetworkUnavailable, .gitConflict(_), .gitRejected(_):
             return nil
@@ -181,6 +192,7 @@ public extension PassError {
              .storeNotFound, .timedOut, .shellFailure, .parsingFailed,
              .cancelled, .entryAlreadyExists, .recipientNotFound,
              .invalidGpgId, .writeFailed, .invalidLength,
+             .recipientKeyNotTrusted,
              // Git-side
              .gitNotInitialized, .gitNoRemote, .gitAuthFailed,
              .gitConflict, .gitNetworkUnavailable, .gitRejected:

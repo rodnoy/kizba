@@ -106,6 +106,39 @@ final class ErrorPresentationTests: XCTestCase {
         XCTAssertFalse(message.isEmpty)
     }
 
+    func testRecipientKeyNotTrusted_mapsToBannerWithFixInstructions() {
+        let pres = ErrorPresentation.present(
+            for: .recipientKeyNotTrusted(keyHint: "ABCD1234EF")
+        )
+        guard case let .banner(message, helpURL) = pres else {
+            return XCTFail("Expected .banner, got \(pres)")
+        }
+        // No external help link — the message itself carries the
+        // complete actionable fix.
+        XCTAssertNil(helpURL)
+        // The fix command and trust value must appear verbatim so the
+        // user can copy-paste them into Terminal.
+        XCTAssertTrue(message.contains("gpg --edit-key"),
+                      "message should mention the gpg --edit-key command (got \(message))")
+        XCTAssertTrue(message.contains("trust"),
+                      "message should mention the `trust` subcommand (got \(message))")
+        XCTAssertTrue(message.contains("ABCD1234EF"),
+                      "message should embed the keyHint when present (got \(message))")
+        XCTAssertTrue(message.contains("--list-secret-keys"),
+                      "message should tell the user how to find their key id (got \(message))")
+    }
+
+    func testRecipientKeyNotTrusted_nilHint_usesPlaceholder() {
+        let pres = ErrorPresentation.present(
+            for: .recipientKeyNotTrusted(keyHint: nil)
+        )
+        guard case let .banner(message, _) = pres else {
+            return XCTFail("Expected .banner, got \(pres)")
+        }
+        XCTAssertTrue(message.contains("<your-key-id>"),
+                      "message should include a placeholder when no hint is available (got \(message))")
+    }
+
     func testInvalidLengthMapsToSilent() {
         // Length validation is a form-level concern; if it slips
         // through, the global surface stays quiet rather than confusing
