@@ -8,7 +8,7 @@ import SwiftUI
 /// (`_body(configuration:)`) on macOS 14; this is the documented API
 /// for shipping a custom style and is the same shape Apple's own
 /// styles use.
-public struct KizbaTextFieldStyle: TextFieldStyle {
+public struct KizbaTextFieldStyle: @preconcurrency TextFieldStyle {
     public init() {}
 
     @MainActor

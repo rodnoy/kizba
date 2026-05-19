@@ -21,9 +21,9 @@ public struct BannerView: View {
     /// `@MainActor` because it bridges back into UI state mutation.
     public struct BannerAction: Sendable {
         public let label: String
-        public let perform: @MainActor () -> Void
+        public let perform: @MainActor @Sendable () -> Void
 
-        public init(label: String, perform: @escaping @MainActor () -> Void) {
+        public init(label: String, perform: @escaping @MainActor @Sendable () -> Void) {
             self.label = label
             self.perform = perform
         }

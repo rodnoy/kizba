@@ -41,7 +41,7 @@ jobs:
           echo "Resolved: tag=$TAG version=$VERSION build=$BUILD"
 
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app
 
       - name: Show Xcode version
         run: xcodebuild -version
