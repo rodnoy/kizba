@@ -36,6 +36,7 @@ public enum HelpCatalog {
         Self.makeTouchIDProtection(),
         Self.makeOneTimePasswords(),
         Self.makeGPGKeyTrust(),
+        Self.makeImportExportGuide(),
     ]
 
     /// First-class accessor for the AEAD/MDC compatibility topic so
@@ -92,6 +93,16 @@ public enum HelpCatalog {
     public static var gpgKeyTrust: HelpTopic {
         guard let topic = all.first(where: { $0.id == "gpg-key-trust" }) else {
             return Self.makeGPGKeyTrust()
+        }
+        return topic
+    }
+
+    /// First-class accessor for the Import/Export Data-tab guide
+    /// (MVP9.4). Same defensive-rebuild fallback pattern as the
+    /// other accessors.
+    public static var importExportGuide: HelpTopic {
+        guard let topic = all.first(where: { $0.id == "import-export-guide" }) else {
+            return Self.makeImportExportGuide()
         }
         return topic
     }
@@ -863,6 +874,139 @@ public enum HelpCatalog {
             title: "Fix GPG key trust errors",
             subtitle: "Resolve `pass` encryption failures after importing your GPG key onto a second Mac.",
             sections: [section1, section2, section3, section4, section5, section6]
+        )
+    }
+
+    /// Build the Import / Export Data-tab guide (MVP9.4). Walks the
+    /// user through exporting (Touch ID prompt + plaintext warning)
+    /// and importing from each supported format (Bitwarden JSON,
+    /// generic CSV, 1Password CSV), plus explains conflict
+    /// resolution and the known per-insert git commit behaviour.
+    private static func makeImportExportGuide() -> HelpTopic {
+        let topicID = "import-export-guide"
+
+        // Section 1 — Where the controls live
+        let section1 = makeSection(
+            topicID: topicID,
+            sectionIndex: 0,
+            heading: "Where the controls live",
+            blocks: [
+                .paragraph(
+                    text: "Open Settings → Data. The tab has two sections: Export (write every entry out to a file) and Import (add entries from a file produced by another password manager)."
+                ),
+                .paragraph(
+                    text: "Supported export formats: Bitwarden JSON, Generic CSV. Supported import formats: Bitwarden JSON, Generic CSV, 1Password CSV."
+                ),
+            ]
+        )
+
+        // Section 2 — Exporting your store
+        let section2 = makeSection(
+            topicID: topicID,
+            sectionIndex: 1,
+            heading: "Exporting your store",
+            blocks: [
+                .paragraph(
+                    text: "Choose Export → Bitwarden JSON or Generic CSV. If the Touch ID policy (Settings → Security) is enabled, Kizba prompts for biometric confirmation before the export runs. After confirmation, a Save panel asks for the destination file."
+                ),
+                .warning(
+                    text: "The exported file contains every password in PLAINTEXT. It is not encrypted. Treat it the same way you would treat a screenshot of your master password — store it on an encrypted volume and delete it once you are done with it."
+                ),
+                .paragraph(
+                    text: "Bitwarden JSON preserves folder structure (paths like `Work/AWS` become a folder named \"Work\" plus an item named \"AWS\"). Generic CSV flattens everything onto a single `name` column using the full pass path."
+                ),
+            ]
+        )
+
+        // Section 3 — Importing from 1Password
+        let section3 = makeSection(
+            topicID: topicID,
+            sectionIndex: 2,
+            heading: "Importing from 1Password",
+            blocks: [
+                .paragraph(
+                    text: "In 1Password 8: open the vault you want to export → ⋯ menu (top-right of the items list) → Export → CSV. Save the resulting file, then in Kizba choose Import → 1Password CSV and pick that file."
+                ),
+                .paragraph(
+                    text: "Only the columns Title, Website, Username, Password, and Notes are imported. TOTP secrets and attachments are NOT in 1Password's CSV export — they require the proprietary 1pux format, which Kizba does not parse."
+                ),
+            ]
+        )
+
+        // Section 4 — Importing from Bitwarden
+        let section4 = makeSection(
+            topicID: topicID,
+            sectionIndex: 3,
+            heading: "Importing from Bitwarden",
+            blocks: [
+                .paragraph(
+                    text: "In the Bitwarden web vault: Tools → Export Vault → File format \"json\" (NOT \"json (encrypted)\"). Enter your master password to confirm the export, save the file, then in Kizba choose Import → Bitwarden JSON."
+                ),
+                .paragraph(
+                    text: "Bitwarden's JSON export preserves folder names, login URIs, and TOTP secrets — all of these round-trip through Kizba's importer."
+                ),
+            ]
+        )
+
+        // Section 5 — Importing from Chrome / Safari / Firefox
+        let section5 = makeSection(
+            topicID: topicID,
+            sectionIndex: 4,
+            heading: "Importing from Chrome / Safari / Firefox",
+            blocks: [
+                .paragraph(
+                    text: "These browsers export their saved passwords as a generic CSV (typically columns name/url/username/password). Use Import → Generic CSV in Kizba. The importer accepts `name` or `title`, `url` or `website`, and a `totp` or `otpauth` column if your source supplies one."
+                ),
+            ]
+        )
+
+        // Section 6 — Conflicts and the preview sheet
+        let section6 = makeSection(
+            topicID: topicID,
+            sectionIndex: 5,
+            heading: "Conflicts and the preview sheet",
+            blocks: [
+                .paragraph(
+                    text: "After Kizba parses the file, a preview sheet shows how many entries were found, how many conflict with paths already in your store, and any per-row warnings. Nothing is written to the store until you press \"Import N entries\"."
+                ),
+                .bulletList(items: [
+                    "Skip — keep the existing entry, drop the incoming record. Default — never destroys data.",
+                    "Overwrite — replace the existing entry's body with the incoming record. The previous body is lost (no undo).",
+                    "Rename — keep the existing entry untouched and create the incoming record under `path-2`, `path-3`, etc. Useful when the same login exists in both stores with different passwords.",
+                ]),
+            ]
+        )
+
+        // Section 7 — Git caveats
+        let section7 = makeSection(
+            topicID: topicID,
+            sectionIndex: 6,
+            heading: "Git caveats",
+            blocks: [
+                .warning(
+                    text: "If your store is under git, EVERY imported entry becomes its own commit — a 500-entry import produces 500 commits. This is a `pass` CLI behaviour, not a Kizba bug; `pass` commits each `pass insert` individually."
+                ),
+                .paragraph(
+                    text: "If the noisy history bothers you, run `pass git reset --soft <commit-before-import>` followed by `pass git commit -m \"Import N entries\"` to squash the import into a single commit. Run this from a terminal in `~/.password-store`."
+                ),
+                .commandSequence(
+                    label: "Squash a fresh import into one commit",
+                    commands: [
+                        "cd ~/.password-store",
+                        "pass git log --oneline | head -20  # find the commit BEFORE the import",
+                        "pass git reset --soft <that-commit-hash>",
+                        "pass git commit -m \"Import entries from <source>\"",
+                    ],
+                    note: "Only do this BEFORE pushing the imported commits to any remote. Once pushed, a force-push is required to rewrite history on the remote."
+                ),
+            ]
+        )
+
+        return HelpTopic(
+            id: topicID,
+            title: "Import and export your store",
+            subtitle: "Move passwords in and out of Kizba via Bitwarden JSON, generic CSV, or 1Password CSV.",
+            sections: [section1, section2, section3, section4, section5, section6, section7]
         )
     }
 

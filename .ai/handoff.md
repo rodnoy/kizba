@@ -1,28 +1,19 @@
-Phase: MVP9.2 (OTP UX expansion)
-Status: COMPLETED
+Phase: MVP9.4 (Import/Export) — COMPLETED
+Status: MVP9 SHIPPED (all 4 phases complete)
 
-Next action: Phase 3 (Folder tree) when user confirms. Pending: фикс PassErrorMapper для bug на втором Маке после получения подтверждения от пользователя (Diagnostics stderr).
+Next action: Push main + tag v1.1.0 (major increment due to significant new features). Pending: фикс PassErrorMapper для bug на втором Маке после получения подтверждения от пользователя (Diagnostics stderr).
 
 Notes:
-- Base32.encode (RFC 4648, no padding) added in Infrastructure/OTP/Base32.swift. Symmetric inverse of the existing decoder; matches the otpauth:// URI convention used everywhere.
-- OTPAuthURIBuilder (Domain/Services): inverse of OTPAuthURIParser. Omits sha1 / digits=6 / period=30 defaults per Google Authenticator KeyUriFormat; always emits HOTP counters; round-trips through the parser.
-- OTPSecretGenerator (Domain/Services): three constructors — random() uses CryptoKit SymmetricKey(size: SymmetricKeySize(bitCount: 160)); fromPassphrase() takes SHA-256(passphrase).prefix(20) (deterministic — UI shows warning); fromBase32() normalises case/whitespace/padding and validates the RFC 4648 alphabet.
-- QRCodeImage (DesignSystem/Components): native CoreImage CIFilter.qrCodeGenerator with 10x affine scale and `.interpolation(.none)`. White quiet-zone background lives inside the component (DesignSystem is exempt from the C.6 `Color.*` ban). Fallback to `theme.colors.surfaceSunken` on filter failure.
-- OTPModel: existing requestCopy() preserved. New revealURI(), revealSecret(), revealQRPayload() all gated through BiometricGate with distinct reason strings ("Reveal OTP URI" / "Reveal OTP secret" / "Show OTP QR code"). copyRevealedExport(_:) routes through clipboard with the standard auto-clear delay.
-- OTPView extended: "Copy" primary remains; new Export menu (square.and.arrow.up icon, `.menuStyle(.borderlessButton)`) with three reveal items. Sheets driven from optional `@State` so dismissal nils the cleartext.
-- OTPRevealSheet (Features/EntryDetail): mono-styled value box with Copy + Done buttons + "anyone with this can generate codes" caption.
-- OTPQRSheet (Features/EntryDetail): QRCodeImage + scan instructions + Done.
-- EntryFormBody (Presentation/EntryForm): new "One-time password" FormSection after Notes. Shows "TOTP configured" + Remove when the draft already carries an `otpauth` metadata pair (case-insensitive key match — matches OTPDiscovery), otherwise "Add TOTP…" opens AddTOTPSheet. derivedIssuer(fromPath:) pure helper extracts the second-to-last path component as the issuer prefill.
-- AddTOTPSheet (Features/EntryForm): segmented Picker over AddTOTPMethod {generateRandom, passphrase, pasteURI, typeSecret}. Common issuer + account fields. Submission goes through pure `AddTOTPSheet.buildSecret(method:issuer:label:passphrase:pastedURI:typedSecret:) -> Result<OTPSecret, SubmissionError>`; the resulting OTPSecret is serialised back via OTPAuthURIBuilder and appended to the draft as MetadataPair(key: "otpauth", value: uri).
-- Storage convention (locked in MVP9): otpauth URI lives in metadata key "otpauth" (case-insensitive). OTPDiscovery already supports this via its Convention #1.
-- Deferred from MVP9 scope: (f) Import from QR code (camera/picture) — requires Vision framework + AVCaptureDevice / camera permission, separate scope.
-- Tests: 55 new total (10 Base32 encoder vectors + roundtrips; 12 OTPAuthURIBuilder default-omission / non-default / roundtrip; 15 OTPSecretGenerator random/deterministic/normalisation; 2 QRCodeImage smoke; 13 AddTOTPSheet.buildSecret per-branch + error-message; 3 EntryFormBody.derivedIssuer).
-- Full suite: 1193 tests, 17 skipped, 0 failures (was 1140 — net +53; the AddTOTPSheet test file's 13 cases plus 40 across the other 5 files). Release build clean.
-- `as!` greps: 0. stdin-logging greps: 0 (only the ban definition in SourceGrepTests).
-- Commits on main:
-    d18f45f (2a) — Base32 encoder + OTPAuthURIBuilder + OTPSecretGenerator
-    8c3946e (2b) — QRCodeImage DS component
-    75575fb (2c) — OTPView Export menu + reveal/QR sheets
-    b88d591 (2d) — AddTOTPSheet + EntryFormBody integration
+- 4a: ExportRecord DTO (Codable, local-only — security note in header forbids persistence/logging), ImportConflictResolver (skip/overwrite/rename with case-sensitive existingPaths Set, `-2` rename suffix algorithm), ImportPreview value type with newCount / conflictCount / totalCount accessors.
+- 4b: BitwardenJSONImporter (login type=1 only, folders dictionary lookup, drops items with no password as parse warnings, sanitises `:` and `\` in names), GenericCSVImporter (header-driven, accepts `name|title` + `url|website` + `totp|otpauth` aliases, case-insensitive headers, throws `.emptyFile|.missingNameColumn|.missingPasswordColumn`), OnePasswordCSVImporter (1Password "Common Fields" subset — Title/Website/Username/Password/Notes; reuses `GenericCSVImporter.ImportError`), CSVRow (RFC 4180 parser/serializer — iterates over Unicode scalars not Characters because Swift collapses CR+LF into a single grapheme cluster which would otherwise hide the line ending).
+- 4c: BitwardenJSONExporter (collapses `parent/child/leaf` paths into a single Bitwarden folder "parent/child" + item "leaf"; deduplicates folder UUIDs), GenericCSVExporter (lowercase header — round-trips loss-free through GenericCSVImporter), PassSecretExporter bridge (case-insensitive alias resolution for user/url/otpauth keys; everything else lands in extraFields; lives in Infrastructure because ExportRecord is Infrastructure-tier).
+- 4d: DataTab as the 5th Settings tab — accepts passManager/biometricAuth/settings directly (NOT via SettingsModel — keeps existing Settings tests untouched). Composes `BiometricGate` inline on every export so policy flips take effect without a save. Export menu (BW JSON + Generic CSV) gated through BiometricGate.run("Export password store"); Import menu (BW JSON + Generic CSV + 1Password CSV) opens NSOpenPanel → parses → opens ImportPreviewSheet with strategy picker. Batch import is sequential (each insert independent; failures collected, no rollback). Inline ProgressView + "N of M" caption during importing. NSOpenPanel/NSSavePanel wrapped in withCheckedContinuation for clean async composition. SettingsView gains optional `dataTabDependencies: DataTabDependencies?` — when nil (preview/test wirings) the Data tab is elided so existing surface stays callable.
+- 4e: Help topic `import-export-guide` (7 sections: location, exporting + plaintext warning, importing from 1Password, importing from Bitwarden, importing from browsers, conflict strategies, git per-insert commit caveat + squash recipe). Appended to HelpCatalog.all + first-class accessor.
+- Storage: no schema changes; reuses existing pass insert/show through PassManaging.
+- Security: Export ALWAYS routes through BiometricGate (gate returns true when policy off or biometrics unavailable — same semantics as MVP6.D.1); Import does NOT — it is a write op, not a raw-read.
+- Known limitations documented in Help: each insert creates a git commit (pass CLI behavior, not Kizba bug); batch import = N commits. Squash recipe provided.
+- Tests: +61 new (4a: 6 ImportConflictResolver; 4b: 16 CSVRow RFC 4180 vectors + 8 BitwardenJSONImporter + 10 GenericCSVImporter + 5 OnePasswordCSVImporter = 39; 4c: 5 BitwardenJSONExporter + 6 GenericCSVExporter + 5 RoundTrip incl. PassSecretExporter bridge = 16; 4d: zero — UI test out of scope per spec; 4e: zero new tests — Help topic appended to existing catalog).
+- Full suite: 1283 tests, 17 skipped, 0 failures (was 1222 — net +61). Release build clean. Grep bans clean (no `as!`, no stdin-logging).
+- Commits this phase: bced0f1 (4a), 93f7e48 (4b), 1c66dda (4c), 6c1a090 (4d), <4e> on main.
 
-Timestamp: 2026-05-19T14:35:21+0200
+Timestamp: 2026-05-19T20:48:00+0200
