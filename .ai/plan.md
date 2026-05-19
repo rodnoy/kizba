@@ -1,49 +1,50 @@
-# Goal
+# MVP8 — Release & Distribution
 
-Verify and complete Task B.5 "OTP setting + Help topic". The feature is already implemented; one small gap remains: `HelpCatalog` lacks a `public static var oneTimePasswords` accessor (the other 4 topics have one). Add it and a corresponding test assertion.
+## Status
 
-# Constraints
+SHIPPED in single pass.
 
-- Minimal, non-invasive changes.
-- Follow existing accessor pattern (guard-let over `all`, fallback to builder).
-- Branch: `feat/b5-otp-setting-help-topic`
-- Commit message: `feat(help): add HelpCatalog.oneTimePasswords accessor`
+## What was done
 
-# Tasks
+### Pre-flight project fixes
+- `Kizba.xcodeproj/project.pbxproj` Release config: added `CODE_SIGN_ENTITLEMENTS = Kizba/Kizba.entitlements` and `CODE_SIGN_IDENTITY = "-"` (ad-hoc) for `Kizba` target.
+- No changes to Debug config (preserves local Automatic signing for dev).
+- No `ENABLE_HARDENED_RUNTIME = YES` — conflicts with ad-hoc signing without Apple Developer account.
 
-## Task 1
-- Objective: Add `public static var oneTimePasswords: HelpTopic` accessor to `HelpCatalog`
-- Files to modify: `Kizba/Presentation/Features/Help/HelpCatalog.swift`
-- Implementation: After line 79 (after `configurePinentry` accessor), add:
-  ```swift
-  /// First-class accessor for the one-time passwords topic.
-  public static var oneTimePasswords: HelpTopic {
-      guard let topic = all.first(where: { $0.id == "one-time-passwords" }) else {
-          return Self.makeOneTimePasswords()
-      }
-      return topic
-  }
-  ```
-- Verification: Project compiles (`xcodebuild build -scheme Kizba`).
-- Risks: None.
+### LICENSE
+- Added `LICENSE` (MIT) to project root.
 
-## Task 2
-- Objective: Add test assertion for the new accessor in `HelpCatalogTests`
-- Files to modify: `KizbaTests/HelpCatalogTests.swift`
-- Implementation: In `testSetupTopics_haveAccessors()` (line 159), append:
-  ```swift
-  XCTAssertEqual(HelpCatalog.oneTimePasswords.id, "one-time-passwords")
-  ```
-  Also update the arrays in `testSetupTopics_haveExpectedSectionCount` and similar tests that enumerate topics (lines 167+) to include `HelpCatalog.oneTimePasswords` if the other accessors are listed there.
-- Verification: `xcodebuild test -scheme Kizba -only-testing KizbaTests/HelpCatalogTests` passes.
-- Risks: None.
+### CI workflow
+- New `.github/workflows/release.yml`:
+  - Triggers on `push: tags: ['v*.*.*']` and `workflow_dispatch`.
+  - Resolves version from tag (`v1.0.0` → `1.0.0`), build number from `git rev-list --count HEAD`.
+  - Runs full test suite first.
+  - `xcodebuild archive` for `generic/platform=macOS` (universal arm64+x86_64).
+  - Ad-hoc signs via `codesign -s - --options runtime --entitlements Kizba/Kizba.entitlements`.
+  - Verifies architecture via `lipo -info`.
+  - Zips via `ditto`, computes SHA256.
+  - Creates GitHub Release with install instructions in body.
+  - Updates `rodnoy/homebrew-kizba` tap via `HOMEBREW_TAP_TOKEN` secret (rendered cask with real version + sha256).
 
-## Task 3
-- Objective: Verify existing OTP setting tests pass
-- Files to modify: None
-- Verification: `xcodebuild test -scheme Kizba -only-testing KizbaTests/SettingsModelTests/testShowOTP_defaultIsTrue -only-testing KizbaTests/SettingsModelTests/testShowOTP_persists -only-testing KizbaTests/SettingsModelTests/testReset_restoresShowOTPDefault -only-testing KizbaTests/SettingsModelTests/testHasChanges_flipsWhenShowOTPMutated`
-- Risks: None — these already pass.
+### Homebrew tap scaffold
+- New `homebrew-kizba/` folder in main project — meant to be extracted to a separate repo.
+- Contains: `README.md`, `LICENSE` (MIT), `Casks/kizba.rb` (placeholder — first release workflow overwrites with real values), `.gitignore`.
 
-# Suggested current step
+### Documentation
+- New `MVP8-RELEASE.md` with step-by-step instructions:
+  1. Push main repo to GitHub.
+  2. Extract `homebrew-kizba/` to separate repo + push.
+  3. Generate fine-grained PAT for tap write access.
+  4. Add `HOMEBREW_TAP_TOKEN` secret to main repo.
+  5. Cut first release via `git tag v1.0.0 && git push origin v1.0.0`.
+  6. Test install via `brew tap rodnoy/kizba && brew install --cask --no-quarantine kizba`.
 
-Task 1 + Task 2 together (single commit). Task 3 is verification-only.
+## What's deferred
+
+- **Apple Developer signing + notarization**: needs $99/year account. Future MVP can upgrade workflow to use real Developer ID + notarytool. Current ad-hoc + `--no-quarantine` works but degrades UX.
+- **DMG distribution**: cask uses zip for simplicity. DMG requires `create-dmg` and design.
+- **Auto-update mechanism inside the app** (Sparkle / etc.): not in scope.
+
+## User next steps
+
+Follow `MVP8-RELEASE.md` step-by-step.

@@ -1,0 +1,200 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v1.0.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build, sign (ad-hoc), and publish release
+    runs-on: macos-14
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version from tag
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          VERSION="${TAG#v}"
+          BUILD="$(git rev-list --count HEAD)"
+          echo "tag=$TAG"         >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "build=$BUILD"     >> "$GITHUB_OUTPUT"
+          echo "Resolved: tag=$TAG version=$VERSION build=$BUILD"
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Run tests
+        run: |
+          xcodebuild test \
+            -scheme Kizba \
+            -project Kizba.xcodeproj \
+            -destination 'platform=macOS' \
+            -quiet
+
+      - name: Archive (Release, universal)
+        run: |
+          xcodebuild archive \
+            -scheme Kizba \
+            -project Kizba.xcodeproj \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -archivePath build/Kizba.xcarchive \
+            MARKETING_VERSION="${{ steps.version.outputs.version }}" \
+            CURRENT_PROJECT_VERSION="${{ steps.version.outputs.build }}" \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Export .app from archive
+        run: |
+          mkdir -p build/export
+          cp -R build/Kizba.xcarchive/Products/Applications/Kizba.app build/export/Kizba.app
+
+      - name: Ad-hoc sign the .app
+        run: |
+          codesign --force --deep --sign - \
+            --options runtime \
+            --entitlements Kizba/Kizba.entitlements \
+            build/export/Kizba.app
+          codesign --verify --deep --strict --verbose=2 build/export/Kizba.app
+
+      - name: Verify architecture (universal)
+        run: |
+          lipo -info build/export/Kizba.app/Contents/MacOS/Kizba
+
+      - name: Create zip artefact
+        id: zip
+        run: |
+          cd build/export
+          ZIP_NAME="Kizba-${{ steps.version.outputs.tag }}.zip"
+          ditto -c -k --keepParent Kizba.app "../$ZIP_NAME"
+          cd ..
+          SHA256=$(shasum -a 256 "$ZIP_NAME" | awk '{print $1}')
+          echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+          echo "zip_path=build/$ZIP_NAME" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+          echo "Built $ZIP_NAME (sha256: $SHA256)"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          body: |
+            ## Kizba ${{ steps.version.outputs.tag }}
+
+            ### Installation via Homebrew
+
+            ```sh
+            brew tap rodnoy/kizba
+            brew install --cask --no-quarantine kizba
+            ```
+
+            ### Manual install
+
+            1. Download `${{ steps.zip.outputs.zip_name }}` below.
+            2. Unzip and move `Kizba.app` to `/Applications/`.
+            3. **First launch**: right-click -> Open (or `xattr -dr com.apple.quarantine /Applications/Kizba.app`).
+               This is required because the app is ad-hoc signed (no Apple Developer account).
+
+            ### SHA256
+
+            ```
+            ${{ steps.zip.outputs.sha256 }}
+            ```
+          files: ${{ steps.zip.outputs.zip_path }}
+          draft: false
+          prerelease: false
+
+      - name: Update Homebrew tap
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
+            echo "::warning::HOMEBREW_TAP_TOKEN not set - skipping tap update"
+            exit 0
+          fi
+
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="${{ steps.version.outputs.tag }}"
+          SHA256="${{ steps.zip.outputs.sha256 }}"
+
+          # Clone tap repo
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/rodnoy/homebrew-kizba.git" tap
+          cd tap
+
+          # Render cask from template
+          mkdir -p Casks
+          cat > Casks/kizba.rb <<EOF
+          cask "kizba" do
+            version "$VERSION"
+            sha256 "$SHA256"
+
+            url "https://github.com/rodnoy/kizba/releases/download/$TAG/Kizba-$TAG.zip"
+            name "Kizba"
+            desc "Native macOS GUI for the pass password manager"
+            homepage "https://github.com/rodnoy/kizba"
+
+            livecheck do
+              url :url
+              strategy :github_latest
+            end
+
+            depends_on macos: ">= :sonoma"
+
+            app "Kizba.app"
+
+            zap trash: [
+              "~/Library/Preferences/app.kizba.Kizba.plist",
+              "~/Library/Application Support/Kizba",
+              "~/Library/Caches/app.kizba.Kizba",
+              "~/Library/Saved Application State/app.kizba.Kizba.savedState",
+            ]
+
+            caveats <<~EOS
+              Kizba is ad-hoc signed (no Apple Developer ID). On first launch macOS
+              Gatekeeper may block it. To allow:
+
+                1. Install with --no-quarantine (recommended):
+                   brew install --cask --no-quarantine kizba
+
+                2. Or after install, run:
+                   xattr -dr com.apple.quarantine /Applications/Kizba.app
+
+                3. Or right-click Kizba.app -> Open the first time.
+
+              Runtime dependencies (install separately if not present):
+                brew install pass gnupg pinentry-mac
+            EOS
+          end
+          EOF
+
+          # Commit and push
+          git config user.email "actions@github.com"
+          git config user.name  "GitHub Actions (release bot)"
+          git add Casks/kizba.rb
+          git commit -m "kizba $VERSION" || echo "No changes to commit"
+          git push origin main
