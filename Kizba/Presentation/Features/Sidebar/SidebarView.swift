@@ -176,5 +176,8 @@ struct SidebarView: View {
             await recentsModel.load()
             await model.load()
         }
+        .task {
+            await model.observeChanges()
+        }
     }
 }

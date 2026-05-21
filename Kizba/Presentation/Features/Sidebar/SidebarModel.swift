@@ -50,6 +50,9 @@ final class SidebarModel {
 
     private let passManager: any PassManaging
 
+    /// Long-lived subscription to `passManager.changes`.
+    private var changeSubscriptionTask: Task<Void, Never>?
+
     init(passManager: any PassManaging) {
         self.passManager = passManager
         self.folders = []
@@ -70,6 +73,38 @@ final class SidebarModel {
             self.folders = []
             self.folderTree = []
         }
+    }
+
+    /// Subscribe to `passManager.changes` and reload folders on every event.
+    ///
+    /// Designed to be driven by a SwiftUI `.task` so cancellation is
+    /// automatic when the view disappears.
+    func observeChanges() async {
+        guard changeSubscriptionTask == nil else { return }
+
+        let stream = passManager.changes
+        let task = Task { [weak self] in
+            for await _ in stream {
+                if Task.isCancelled { return }
+                guard let self else { return }
+                await self.load()
+            }
+        }
+        changeSubscriptionTask = task
+
+        await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
+
+        changeSubscriptionTask = nil
+    }
+
+    /// Cancel the active changes subscription (if any). Idempotent.
+    func stopObserving() {
+        changeSubscriptionTask?.cancel()
+        changeSubscriptionTask = nil
     }
 
     /// Pure derivation: first path component of every entry, deduped
