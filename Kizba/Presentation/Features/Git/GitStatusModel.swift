@@ -226,6 +226,18 @@ public final class GitStatusModel {
         await currentTask?.value
     }
 
+    public func fetchAndReloadStatus() async {
+        loadState = .loading
+
+        do {
+            try await gitManager.gitFetch(timeoutSeconds: gitOperationTimeoutSeconds)
+        } catch {
+            // Non-fatal: always continue with local status refresh.
+        }
+
+        await loadStatus()
+    }
+
     public func cancelCurrentLoad() {
         generation &+= 1
         currentTask?.cancel()

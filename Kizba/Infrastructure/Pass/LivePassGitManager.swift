@@ -47,6 +47,21 @@ public actor LivePassGitManager: PassGitManaging {
         }
     }
 
+    public func gitFetch(timeoutSeconds: Int) async throws {
+        let storeURL = await storeLocationProvider()
+        let storePath = storeURL.path
+
+        do {
+            try await passCLI.gitFetch(storePath: storePath, timeoutSeconds: timeoutSeconds)
+        } catch let error as CancellationError {
+            throw error
+        } catch let error as PassError {
+            throw error
+        } catch {
+            throw error
+        }
+    }
+
     public func gitPush(timeoutSeconds: Int) async throws -> GitPushOutcome {
         let storeURL = await storeLocationProvider()
         let storePath = storeURL.path

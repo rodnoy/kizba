@@ -4,10 +4,12 @@ import Foundation
 actor FakePassGitManager: PassGitManaging {
 
     var nextStatus: Result<GitStatus, Error> = .success(.notARepository)
+    var fetchResults: [Result<Void, Error>] = []
     var pullResults: [Result<Void, Error>] = []
     var pushResults: [Result<GitPushOutcome, Error>] = []
 
     private(set) var statusCallCount: Int = 0
+    private(set) var fetchCallCount: Int = 0
     private(set) var pullCallCount: Int = 0
     private(set) var pushCallCount: Int = 0
 
@@ -23,6 +25,10 @@ actor FakePassGitManager: PassGitManaging {
 
     func setPullResults(_ results: [Result<Void, Error>]) {
         pullResults = results
+    }
+
+    func setFetchResults(_ results: [Result<Void, Error>]) {
+        fetchResults = results
     }
 
     func setPushResults(_ results: [Result<GitPushOutcome, Error>]) {
@@ -51,6 +57,22 @@ actor FakePassGitManager: PassGitManaging {
 
         if !pullResults.isEmpty {
             switch pullResults.removeFirst() {
+            case .success:
+                return
+            case .failure(let error):
+                throw error
+            }
+        }
+    }
+
+    func gitFetch(timeoutSeconds _: Int) async throws {
+        fetchCallCount += 1
+        if let artificialDelay {
+            try await Task.sleep(for: artificialDelay)
+        }
+
+        if !fetchResults.isEmpty {
+            switch fetchResults.removeFirst() {
             case .success:
                 return
             case .failure(let error):

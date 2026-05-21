@@ -29,7 +29,7 @@ struct GitStatusBadge: View {
                 model: model,
                 onPull: { await model.pull() },
                 onPush: { await model.push() },
-                onRefresh: { await model.loadStatus() },
+                onRefresh: { await model.fetchAndReloadStatus() },
                 onCancel: { model.cancelOperation() },
                 onOpenTerminal: { model.openTerminalAtStore() }
             )

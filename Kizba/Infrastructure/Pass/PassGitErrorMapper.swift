@@ -9,6 +9,7 @@ public enum PassGitErrorMapper: Sendable {
 
     public enum GitOperation: Sendable, Equatable {
         case status
+        case fetch
         case pull
         case push
     }

@@ -103,6 +103,26 @@ public extension PassCLI {
         }
     }
 
+    func gitFetch(storePath: String, timeoutSeconds: Int) async throws {
+        var environment = composedGitEnvironment()
+        environment["PASSWORD_STORE_DIR"] = storePath
+
+        let invocation = ShellInvocation(
+            executable: executable,
+            arguments: ["git", "fetch"],
+            environment: environment,
+            stdin: .none,
+            timeout: .seconds(timeoutSeconds)
+        )
+
+        let result = try await shellRunner.run(invocation)
+        if result.exitCode != 0 {
+            let stderr = String(data: result.standardError, encoding: .utf8) ?? ""
+            let mapped = PassGitErrorMapper.map(stderr: stderr, exitCode: result.exitCode, operation: .fetch)
+            throw mapped.error
+        }
+    }
+
     func gitPush(storePath: String, timeoutSeconds: Int) async throws -> GitPushOutcome {
         var environment = composedGitEnvironment()
         environment["PASSWORD_STORE_DIR"] = storePath

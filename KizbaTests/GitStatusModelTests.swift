@@ -323,6 +323,55 @@ final class GitStatusModelTests: XCTestCase {
         XCTAssertTrue(model.canRefresh)
     }
 
+    func testFetchAndReloadStatus_callsGitFetch_thenLoadStatus() async {
+        let manager = FakePassGitManager()
+        await manager.setNextStatus(.success(GitStatus(
+            isGitRepository: true,
+            branch: "main",
+            hasLocalChanges: false,
+            hasConflicts: false,
+            aheadCount: 0,
+            behindCount: 0,
+            hasRemote: true,
+            lastFetchAt: nil
+        )))
+        let model = makeModel(gitManager: manager)
+
+        await model.fetchAndReloadStatus()
+
+        let fetchCount = await manager.fetchCallCount
+        let statusCount = await manager.statusCallCount
+        XCTAssertEqual(fetchCount, 1)
+        XCTAssertEqual(statusCount, 1)
+        XCTAssertEqual(model.loadState, .loaded)
+    }
+
+    func testFetchFailure_fallsBackToLocalStatus() async {
+        let manager = FakePassGitManager()
+        await manager.setFetchResults([.failure(PassError.gitNetworkUnavailable)])
+        let expected = GitStatus(
+            isGitRepository: true,
+            branch: "fallback",
+            hasLocalChanges: true,
+            hasConflicts: false,
+            aheadCount: 0,
+            behindCount: 0,
+            hasRemote: true,
+            lastFetchAt: nil
+        )
+        await manager.setNextStatus(.success(expected))
+
+        let model = makeModel(gitManager: manager)
+        await model.fetchAndReloadStatus()
+
+        let fetchCount = await manager.fetchCallCount
+        let statusCount = await manager.statusCallCount
+        XCTAssertEqual(fetchCount, 1)
+        XCTAssertEqual(statusCount, 1)
+        XCTAssertEqual(model.status, expected)
+        XCTAssertEqual(model.loadState, .loaded)
+    }
+
     // MARK: - pull()
 
     func testPull_happyPath_postsSuccessToast_and_reloadsStatus() async {
