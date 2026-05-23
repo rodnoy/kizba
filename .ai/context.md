@@ -40,5 +40,6 @@ All consumed via `theme.colors.<token>` in views. No call sites need updating (n
 - **2025-05-23T00:00:00Z** | HEAD: `533fe1ec04e0ed28f9a38432427dab3047a5d30f` | Stack: Swift 5.10 / macOS 14 / SwiftUI | Task: Step 1 "Token foundation" — add 4 new `ColorTokens` properties with day-1 aliases across all theme variants. Additive, no visual change.
 - **2026-05-23T21:42:13Z** | HEAD: `483fa8c0911fd72e043f6f7fe00ae155512a4d35` | Step 1 implementation completed locally; added additive token aliases in `ColorTokens` and all theme variants, no new hex values.
 - **2026-05-23T22:01:00Z** | HEAD: `6d726b61351fe7a555f59e04ec5142457c0917cf` | Step 2.1 planning + scaffolding in progress: updated `.ai/plan.md` and `.ai/handoff.md`, added `KizbaNightContrastTests` boilerplate smoke test with `futureDarkSurface` constant, verified via `xcodebuild test` (1289 tests, 17 skipped, 0 failures).
+- **2026-05-23T22:17:49Z** | HEAD: `d0c6b3eba238fd3ccadacef02f448898d09a41c5` | Step 2.2 implemented: appended contrast assertions in `KizbaNightContrastTests` for `onSurface` over `surface`/`surfaceCard` (AAA >= 7.0) and `onSurfaceMuted` over `surface`/`surfaceCard` (AA >= 4.5) across all theme variants; targeted test run passed (`KizbaNightContrastTests`, 3 tests, 0 failures).
 
 (End of file - total 42 lines)

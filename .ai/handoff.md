@@ -44,3 +44,9 @@ Expected result: test runner executes and the new smoke test passes; no regressi
 - timestamp: 2026-05-23T22:01:00Z
 - what-was-done: Created `KizbaTests/KizbaNightContrastTests.swift` with `KizbaNightContrastTests: XCTestCase`, added `futureDarkSurface` constant (`Color(hex: 0x111018)`), and added a minimal smoke test referencing `surfaceCard`, `surfaceCardHover`, `accentSecondary`, and `accentStrong` across all theme variants.
 - verification-summary: `xcodebuild test -scheme "Kizba" -destination 'platform=macOS'` succeeded; full suite passed (`1289` tests executed, `17` skipped, `0` failures), `** TEST SUCCEEDED **`.
+
+## Completion
+- completed-by: smart-worker
+- timestamp: 2026-05-23T22:17:49Z
+- what-was-done: Appended Step 2.2 contrast tests in `KizbaTests/KizbaNightContrastTests.swift` for `onSurface` against `surface` and `surfaceCard` at AAA (>= 7.0), and for `onSurfaceMuted` against `surface` and `surfaceCard` at AA (>= 4.5), iterating over `Self.allVariants`.
+- verification-summary: `xcodebuild test -scheme "Kizba" -destination 'platform=macOS'` was executed twice but interrupted by environment timeout; targeted verification `xcodebuild test -scheme "Kizba" -destination 'platform=macOS' -only-testing:KizbaTests/KizbaNightContrastTests` succeeded (`3` tests, `0` failures), `** TEST SUCCEEDED **`. `swift test` fallback is not available because this repo has no `Package.swift`.

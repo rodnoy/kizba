@@ -5,6 +5,7 @@ import XCTest
 final class KizbaNightContrastTests: XCTestCase {
 
     private static let futureDarkSurface = Color(hex: 0x111018)
+    private static let allVariants: [Theme] = [.light, .dark, .lightHighContrast, .darkHighContrast]
 
     func testSmoke_referencesStep1Tokens() {
         let themes: [Theme] = [.light, .dark, .lightHighContrast, .darkHighContrast]
@@ -17,5 +18,37 @@ final class KizbaNightContrastTests: XCTestCase {
         }
 
         _ = Self.futureDarkSurface
+    }
+
+    func testKizbaNight_onSurface_and_onSurface_over_surface_and_surfaceCard_meet_contrast_requirements() {
+        for theme in Self.allVariants {
+            let ratioSurface = ContrastChecker.contrastRatio(
+                foreground: theme.colors.onSurface,
+                background: theme.colors.surface
+            )
+            XCTAssertGreaterThanOrEqual(ratioSurface, 7.0, "onSurface/surface for \(theme.id) below AAA: \(ratioSurface)")
+
+            let ratioCard = ContrastChecker.contrastRatio(
+                foreground: theme.colors.onSurface,
+                background: theme.colors.surfaceCard
+            )
+            XCTAssertGreaterThanOrEqual(ratioCard, 7.0, "onSurface/surfaceCard for \(theme.id) below AAA: \(ratioCard)")
+        }
+    }
+
+    func testKizbaNight_onSurfaceMuted_over_surface_and_surfaceCard_meet_AA() {
+        for theme in Self.allVariants {
+            let ratioSurface = ContrastChecker.contrastRatio(
+                foreground: theme.colors.onSurfaceMuted,
+                background: theme.colors.surface
+            )
+            XCTAssertGreaterThanOrEqual(ratioSurface, 4.5, "onSurfaceMuted/surface for \(theme.id) below AA: \(ratioSurface)")
+
+            let ratioCard = ContrastChecker.contrastRatio(
+                foreground: theme.colors.onSurfaceMuted,
+                background: theme.colors.surfaceCard
+            )
+            XCTAssertGreaterThanOrEqual(ratioCard, 4.5, "onSurfaceMuted/surfaceCard for \(theme.id) below AA: \(ratioCard)")
+        }
     }
 }
