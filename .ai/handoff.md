@@ -38,3 +38,9 @@ Expected result: test runner executes and the new smoke test passes; no regressi
 ## Constraints
 - Keep changes minimal and confined to test scaffolding.
 - Do not modify production DesignSystem code in this subtask.
+
+## Completion
+- completed-by: smart-worker
+- timestamp: 2026-05-23T22:01:00Z
+- what-was-done: Created `KizbaTests/KizbaNightContrastTests.swift` with `KizbaNightContrastTests: XCTestCase`, added `futureDarkSurface` constant (`Color(hex: 0x111018)`), and added a minimal smoke test referencing `surfaceCard`, `surfaceCardHover`, `accentSecondary`, and `accentStrong` across all theme variants.
+- verification-summary: `xcodebuild test -scheme "Kizba" -destination 'platform=macOS'` succeeded; full suite passed (`1289` tests executed, `17` skipped, `0` failures), `** TEST SUCCEEDED **`.
