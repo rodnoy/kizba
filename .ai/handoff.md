@@ -42,3 +42,8 @@ All existing tests must pass. No visual change.
 - No `Color.*` literals outside DesignSystem (SourceGrepTests enforces).
 - Hex literals only in Theme+Dark/Light/HighContrast files.
 - Light theme visually unchanged.
+
+## Completion
+- Completed by smart-worker at 2026-05-23T21:42:13Z.
+- Step 1 implemented as additive token aliases only; no new hex values introduced.
+- Verification passed: `xcodebuild test -scheme "Kizba" -destination 'platform=macOS'`.

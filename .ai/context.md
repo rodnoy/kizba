@@ -38,3 +38,4 @@ All consumed via `theme.colors.<token>` in views. No call sites need updating (n
 # Recon
 
 - **2025-05-23T00:00:00Z** | HEAD: `533fe1ec04e0ed28f9a38432427dab3047a5d30f` | Stack: Swift 5.10 / macOS 14 / SwiftUI | Task: Step 1 "Token foundation" — add 4 new `ColorTokens` properties with day-1 aliases across all theme variants. Additive, no visual change.
+- **2026-05-23T21:42:13Z** | HEAD: `483fa8c0911fd72e043f6f7fe00ae155512a4d35` | Step 1 implementation completed locally; added additive token aliases in `ColorTokens` and all theme variants, no new hex values.

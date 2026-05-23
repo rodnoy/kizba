@@ -28,11 +28,15 @@ public extension ColorTokens {
         surfaceSunken: Color(hex: 0xF2EAF1),
         surfaceHover: Color(hex: 0xCDB4DB, opacity: 0.20),
         surfaceSelected: Color(hex: 0xBDE0FE, opacity: 0.55),
+        surfaceCard: Color(hex: 0xFFFFFF),
+        surfaceCardHover: Color(hex: 0xCDB4DB, opacity: 0.20),
         onSurface: Color(hex: 0x1F1B2E),
         onSurfaceMuted: Color(hex: 0x1F1B2E), // delta: was #4A445E
         onSurfaceFaint: Color(hex: 0x4A445E), // delta: was #8A839E
         accent: Color(hex: 0x5B3FA0),         // delta: was #7C5BC4
         accentMuted: Color(hex: 0xCDB4DB, opacity: 0.40),
+        accentSecondary: Color(hex: 0x0B2C66),
+        accentStrong: Color(hex: 0x5B3FA0),
         onAccent: Color(hex: 0xFFFFFF),
         danger: Color(hex: 0xC2185B),
         dangerMuted: Color(hex: 0xFFC8DD, opacity: 0.55),
@@ -86,11 +90,15 @@ public extension ColorTokens {
         surfaceSunken: Color(hex: 0x0F0D16),
         surfaceHover: Color(hex: 0xCDB4DB, opacity: 0.18),
         surfaceSelected: Color(hex: 0xA2D2FF, opacity: 0.28),
+        surfaceCard: Color(hex: 0x1E1A2A),
+        surfaceCardHover: Color(hex: 0xCDB4DB, opacity: 0.18),
         onSurface: Color(hex: 0xF4EFF7),
         onSurfaceMuted: Color(hex: 0xF4EFF7), // delta: was #B8B0C8
         onSurfaceFaint: Color(hex: 0xB8B0C8), // delta: was #7B7390
         accent: Color(hex: 0xE5D2F2),         // delta: was #CDB4DB
         accentMuted: Color(hex: 0xCDB4DB, opacity: 0.34),
+        accentSecondary: Color(hex: 0xBDE0FE),
+        accentStrong: Color(hex: 0xE5D2F2),
         onAccent: Color(hex: 0x1F1B2E),
         danger: Color(hex: 0xFFAFCC),
         // Muted-bg α lowered 0.28 → 0.10 so the composite over the dark

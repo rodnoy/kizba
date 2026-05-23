@@ -15,6 +15,8 @@ public struct ColorTokens: Sendable, Equatable {
     public let surfaceSunken: Color
     public let surfaceHover: Color
     public let surfaceSelected: Color
+    public let surfaceCard: Color
+    public let surfaceCardHover: Color
 
     // On-surface text roles
     public let onSurface: Color
@@ -24,6 +26,8 @@ public struct ColorTokens: Sendable, Equatable {
     // Accent
     public let accent: Color
     public let accentMuted: Color
+    public let accentSecondary: Color
+    public let accentStrong: Color
     public let onAccent: Color
 
     // Danger
@@ -60,11 +64,15 @@ public struct ColorTokens: Sendable, Equatable {
         surfaceSunken: Color,
         surfaceHover: Color,
         surfaceSelected: Color,
+        surfaceCard: Color,
+        surfaceCardHover: Color,
         onSurface: Color,
         onSurfaceMuted: Color,
         onSurfaceFaint: Color,
         accent: Color,
         accentMuted: Color,
+        accentSecondary: Color,
+        accentStrong: Color,
         onAccent: Color,
         danger: Color,
         dangerMuted: Color,
@@ -86,11 +94,15 @@ public struct ColorTokens: Sendable, Equatable {
         self.surfaceSunken = surfaceSunken
         self.surfaceHover = surfaceHover
         self.surfaceSelected = surfaceSelected
+        self.surfaceCard = surfaceCard
+        self.surfaceCardHover = surfaceCardHover
         self.onSurface = onSurface
         self.onSurfaceMuted = onSurfaceMuted
         self.onSurfaceFaint = onSurfaceFaint
         self.accent = accent
         self.accentMuted = accentMuted
+        self.accentSecondary = accentSecondary
+        self.accentStrong = accentStrong
         self.onAccent = onAccent
         self.danger = danger
         self.dangerMuted = dangerMuted
