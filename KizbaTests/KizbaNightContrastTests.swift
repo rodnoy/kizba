@@ -75,4 +75,19 @@ final class KizbaNightContrastTests: XCTestCase {
             )
         }
     }
+
+    func testKizbaNight_onSurface_against_accentMuted_composited_meet_AA() {
+        for theme in Self.allVariants {
+            let ratio = ContrastChecker.contrastRatio(
+                foreground: theme.colors.onSurface,
+                background: theme.colors.accentMuted,
+                alphaCompositedOver: theme.colors.surface
+            )
+            XCTAssertGreaterThanOrEqual(
+                ratio,
+                4.5,
+                "onSurface/accentMuted(over surface) for \(theme.id) below AA: \(ratio)"
+            )
+        }
+    }
 }
