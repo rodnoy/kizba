@@ -53,4 +53,6 @@ All consumed via `theme.colors.<token>` in views. No call sites need updating (n
 
 - **2026-05-24T20:33:57Z** | HEAD: `026351f8e5210ebbc2c29734b5d55f062a959043` | Step 3.5 full verification: ran full `xcodebuild test` for Step 3 — PASS (1295 tests, 17 skipped, 0 failures).
 
+- **2026-05-24T21:08:21Z** | HEAD: `de92f80a580551f16db361d10ab2e84bd748164e` | Step 4.1 verification: confirmed `ColorTokens` already contains `surfaceCard`/`surfaceCardHover` and all theme variants (`dark`, `light`, `lightHighContrast`, `darkHighContrast`) already wire Day-1 aliases explicitly (`surfaceCard == surfaceElevated` RHS expression; `surfaceCardHover == surfaceHover` RHS expression). No code token changes required. Targeted `KizbaNightContrastTests` passed (7/7) and full suite passed (1295 tests, 17 skipped, 0 failures).
+
 (End of file - total 42 lines)

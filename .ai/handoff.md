@@ -1,74 +1,61 @@
-# Handoff — Execute Step 3.1: Darken dark surface token
+# Handoff — Execute Step 4.1 + 4.2: Switch KizbaCard to surfaceCard token
 
 ## Task
-**Step 3.1 — Darken `surface` token in Theme+Dark.swift**
+**Step 4.1 + 4.2 — Switch KizbaCard background from `surfaceElevated` to `surfaceCard` and update test**
 
 ## Assigned to
 smart-worker
 
 ## Scope (files to change)
-- `Kizba/Presentation/DesignSystem/Theme/Theme+Dark.swift`
+- `Kizba/Presentation/DesignSystem/Components/KizbaCard.swift`
+- `KizbaTests/KizbaCardTests.swift`
 
 ## What to do
-1. In `Theme+Dark.swift`, change line:
+1. In `KizbaCard.swift`, method `backgroundColor(in:)`, change:
    ```swift
-   surface: Color(hex: 0x15121C),
+   theme.colors.surfaceElevated
    ```
    to:
    ```swift
-   surface: Color(hex: 0x111018),
+   theme.colors.surfaceCard
    ```
-2. This is the first token change of the Night retune. It deepens the dark-mode base surface.
+
+2. In `KizbaCardTests.swift`, rename `testBackgroundColor_isSurfaceElevatedInEveryTheme` to `testBackgroundColor_isSurfaceCardInEveryTheme` and change the assertion:
+   ```swift
+   theme.colors.surfaceElevated
+   ```
+   to:
+   ```swift
+   theme.colors.surfaceCard
+   ```
 
 ## Verification
 ```bash
-xcodebuild test -scheme "Kizba" -destination 'platform=macOS' -only-testing:KizbaTests/KizbaNightContrastTests
+xcodebuild test -scheme "Kizba" -destination 'platform=macOS' -only-testing:KizbaTests/KizbaCardTests
 ```
 
-Expected: All 7 tests pass (0 failures).
+Expected: All 5 tests pass (0 failures).
 
 ## Acceptance criteria
-- `surface` hex in `.dark` is `0x111018`.
-- All 7 `KizbaNightContrastTests` pass.
-- onSurface/surface contrast ratio >= 16.8 (projected 16.882).
-- No other tokens modified in this subtask.
+- `KizbaCard.backgroundColor(in:)` returns `theme.colors.surfaceCard`.
+- Test asserts against `surfaceCard` (not `surfaceElevated`).
+- All 5 `KizbaCardTests` pass.
+- No visual change (tokens are aliased to same value).
+- No other files modified.
 
 ## Constraints
-- Single-token change only. Do not modify surfaceSunken, focusRingInner, or darkHighContrast yet (those are subsequent subtasks).
-- If tests fail unexpectedly, revert and report.
+- These two changes must be committed together (test fails without the code change and vice versa).
+- Do not add card styles yet (that is Step 4.3).
 
 ## Completion
 - completed-by: smart-worker
-- timestamp: 2026-05-24T18:52:59Z
-- what-was-done: Updated dark surface and focusRingInner tokens to 0x111018 in `Theme+Dark.swift` and mirrored the same two token updates in `darkHighContrast` inside `Theme+HighContrast.swift`.
-- verification-summary: Targeted `KizbaNightContrastTests` passed (7 tests, 0 failures); full `xcodebuild test` suite passed (1295 tests, 17 skipped, 0 failures).
-
-## Completion
-- completed-by: smart-worker
-- timestamp: 2026-05-24T19:59:03Z
-- what-was-done: Updated dark `surfaceSunken` token from `0x0F0D16` to `0x0B0A12` in `Kizba/Presentation/DesignSystem/Theme/Theme+Dark.swift`.
-- verification-summary: Targeted `KizbaNightContrastTests` passed (7 tests, 0 failures); full `xcodebuild test` suite passed (1295 tests, 17 skipped, 0 failures).
-
-## Completion
-- completed-by: smart-worker
-- timestamp: 2026-05-24T20:12:53Z
-- what-was-done: Verified Step 3.3 is already satisfied: `focusRingInner` in `Kizba/Presentation/DesignSystem/Theme/Theme+Dark.swift` already equals `Color(hex: 0x111018)`.
-- verification-summary: Targeted `KizbaNightContrastTests` passed (7 tests, 0 failures) via `xcodebuild test -scheme "Kizba" -destination 'platform=macOS' -only-testing:KizbaTests/KizbaNightContrastTests`.
-
-## Completion
-- completed-by: smart-worker
-- timestamp: 2026-05-24T20:24:18Z
-- what-was-done: Verified Step 3.4 is already satisfied without code changes: in `Kizba/Presentation/DesignSystem/Theme/Theme+HighContrast.swift`, `darkHighContrast.surface` is `Color(hex: 0x111018)` and `darkHighContrast.focusRingInner` is `Color(hex: 0x111018)`.
-- verification-summary: Targeted `KizbaNightContrastTests` passed (7 tests, 0 failures); full `xcodebuild test` suite passed (1295 tests, 17 skipped, 0 failures).
-
-## Completion
-- completed-by: smart-builder
-- timestamp: 2026-05-24T20:33:57Z
-- what-was-done: Ran full test suite for Step 3 verification
-- verification-summary: PASS — Executed 1295 tests, 17 skipped, 0 failures
-
-## Completion
-- completed-by: smart-reviewer
-- timestamp: 2026-05-24T21:15:00Z
-- what-was-done: Step 3.6 token coherence review. Verified elevation hierarchy (L_sunken=0.003278 < L_surface=0.005082 < L_elevated=0.008501), contrast ratios (onSurface/surface=16.882, onSurface/surfaceCard=15.107, onSurfaceMuted/surface=9.153, focusRingInner/focusRingOuter=11.981, passwordReveal>=9.7 — all exceed thresholds), HC non-regression (darkHC mirrors dark surface so ratios are equal or better), ColorTokens.swift init integrity (29 properties, order preserved, no removals). No orphaned references to old hex 0x15121C in dark variant.
-- verification-summary: PASS — All contrast contracts satisfied; elevation hierarchy preserved; no structural regressions in ColorTokens; build-log confirms 1295 tests / 0 failures. Earlier HC regression (build-errors.md) was resolved by mirroring surface change to darkHighContrast in Step 3.1.
+- timestamp: 2026-05-24T21:08:21Z
+- what-was-done:
+  - Verified `ColorTokens.swift` already contains `surfaceCard` and `surfaceCardHover` with initializer wiring.
+  - Verified token alias wiring in `Theme+Dark.swift`, `Theme+Light.swift`, and `Theme+HighContrast.swift` is already explicit and matches Day-1 alias contract:
+    - `surfaceCard` uses the same RHS expression as `surfaceElevated`.
+    - `surfaceCardHover` uses the same RHS expression as `surfaceHover`.
+  - No token value changes were required.
+- verification-summary:
+  - `xcodebuild test -scheme "Kizba" -destination 'platform=macOS' -only-testing:KizbaTests/KizbaNightContrastTests` — PASS (7 tests, 0 failures).
+  - `xcodebuild test -scheme "Kizba" -destination 'platform=macOS'` — PASS (1295 tests, 17 skipped, 0 failures).
