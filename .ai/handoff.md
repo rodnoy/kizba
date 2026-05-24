@@ -66,3 +66,9 @@ Expected: All 7 tests pass (0 failures).
 - timestamp: 2026-05-24T20:33:57Z
 - what-was-done: Ran full test suite for Step 3 verification
 - verification-summary: PASS — Executed 1295 tests, 17 skipped, 0 failures
+
+## Completion
+- completed-by: smart-reviewer
+- timestamp: 2026-05-24T21:15:00Z
+- what-was-done: Step 3.6 token coherence review. Verified elevation hierarchy (L_sunken=0.003278 < L_surface=0.005082 < L_elevated=0.008501), contrast ratios (onSurface/surface=16.882, onSurface/surfaceCard=15.107, onSurfaceMuted/surface=9.153, focusRingInner/focusRingOuter=11.981, passwordReveal>=9.7 — all exceed thresholds), HC non-regression (darkHC mirrors dark surface so ratios are equal or better), ColorTokens.swift init integrity (29 properties, order preserved, no removals). No orphaned references to old hex 0x15121C in dark variant.
+- verification-summary: PASS — All contrast contracts satisfied; elevation hierarchy preserved; no structural regressions in ColorTokens; build-log confirms 1295 tests / 0 failures. Earlier HC regression (build-errors.md) was resolved by mirroring surface change to darkHighContrast in Step 3.1.
