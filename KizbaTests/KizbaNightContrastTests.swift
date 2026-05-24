@@ -105,4 +105,72 @@ final class KizbaNightContrastTests: XCTestCase {
             )
         }
     }
+
+    func testKizbaNight_highContrast_doesNotRegressAnyBodyContrast() {
+        let pairs: [(standard: Theme, hc: Theme)] = [(.light, .lightHighContrast), (.dark, .darkHighContrast)]
+
+        for (standard, hc) in pairs {
+            // onSurface / surface
+            let standard_onSurface = ContrastChecker.contrastRatio(
+                foreground: standard.colors.onSurface,
+                background: standard.colors.surface
+            )
+            let hc_onSurface = ContrastChecker.contrastRatio(
+                foreground: hc.colors.onSurface,
+                background: hc.colors.surface
+            )
+            XCTAssertGreaterThanOrEqual(
+                hc_onSurface,
+                standard_onSurface - 1e-9,
+                "HC \(hc.id) regressed onSurface/surface: standard=\(standard_onSurface), hc=\(hc_onSurface)"
+            )
+
+            // onSurfaceMuted / surface
+            let standard_onSurfaceMuted = ContrastChecker.contrastRatio(
+                foreground: standard.colors.onSurfaceMuted,
+                background: standard.colors.surface
+            )
+            let hc_onSurfaceMuted = ContrastChecker.contrastRatio(
+                foreground: hc.colors.onSurfaceMuted,
+                background: hc.colors.surface
+            )
+            XCTAssertGreaterThanOrEqual(
+                hc_onSurfaceMuted,
+                standard_onSurfaceMuted - 1e-9,
+                "HC \(hc.id) regressed onSurfaceMuted/surface: standard=\(standard_onSurfaceMuted), hc=\(hc_onSurfaceMuted)"
+            )
+
+            // onAccent / accent
+            let standard_onAccent = ContrastChecker.contrastRatio(
+                foreground: standard.colors.onAccent,
+                background: standard.colors.accent
+            )
+            let hc_onAccent = ContrastChecker.contrastRatio(
+                foreground: hc.colors.onAccent,
+                background: hc.colors.accent
+            )
+            XCTAssertGreaterThanOrEqual(
+                hc_onAccent,
+                standard_onAccent - 1e-9,
+                "HC \(hc.id) regressed onAccent/accent: standard=\(standard_onAccent), hc=\(hc_onAccent)"
+            )
+
+            // password reveal (onSurface over secretMask composited over surface)
+            let standard_passwordReveal = ContrastChecker.contrastRatio(
+                foreground: standard.colors.onSurface,
+                background: standard.colors.secretMask,
+                alphaCompositedOver: standard.colors.surface
+            )
+            let hc_passwordReveal = ContrastChecker.contrastRatio(
+                foreground: hc.colors.onSurface,
+                background: hc.colors.secretMask,
+                alphaCompositedOver: hc.colors.surface
+            )
+            XCTAssertGreaterThanOrEqual(
+                hc_passwordReveal,
+                standard_passwordReveal - 1e-9,
+                "HC \(hc.id) regressed passwordReveal: standard=\(standard_passwordReveal), hc=\(hc_passwordReveal)"
+            )
+        }
+    }
 }

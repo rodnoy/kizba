@@ -68,3 +68,9 @@ Expected result: test runner executes and the new smoke test passes; no regressi
 - timestamp: 2026-05-24T11:47:17Z
 - what-was-done: Implemented Step 2.5 by appending `testKizbaNight_passwordReveal_secretMask_meets_AAA` to `KizbaTests/KizbaNightContrastTests.swift`, asserting `onSurface` over `secretMask` composited on `surface` is >= `7.0` (AAA) across `Self.allVariants`.
 - verification-summary: Targeted run `xcodebuild test -scheme "Kizba" -destination 'platform=macOS' -only-testing:KizbaTests/KizbaNightContrastTests` passed (`6` tests, `0` failures). Full run `xcodebuild test -scheme "Kizba" -destination 'platform=macOS'` passed (`1294` tests executed, `17` skipped, `0` failures), `** TEST SUCCEEDED **`.
+
+## Completion
+- completed-by: smart-worker
+- timestamp: 2026-05-24T15:07:12Z
+- what-was-done: Implemented Step 2.6 by appending `testKizbaNight_highContrast_doesNotRegressAnyBodyContrast` to `KizbaTests/KizbaNightContrastTests.swift`, asserting non-regression (`hc >= standard - 1e-9`) for `onSurface/surface`, `onSurfaceMuted/surface`, `onAccent/accent`, and `passwordReveal` (`onSurface` over `secretMask` composited on `surface`) across light and dark standard/HC pairs.
+- verification-summary: Targeted run `xcodebuild test -scheme "Kizba" -destination 'platform=macOS' -only-testing:KizbaTests/KizbaNightContrastTests` passed (`7` tests, `0` failures). Full run `xcodebuild test -scheme "Kizba" -destination 'platform=macOS'` passed (`1295` tests executed, `17` skipped, `0` failures), `** TEST SUCCEEDED **`.
