@@ -42,3 +42,9 @@ Expected: All 7 tests pass (0 failures).
 - timestamp: 2026-05-24T18:52:59Z
 - what-was-done: Updated dark surface and focusRingInner tokens to 0x111018 in `Theme+Dark.swift` and mirrored the same two token updates in `darkHighContrast` inside `Theme+HighContrast.swift`.
 - verification-summary: Targeted `KizbaNightContrastTests` passed (7 tests, 0 failures); full `xcodebuild test` suite passed (1295 tests, 17 skipped, 0 failures).
+
+## Completion
+- completed-by: smart-worker
+- timestamp: 2026-05-24T19:59:03Z
+- what-was-done: Updated dark `surfaceSunken` token from `0x0F0D16` to `0x0B0A12` in `Kizba/Presentation/DesignSystem/Theme/Theme+Dark.swift`.
+- verification-summary: Targeted `KizbaNightContrastTests` passed (7 tests, 0 failures); full `xcodebuild test` suite passed (1295 tests, 17 skipped, 0 failures).

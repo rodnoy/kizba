@@ -11,7 +11,7 @@ public extension ColorTokens {
     static let dark = ColorTokens(
         surface: Color(hex: 0x111018),
         surfaceElevated: Color(hex: 0x1E1A2A),
-        surfaceSunken: Color(hex: 0x0F0D16),
+        surfaceSunken: Color(hex: 0x0B0A12),
         surfaceHover: Color(hex: 0xCDB4DB, opacity: 0.10),
         surfaceSelected: Color(hex: 0xA2D2FF, opacity: 0.18),
         surfaceCard: Color(hex: 0x1E1A2A),
