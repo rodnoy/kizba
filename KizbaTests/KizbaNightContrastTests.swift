@@ -90,4 +90,19 @@ final class KizbaNightContrastTests: XCTestCase {
             )
         }
     }
+
+    func testKizbaNight_passwordReveal_secretMask_meets_AAA() {
+        for theme in Self.allVariants {
+            let ratio = ContrastChecker.contrastRatio(
+                foreground: theme.colors.onSurface,
+                background: theme.colors.secretMask,
+                alphaCompositedOver: theme.colors.surface
+            )
+            XCTAssertGreaterThanOrEqual(
+                ratio,
+                7.0,
+                "onSurface/secretMask(over surface) for \(theme.id) below AAA: \(ratio)"
+            )
+        }
+    }
 }

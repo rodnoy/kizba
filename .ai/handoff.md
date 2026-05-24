@@ -62,3 +62,9 @@ Expected result: test runner executes and the new smoke test passes; no regressi
 - timestamp: 2026-05-24T11:40:34Z
 - what-was-done: Updated `darkHighContrast` in `Kizba/Presentation/DesignSystem/Theme/Theme+HighContrast.swift` by changing `accentMuted` opacity from `0.34` to `0.28` to satisfy Step 2.4 contrast requirements; no other tokens or semantics were modified.
 - verification-summary: Targeted run `xcodebuild test -scheme "Kizba" -destination 'platform=macOS' -only-testing:KizbaTests/KizbaNightContrastTests` passed (`5` tests, `0` failures). Full run `xcodebuild test -scheme "Kizba" -destination 'platform=macOS'` passed (`1293` tests executed, `17` skipped, `0` failures), `** TEST SUCCEEDED **`.
+
+## Completion
+- completed-by: smart-worker
+- timestamp: 2026-05-24T11:47:17Z
+- what-was-done: Implemented Step 2.5 by appending `testKizbaNight_passwordReveal_secretMask_meets_AAA` to `KizbaTests/KizbaNightContrastTests.swift`, asserting `onSurface` over `secretMask` composited on `surface` is >= `7.0` (AAA) across `Self.allVariants`.
+- verification-summary: Targeted run `xcodebuild test -scheme "Kizba" -destination 'platform=macOS' -only-testing:KizbaTests/KizbaNightContrastTests` passed (`6` tests, `0` failures). Full run `xcodebuild test -scheme "Kizba" -destination 'platform=macOS'` passed (`1294` tests executed, `17` skipped, `0` failures), `** TEST SUCCEEDED **`.
