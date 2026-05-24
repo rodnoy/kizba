@@ -51,4 +51,28 @@ final class KizbaNightContrastTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(ratioCard, 4.5, "onSurfaceMuted/surfaceCard for \(theme.id) below AA: \(ratioCard)")
         }
     }
+
+    func testKizbaNight_onAccent_against_accent_and_accentSecondary_meet_AA() {
+        for theme in Self.allVariants {
+            let ratioAccent = ContrastChecker.contrastRatio(
+                foreground: theme.colors.onAccent,
+                background: theme.colors.accent
+            )
+            XCTAssertGreaterThanOrEqual(
+                ratioAccent,
+                4.5,
+                "onAccent/accent for \(theme.id) below AA: \(ratioAccent)"
+            )
+
+            let ratioAccentSecondary = ContrastChecker.contrastRatio(
+                foreground: theme.colors.onAccent,
+                background: theme.colors.accentSecondary
+            )
+            XCTAssertGreaterThanOrEqual(
+                ratioAccentSecondary,
+                4.5,
+                "onAccent/accentSecondary for \(theme.id) below AA: \(ratioAccentSecondary)"
+            )
+        }
+    }
 }
