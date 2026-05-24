@@ -55,4 +55,6 @@ All consumed via `theme.colors.<token>` in views. No call sites need updating (n
 
 - **2026-05-24T21:08:21Z** | HEAD: `de92f80a580551f16db361d10ab2e84bd748164e` | Step 4.1 verification: confirmed `ColorTokens` already contains `surfaceCard`/`surfaceCardHover` and all theme variants (`dark`, `light`, `lightHighContrast`, `darkHighContrast`) already wire Day-1 aliases explicitly (`surfaceCard == surfaceElevated` RHS expression; `surfaceCardHover == surfaceHover` RHS expression). No code token changes required. Targeted `KizbaNightContrastTests` passed (7/7) and full suite passed (1295 tests, 17 skipped, 0 failures).
 
+- **2026-05-24T21:13:10Z** | HEAD: `b8c23a0fbb0416b0541b038eede6ebc4db1b9a20` | Step 4.2 implemented: added additive Day-1 alias tokens `surfaceCardFlat` and `surfaceCardFlatHover` to `ColorTokens` and wired them across `dark`, `light`, `lightHighContrast`, and `darkHighContrast` using the exact existing `surfaceCard` / `surfaceCardHover` RHS expressions per variant (no new hex values, no visual change). Targeted `KizbaNightContrastTests` passed (7/7) and full suite passed (1295 tests, 17 skipped, 0 failures).
+
 (End of file - total 42 lines)

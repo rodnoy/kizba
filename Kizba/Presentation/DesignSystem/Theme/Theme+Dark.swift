@@ -16,6 +16,8 @@ public extension ColorTokens {
         surfaceSelected: Color(hex: 0xA2D2FF, opacity: 0.18),
         surfaceCard: Color(hex: 0x1E1A2A),
         surfaceCardHover: Color(hex: 0xCDB4DB, opacity: 0.10),
+        surfaceCardFlat: Color(hex: 0x1E1A2A),
+        surfaceCardFlatHover: Color(hex: 0xCDB4DB, opacity: 0.10),
         onSurface: Color(hex: 0xF4EFF7),
         onSurfaceMuted: Color(hex: 0xB8B0C8),
         onSurfaceFaint: Color(hex: 0x7B7390),
