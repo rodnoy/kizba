@@ -9,7 +9,7 @@ public extension ColorTokens {
     /// matches the on-accent / on-danger pattern used elsewhere in the
     /// dark palette.
     static let dark = ColorTokens(
-        surface: Color(hex: 0x15121C),
+        surface: Color(hex: 0x111018),
         surfaceElevated: Color(hex: 0x1E1A2A),
         surfaceSunken: Color(hex: 0x0F0D16),
         surfaceHover: Color(hex: 0xCDB4DB, opacity: 0.10),
@@ -39,7 +39,7 @@ public extension ColorTokens {
         // Dark hairline core (== surface) provides a ~10.5:1 split
         // against the outer band and ~3.5:1 against the pastel accent,
         // so the ring stays legible on both chrome and accent fills.
-        focusRingInner: Color(hex: 0x15121C),
+        focusRingInner: Color(hex: 0x111018),
         divider: Color(hex: 0xF4EFF7, opacity: 0.10),
         scrim: Color(hex: 0x000000, opacity: 0.55),
         // Lowered from 0.14 → 0.06 so the masked rectangle composites

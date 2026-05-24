@@ -85,7 +85,7 @@ public extension ColorTokens {
     ///   AAA. The fainter overlay restores AAA password-reveal contrast
     ///   while keeping a perceptible masked-state tint.
     static let darkHighContrast = ColorTokens(
-        surface: Color(hex: 0x15121C),
+        surface: Color(hex: 0x111018),
         surfaceElevated: Color(hex: 0x1E1A2A),
         surfaceSunken: Color(hex: 0x0F0D16),
         surfaceHover: Color(hex: 0xCDB4DB, opacity: 0.18),
@@ -123,7 +123,7 @@ public extension ColorTokens {
         focusRingOuter: Color(hex: 0xBDE0FE),    // delta: was #A2D2FF (single-tone)
         // Dark hairline core (== surface) splits the outer band at
         // ~13.4:1 and reaches ~5.5:1 against the brightened HC accent.
-        focusRingInner: Color(hex: 0x15121C),    // delta: ring is now two-tone
+        focusRingInner: Color(hex: 0x111018),    // delta: ring is now two-tone
         divider: Color(hex: 0xF4EFF7, opacity: 0.20), // delta: was 0.10
         scrim: Color(hex: 0x000000, opacity: 0.65),
         // Lowered 0.22 → 0.04 so the mask barely tints the surface; this
