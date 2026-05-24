@@ -19,6 +19,8 @@ public struct ColorTokens: Sendable, Equatable {
     public let surfaceCardHover: Color
     public let surfaceCardFlat: Color
     public let surfaceCardFlatHover: Color
+    public let surfaceCardInteractive: Color
+    public let surfaceCardInteractiveHover: Color
 
     // On-surface text roles
     public let onSurface: Color
@@ -70,6 +72,8 @@ public struct ColorTokens: Sendable, Equatable {
         surfaceCardHover: Color,
         surfaceCardFlat: Color,
         surfaceCardFlatHover: Color,
+        surfaceCardInteractive: Color,
+        surfaceCardInteractiveHover: Color,
         onSurface: Color,
         onSurfaceMuted: Color,
         onSurfaceFaint: Color,
@@ -102,6 +106,8 @@ public struct ColorTokens: Sendable, Equatable {
         self.surfaceCardHover = surfaceCardHover
         self.surfaceCardFlat = surfaceCardFlat
         self.surfaceCardFlatHover = surfaceCardFlatHover
+        self.surfaceCardInteractive = surfaceCardInteractive
+        self.surfaceCardInteractiveHover = surfaceCardInteractiveHover
         self.onSurface = onSurface
         self.onSurfaceMuted = onSurfaceMuted
         self.onSurfaceFaint = onSurfaceFaint

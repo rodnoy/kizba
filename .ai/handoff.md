@@ -70,3 +70,15 @@ Expected: All 5 tests pass (0 failures).
 - verification-summary:
   - `xcodebuild test -scheme "Kizba" -destination 'platform=macOS' -only-testing:KizbaTests/KizbaNightContrastTests` — PASS (7 tests, 0 failures).
   - `xcodebuild test -scheme "Kizba" -destination 'platform=macOS'` — PASS (1295 tests, 17 skipped, 0 failures).
+
+## Completion
+- completed-by: smart-worker
+- timestamp: 2026-05-24T21:17:38Z
+- what-was-done:
+  - Added additive `surfaceCardInteractive` and `surfaceCardInteractiveHover` tokens to `ColorTokens` in the Surfaces group immediately after `surfaceCardFlatHover`.
+  - Extended `ColorTokens` public initializer with `surfaceCardInteractive` and `surfaceCardInteractiveHover` parameters in matching order and wired assignments in the initializer body.
+  - Added Day-1 alias arguments in `Theme+Dark.swift`, `Theme+Light.swift`, and both `lightHighContrast` / `darkHighContrast` variants in `Theme+HighContrast.swift`.
+  - Kept alias RHS expressions identical to existing per-file `surfaceElevated` and `surfaceHover` expressions (no new hex values, no visual changes).
+- verification-summary:
+  - `xcodebuild test -scheme "Kizba" -destination 'platform=macOS' -only-testing:KizbaTests/KizbaNightContrastTests` — PASS (7 tests, 0 failures).
+  - `xcodebuild test -scheme "Kizba" -destination 'platform=macOS'` — PASS (1295 tests, 17 skipped, 0 failures).

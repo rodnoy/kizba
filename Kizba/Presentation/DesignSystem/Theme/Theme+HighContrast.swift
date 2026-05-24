@@ -32,6 +32,8 @@ public extension ColorTokens {
         surfaceCardHover: Color(hex: 0xCDB4DB, opacity: 0.20),
         surfaceCardFlat: Color(hex: 0xFFFFFF),
         surfaceCardFlatHover: Color(hex: 0xCDB4DB, opacity: 0.20),
+        surfaceCardInteractive: Color(hex: 0xFFFFFF),
+        surfaceCardInteractiveHover: Color(hex: 0xCDB4DB, opacity: 0.20),
         onSurface: Color(hex: 0x1F1B2E),
         onSurfaceMuted: Color(hex: 0x1F1B2E), // delta: was #4A445E
         onSurfaceFaint: Color(hex: 0x4A445E), // delta: was #8A839E
@@ -96,6 +98,8 @@ public extension ColorTokens {
         surfaceCardHover: Color(hex: 0xCDB4DB, opacity: 0.18),
         surfaceCardFlat: Color(hex: 0x1E1A2A),
         surfaceCardFlatHover: Color(hex: 0xCDB4DB, opacity: 0.18),
+        surfaceCardInteractive: Color(hex: 0x1E1A2A),
+        surfaceCardInteractiveHover: Color(hex: 0xCDB4DB, opacity: 0.18),
         onSurface: Color(hex: 0xF4EFF7),
         onSurfaceMuted: Color(hex: 0xF4EFF7), // delta: was #B8B0C8
         onSurfaceFaint: Color(hex: 0xB8B0C8), // delta: was #7B7390

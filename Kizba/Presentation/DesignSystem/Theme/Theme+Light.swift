@@ -13,6 +13,8 @@ public extension ColorTokens {
         surfaceCardHover: Color(hex: 0xCDB4DB, opacity: 0.14),
         surfaceCardFlat: Color(hex: 0xFFFFFF),
         surfaceCardFlatHover: Color(hex: 0xCDB4DB, opacity: 0.14),
+        surfaceCardInteractive: Color(hex: 0xFFFFFF),
+        surfaceCardInteractiveHover: Color(hex: 0xCDB4DB, opacity: 0.14),
         onSurface: Color(hex: 0x1F1B2E),
         onSurfaceMuted: Color(hex: 0x4A445E),
         onSurfaceFaint: Color(hex: 0x8A839E),
