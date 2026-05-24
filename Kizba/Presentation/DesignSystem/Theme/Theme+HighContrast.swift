@@ -96,7 +96,7 @@ public extension ColorTokens {
         onSurfaceMuted: Color(hex: 0xF4EFF7), // delta: was #B8B0C8
         onSurfaceFaint: Color(hex: 0xB8B0C8), // delta: was #7B7390
         accent: Color(hex: 0xE5D2F2),         // delta: was #CDB4DB
-        accentMuted: Color(hex: 0xCDB4DB, opacity: 0.34),
+        accentMuted: Color(hex: 0xCDB4DB, opacity: 0.28),
         accentSecondary: Color(hex: 0xBDE0FE),
         accentStrong: Color(hex: 0xE5D2F2),
         onAccent: Color(hex: 0x1F1B2E),

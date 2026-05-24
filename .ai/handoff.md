@@ -56,3 +56,9 @@ Expected result: test runner executes and the new smoke test passes; no regressi
 - timestamp: 2026-05-24T05:53:48Z
 - what-was-done: Implemented Step 2.3 by appending `testKizbaNight_onAccent_against_accent_and_accentSecondary_meet_AA` to `KizbaTests/KizbaNightContrastTests.swift`, asserting `onAccent/accent >= 4.5` and `onAccent/accentSecondary >= 4.5` across `Self.allVariants`.
 - verification-summary: `xcodebuild test -scheme "Kizba" -destination 'platform=macOS'` succeeded; full suite passed (`1292` tests executed, `17` skipped, `0` failures), `** TEST SUCCEEDED **`.
+
+## Completion
+- completed-by: smart-worker
+- timestamp: 2026-05-24T11:40:34Z
+- what-was-done: Updated `darkHighContrast` in `Kizba/Presentation/DesignSystem/Theme/Theme+HighContrast.swift` by changing `accentMuted` opacity from `0.34` to `0.28` to satisfy Step 2.4 contrast requirements; no other tokens or semantics were modified.
+- verification-summary: Targeted run `xcodebuild test -scheme "Kizba" -destination 'platform=macOS' -only-testing:KizbaTests/KizbaNightContrastTests` passed (`5` tests, `0` failures). Full run `xcodebuild test -scheme "Kizba" -destination 'platform=macOS'` passed (`1293` tests executed, `17` skipped, `0` failures), `** TEST SUCCEEDED **`.
