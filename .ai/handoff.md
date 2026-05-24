@@ -48,3 +48,9 @@ Expected: All 7 tests pass (0 failures).
 - timestamp: 2026-05-24T19:59:03Z
 - what-was-done: Updated dark `surfaceSunken` token from `0x0F0D16` to `0x0B0A12` in `Kizba/Presentation/DesignSystem/Theme/Theme+Dark.swift`.
 - verification-summary: Targeted `KizbaNightContrastTests` passed (7 tests, 0 failures); full `xcodebuild test` suite passed (1295 tests, 17 skipped, 0 failures).
+
+## Completion
+- completed-by: smart-worker
+- timestamp: 2026-05-24T20:12:53Z
+- what-was-done: Verified Step 3.3 is already satisfied: `focusRingInner` in `Kizba/Presentation/DesignSystem/Theme/Theme+Dark.swift` already equals `Color(hex: 0x111018)`.
+- verification-summary: Targeted `KizbaNightContrastTests` passed (7 tests, 0 failures) via `xcodebuild test -scheme "Kizba" -destination 'platform=macOS' -only-testing:KizbaTests/KizbaNightContrastTests`.
