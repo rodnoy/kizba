@@ -84,3 +84,16 @@ Completion block appended by smart-builder.
   - `xcodebuild test -scheme "Kizba" -destination 'platform=macOS' -only-testing:KizbaTests/KizbaButtonStyleTests` — PASS (23 tests, 0 failures).
   - `xcodebuild test -scheme "Kizba" -destination 'platform=macOS' -only-testing:KizbaTests/KizbaNightContrastTests` — PASS (7 tests, 0 failures).
   - `xcodebuild test -scheme "Kizba" -destination 'platform=macOS'` — PASS (1298 tests, 17 skipped, 0 failures).
+
+## Completion
+- completed-by: smart-worker
+- timestamp: 2026-05-25T11:43:16Z
+- what-was-done:
+  - Added new test file `KizbaTests/ButtonVariantTests.swift` with 4 focused tests for Step 5.5.
+  - Added alias-contract assertions for `buttonSecondaryFill` (`== surfaceElevated`) across light/lightHC/dark/darkHC.
+  - Added alias-contract assertions for `buttonGhostPressedFill` (`== surfaceElevated` in light variants, `== surfaceSunken` in dark variants).
+  - Added AA contrast assertions (`>= 4.5`) for `accent` over `buttonSecondaryFill` and `buttonGhostPressedFill`, resolving background with `ContrastChecker.compositeOver(..., theme.colors.surface)`.
+- verification-summary:
+  - `xcodebuild test -scheme "Kizba" -destination 'platform=macOS' -only-testing:KizbaTests/ButtonVariantTests` — PASS (4 tests, 0 failures).
+  - `xcodebuild test -scheme "Kizba" -destination 'platform=macOS' -only-testing:KizbaTests/KizbaNightContrastTests` — PASS (7 tests, 0 failures).
+  - `xcodebuild test -scheme "Kizba" -destination 'platform=macOS'` — PASS (1302 tests, 17 skipped, 0 failures).
