@@ -97,3 +97,15 @@ Completion block appended by smart-builder.
   - `xcodebuild test -scheme "Kizba" -destination 'platform=macOS' -only-testing:KizbaTests/ButtonVariantTests` — PASS (4 tests, 0 failures).
   - `xcodebuild test -scheme "Kizba" -destination 'platform=macOS' -only-testing:KizbaTests/KizbaNightContrastTests` — PASS (7 tests, 0 failures).
   - `xcodebuild test -scheme "Kizba" -destination 'platform=macOS'` — PASS (1302 tests, 17 skipped, 0 failures).
+
+## Step 5.7 Review Sign-off
+
+- completed-by: smart-reviewer
+- timestamp: 2026-05-25T22:06:00+02:00
+- review-summary:
+  - No `Color(hex:` literals found outside `DesignSystem/Theme/` files — all 148 occurrences confined to Theme+Dark, Theme+Light, Theme+HighContrast.
+  - `KizbaButtonStyle.backgroundColor` has NO `theme.id` switch; ghost pressed state resolves via `theme.colors.buttonGhostPressedFill` (confirmed).
+  - `KizbaButtonStyleTests` (23/23) and `ButtonVariantTests` (4/4) pass — 27 tests, 0 failures.
+  - New tokens in `ColorTokens`: `buttonPrimaryFill`, `buttonSecondaryFill`, `buttonDestructiveFill`, `buttonGhostPressedFill` — all present with init wiring.
+  - Day-1 aliases verified across all 4 theme variants: `buttonSecondaryFill ≡ surfaceElevated`, `buttonGhostPressedFill ≡ surfaceSunken` (dark/darkHC) / `surfaceElevated` (light/lightHC) — matches plan exactly.
+  - No issues found. APPROVED.
