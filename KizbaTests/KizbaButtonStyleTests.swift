@@ -84,7 +84,7 @@ final class KizbaButtonStyleTests: XCTestCase {
 
     // MARK: - Background color mapping
 
-    func testBackgroundColor_primary_isAccentInEveryThemeRegardlessOfPress() {
+    func testBackgroundColor_primary_isButtonPrimaryFillInEveryThemeRegardlessOfPress() {
         for theme in Self.allThemes {
             for pressed in [false, true] {
                 XCTAssertEqual(
@@ -93,14 +93,14 @@ final class KizbaButtonStyleTests: XCTestCase {
                         in: theme,
                         isPressed: pressed
                     ),
-                    theme.colors.accent,
+                    theme.colors.buttonPrimaryFill,
                     "primary bg in \(theme.id), pressed=\(pressed)"
                 )
             }
         }
     }
 
-    func testBackgroundColor_destructive_isDangerInEveryThemeRegardlessOfPress() {
+    func testBackgroundColor_destructive_isButtonDestructiveFillInEveryThemeRegardlessOfPress() {
         for theme in Self.allThemes {
             for pressed in [false, true] {
                 XCTAssertEqual(
@@ -109,14 +109,14 @@ final class KizbaButtonStyleTests: XCTestCase {
                         in: theme,
                         isPressed: pressed
                     ),
-                    theme.colors.danger,
+                    theme.colors.buttonDestructiveFill,
                     "destructive bg in \(theme.id), pressed=\(pressed)"
                 )
             }
         }
     }
 
-    func testBackgroundColor_secondary_isSurfaceElevatedInEveryThemeRegardlessOfPress() {
+    func testBackgroundColor_secondary_isButtonSecondaryFillInEveryThemeRegardlessOfPress() {
         for theme in Self.allThemes {
             for pressed in [false, true] {
                 XCTAssertEqual(
@@ -125,7 +125,7 @@ final class KizbaButtonStyleTests: XCTestCase {
                         in: theme,
                         isPressed: pressed
                     ),
-                    theme.colors.surfaceElevated,
+                    theme.colors.buttonSecondaryFill,
                     "secondary bg in \(theme.id), pressed=\(pressed)"
                 )
             }
@@ -133,26 +133,17 @@ final class KizbaButtonStyleTests: XCTestCase {
     }
 
     func testBackgroundColor_ghost_idleIsClearAndPressedIsLuminanceAwaySurface() {
-        // Ghost pressed fill swaps to a luminance-away surface so the
-        // accent foreground keeps AA contrast: light themes use
-        // `surfaceElevated` (lighter than `surface`), dark themes use
-        // `surfaceSunken` (darker than `surface`).
+        // Ghost pressed fill is resolved through the semantic
+        // `buttonGhostPressedFill` token.
         for theme in Self.allThemes {
             XCTAssertEqual(
                 KizbaButtonStyle.backgroundColor(for: .ghost, in: theme, isPressed: false),
                 Color.clear,
                 "ghost idle bg in \(theme.id)"
             )
-            let expectedPressed: Color
-            switch theme.id {
-            case .light, .lightHighContrast:
-                expectedPressed = theme.colors.surfaceElevated
-            case .dark, .darkHighContrast:
-                expectedPressed = theme.colors.surfaceSunken
-            }
             XCTAssertEqual(
                 KizbaButtonStyle.backgroundColor(for: .ghost, in: theme, isPressed: true),
-                expectedPressed,
+                theme.colors.buttonGhostPressedFill,
                 "ghost pressed bg in \(theme.id)"
             )
         }

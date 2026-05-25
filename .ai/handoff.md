@@ -62,3 +62,25 @@ Step 5.2: Wire Day-1 aliases in Theme+Dark.swift, Theme+Light.swift, Theme+HighC
 - verification-summary:
   - `xcodebuild test -scheme "Kizba" -destination 'platform=macOS' -only-testing:KizbaTests/KizbaNightContrastTests` — PASS (7 tests, 0 failures).
   - `xcodebuild test -scheme "Kizba" -destination 'platform=macOS'` — PASS (1298 tests, 17 skipped, 0 failures).
+
+## Verification by smart-builder
+
+- completed-by: smart-builder
+- timestamp: 2026-05-25T13:30:12+02:00
+- verification:
+  - Ran targeted button style tests and night-contrast tests, both passed.
+  - Ran full test suite: PASS (1298 tests, 17 skipped, 0 failures).
+
+Completion block appended by smart-builder.
+
+## Completion
+- completed-by: smart-worker
+- timestamp: 2026-05-25T11:34:32Z
+- what-was-done:
+  - Updated `KizbaButtonStyle.backgroundColor(for:in:isPressed:)` to resolve `.primary`, `.secondary`, and `.destructive` via semantic button tokens: `buttonPrimaryFill`, `buttonSecondaryFill`, `buttonDestructiveFill`.
+  - Replaced ghost pressed-state `theme.id` branching with a direct semantic token lookup: `buttonGhostPressedFill` (idle remains `Color.clear`).
+  - Updated `KizbaButtonStyleTests` background mapping assertions to verify the new button token contract for primary/secondary/destructive and ghost pressed state; ghost idle assertion remains `Color.clear`.
+- verification-summary:
+  - `xcodebuild test -scheme "Kizba" -destination 'platform=macOS' -only-testing:KizbaTests/KizbaButtonStyleTests` — PASS (23 tests, 0 failures).
+  - `xcodebuild test -scheme "Kizba" -destination 'platform=macOS' -only-testing:KizbaTests/KizbaNightContrastTests` — PASS (7 tests, 0 failures).
+  - `xcodebuild test -scheme "Kizba" -destination 'platform=macOS'` — PASS (1298 tests, 17 skipped, 0 failures).

@@ -69,21 +69,12 @@ public struct KizbaButtonStyle: ButtonStyle {
         isPressed: Bool
     ) -> Color {
         switch variant {
-        case .primary: return theme.colors.accent
-        case .secondary: return theme.colors.surfaceElevated
-        case .destructive: return theme.colors.danger
+        case .primary: return theme.colors.buttonPrimaryFill
+        case .secondary: return theme.colors.buttonSecondaryFill
+        case .destructive: return theme.colors.buttonDestructiveFill
         case .ghost:
             guard isPressed else { return Color.clear }
-            // Luminance-away surface swap for ghost press: light themes
-            // use elevated (lighter), dark themes use sunken (darker), to
-            // push background AWAY from accent foreground luminance and
-            // preserve AA contrast.
-            switch theme.id {
-            case .light, .lightHighContrast:
-                return theme.colors.surfaceElevated
-            case .dark, .darkHighContrast:
-                return theme.colors.surfaceSunken
-            }
+            return theme.colors.buttonGhostPressedFill
         }
     }
 
