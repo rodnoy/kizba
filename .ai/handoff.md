@@ -82,3 +82,14 @@ Expected: All 5 tests pass (0 failures).
 - verification-summary:
   - `xcodebuild test -scheme "Kizba" -destination 'platform=macOS' -only-testing:KizbaTests/KizbaNightContrastTests` — PASS (7 tests, 0 failures).
   - `xcodebuild test -scheme "Kizba" -destination 'platform=macOS'` — PASS (1295 tests, 17 skipped, 0 failures).
+
+## Completion
+- completed-by: smart-worker
+- timestamp: 2026-05-25T06:45:59Z
+- what-was-done:
+  - Added `KizbaTests/CardVariantTests.swift` with alias-contract assertions for card tokens across all theme variants.
+  - Added contrast-contract assertions for `onSurface` (AAA >= 7.0) and `onSurfaceMuted` (AA >= 4.5) against `surfaceCard`, `surfaceCardFlat`, and `surfaceCardInteractive` across all theme variants.
+  - Kept implementation scope test-only; no production code changes.
+- verification-summary:
+  - `xcodebuild test -scheme "Kizba" -destination 'platform=macOS' -only-testing:KizbaTests/CardVariantTests` — PASS (3 tests, 0 failures).
+  - `xcodebuild test -scheme "Kizba" -destination 'platform=macOS'` — PASS (1298 tests, 17 skipped, 0 failures).
