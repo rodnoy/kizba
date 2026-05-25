@@ -33,6 +33,10 @@ public struct ColorTokens: Sendable, Equatable {
     public let accentSecondary: Color
     public let accentStrong: Color
     public let onAccent: Color
+    public let buttonPrimaryFill: Color
+    public let buttonSecondaryFill: Color
+    public let buttonDestructiveFill: Color
+    public let buttonGhostPressedFill: Color
 
     // Danger
     public let danger: Color
@@ -82,6 +86,10 @@ public struct ColorTokens: Sendable, Equatable {
         accentSecondary: Color,
         accentStrong: Color,
         onAccent: Color,
+        buttonPrimaryFill: Color,
+        buttonSecondaryFill: Color,
+        buttonDestructiveFill: Color,
+        buttonGhostPressedFill: Color,
         danger: Color,
         dangerMuted: Color,
         onDanger: Color,
@@ -116,6 +124,10 @@ public struct ColorTokens: Sendable, Equatable {
         self.accentSecondary = accentSecondary
         self.accentStrong = accentStrong
         self.onAccent = onAccent
+        self.buttonPrimaryFill = buttonPrimaryFill
+        self.buttonSecondaryFill = buttonSecondaryFill
+        self.buttonDestructiveFill = buttonDestructiveFill
+        self.buttonGhostPressedFill = buttonGhostPressedFill
         self.danger = danger
         self.dangerMuted = dangerMuted
         self.onDanger = onDanger

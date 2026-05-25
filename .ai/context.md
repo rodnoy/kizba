@@ -64,3 +64,5 @@ All consumed via `theme.colors.<token>` in views. No call sites need updating (n
 (End of file - total 42 lines)
 
 - **2026-05-25T07:00:30Z** | HEAD: `cefbda35470349fa646cf74876fdff7358acfa89` | Step 4.5 review & triage: smart-reviewer verified all card variant tokens (surfaceCard, surfaceCardFlat, surfaceCardInteractive + hover variants) across ColorTokens and all 4 theme variants. CardVariantTests (3/3) and KizbaNightContrastTests (7/7) pass. Full suite 1298 tests, 0 failures. APPROVED.
+
+- **2026-05-25T11:25:32Z** | HEAD: `df5e5aa679ddb9f3c7a6490ceb414ac3ff06a5b7` | Step 5.1 implementation: added button tokens to `ColorTokens` (`buttonPrimaryFill`, `buttonSecondaryFill`, `buttonDestructiveFill`, `buttonGhostPressedFill`) with initializer wiring, and wired Day-1 aliases in `Theme+Light.swift`, `Theme+Dark.swift`, and both variants in `Theme+HighContrast.swift` using existing per-file RHS expressions (no new hex values). Targeted `KizbaNightContrastTests` passed (7/7) and full suite passed (1298 tests, 17 skipped, 0 failures).

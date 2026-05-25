@@ -42,6 +42,10 @@ public extension ColorTokens {
         accentSecondary: Color(hex: 0x0B2C66),
         accentStrong: Color(hex: 0x5B3FA0),
         onAccent: Color(hex: 0xFFFFFF),
+        buttonPrimaryFill: Color(hex: 0x5B3FA0),
+        buttonSecondaryFill: Color(hex: 0xFFFFFF),
+        buttonDestructiveFill: Color(hex: 0xC2185B),
+        buttonGhostPressedFill: Color(hex: 0xFFFFFF),
         danger: Color(hex: 0xC2185B),
         dangerMuted: Color(hex: 0xFFC8DD, opacity: 0.55),
         onDanger: Color(hex: 0xFFFFFF),
@@ -108,6 +112,10 @@ public extension ColorTokens {
         accentSecondary: Color(hex: 0xBDE0FE),
         accentStrong: Color(hex: 0xE5D2F2),
         onAccent: Color(hex: 0x1F1B2E),
+        buttonPrimaryFill: Color(hex: 0xE5D2F2),
+        buttonSecondaryFill: Color(hex: 0x1E1A2A),
+        buttonDestructiveFill: Color(hex: 0xFFAFCC),
+        buttonGhostPressedFill: Color(hex: 0x0F0D16),
         danger: Color(hex: 0xFFAFCC),
         // Muted-bg α lowered 0.28 → 0.10 so the composite over the dark
         // surface stays close to bare surface. Both the icon vs bg ratio
